@@ -20,7 +20,7 @@ from trajectly.engine import (
     run_specs,
     write_diff_report,
 )
-from trajectly.report import render_markdown
+from trajectly.report import render_markdown, render_pr_comment
 from trajectly.specs import BudgetThresholds
 
 app = typer.Typer(add_completion=False, help="Deterministic regression testing for AI agent trajectories")
@@ -230,19 +230,34 @@ def diff(
 def report(
     project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
     as_json: bool = typer.Option(False, "--json", help="Print JSON instead of Markdown"),
+    pr_comment: bool = typer.Option(False, "--pr-comment", help="Render PR-comment-ready markdown"),
 ) -> None:
     """Print the latest aggregate report."""
-    try:
-        content = read_latest_report(project_root.resolve(), as_json=as_json)
-    except FileNotFoundError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
+    if as_json and pr_comment:
+        typer.echo("ERROR: --json and --pr-comment cannot be used together", err=True)
+        raise typer.Exit(EXIT_INTERNAL_ERROR)
 
-    if as_json:
-        parsed = json.loads(content)
-        typer.echo(json.dumps(parsed, indent=2, sort_keys=True))
+    if pr_comment:
+        try:
+            raw_json = read_latest_report(project_root.resolve(), as_json=True)
+        except FileNotFoundError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
+        parsed = json.loads(raw_json)
+        typer.echo(render_pr_comment(parsed))
         typer.echo(f"Source: {latest_report_path(project_root.resolve(), as_json=True)}")
     else:
-        typer.echo(content)
-        typer.echo(f"Source: {latest_report_path(project_root.resolve(), as_json=False)}")
+        try:
+            content = read_latest_report(project_root.resolve(), as_json=as_json)
+        except FileNotFoundError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
+
+        if as_json:
+            parsed = json.loads(content)
+            typer.echo(json.dumps(parsed, indent=2, sort_keys=True))
+            typer.echo(f"Source: {latest_report_path(project_root.resolve(), as_json=True)}")
+        else:
+            typer.echo(content)
+            typer.echo(f"Source: {latest_report_path(project_root.resolve(), as_json=False)}")
     raise typer.Exit(EXIT_SUCCESS)

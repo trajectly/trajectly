@@ -19,6 +19,7 @@ All notable changes to this project are documented in this file.
 - First-divergence summary in diff outputs and reports.
 - Repro artifacts in `.trajectly/repros/` plus `trajectly repro` command for one-command local reproduction.
 - Basic trace minimization in repro artifacts (`*.baseline.min.jsonl`, `*.current.min.jsonl`).
+- PR-comment-ready markdown output via `trajectly report --pr-comment`.
 
 ### Changed
 

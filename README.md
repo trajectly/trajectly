@@ -48,6 +48,12 @@ trajectly repro example-contract-tool-denied
 
 Each run writes repro artifacts to `.trajectly/repros/`, including minimized baseline/current traces.
 
+For CI comment output:
+
+```bash
+trajectly report --pr-comment
+```
+
 ## Contracts Schema (v1 Draft)
 
 ```yaml
