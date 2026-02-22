@@ -133,6 +133,80 @@ _AUTO_SPEC_EXCLUDED_DIRS = {
     "build",
 }
 
+SUPPORTED_ENABLE_TEMPLATES = {"openai", "langchain", "autogen"}
+
+
+def _template_assets(template: str) -> dict[Path, str]:
+    if template == "openai":
+        return {
+            Path("templates/openai_agent.py"): (
+                "from trajectly.sdk import agent_step, openai_chat_completion\n\n"
+                "class _Completions:\n"
+                "    def create(self, **_kwargs):\n"
+                "        return {\n"
+                "            'choices': [{'message': {'content': 'openai-template-ok'}}],\n"
+                "            'usage': {'total_tokens': 4},\n"
+                "        }\n\n"
+                "class _Chat:\n"
+                "    completions = _Completions()\n\n"
+                "class MockOpenAIClient:\n"
+                "    chat = _Chat()\n\n"
+                "agent_step('start')\n"
+                "result = openai_chat_completion(\n"
+                "    MockOpenAIClient(),\n"
+                "    model='gpt-mock',\n"
+                "    messages=[{'role': 'user', 'content': 'hello'}],\n"
+                ")\n"
+                "agent_step('done', {'response': result['response']})\n"
+            ),
+            Path("openai.agent.yaml"): (
+                "name: template-openai\n"
+                "command: python templates/openai_agent.py\n"
+                "fixture_policy: by_hash\n"
+                "strict: true\n"
+            ),
+        }
+    if template == "langchain":
+        return {
+            Path("templates/langchain_agent.py"): (
+                "from trajectly.sdk import agent_step, langchain_invoke\n\n"
+                "class MockRunnable:\n"
+                "    def invoke(self, _input_value):\n"
+                "        return {'response': 'langchain-template-ok', 'usage': {'total_tokens': 3}}\n\n"
+                "agent_step('start')\n"
+                "result = langchain_invoke(MockRunnable(), {'prompt': 'hello'})\n"
+                "agent_step('done', {'response': result['response']})\n"
+            ),
+            Path("langchain.agent.yaml"): (
+                "name: template-langchain\n"
+                "command: python templates/langchain_agent.py\n"
+                "fixture_policy: by_hash\n"
+                "strict: true\n"
+            ),
+        }
+    if template == "autogen":
+        return {
+            Path("templates/autogen_agent.py"): (
+                "from trajectly.sdk import agent_step, autogen_chat_run\n\n"
+                "class MockChatRunner:\n"
+                "    def run(self, messages):\n"
+                "        return {\n"
+                "            'response': f\"autogen-template-ok:{len(messages)}\",\n"
+                "            'usage': {'total_tokens': 2},\n"
+                "        }\n\n"
+                "agent_step('start')\n"
+                "result = autogen_chat_run(MockChatRunner(), [{'role': 'user', 'content': 'hello'}])\n"
+                "agent_step('done', {'response': result['response']})\n"
+            ),
+            Path("autogen.agent.yaml"): (
+                "name: template-autogen\n"
+                "command: python templates/autogen_agent.py\n"
+                "fixture_policy: by_hash\n"
+                "strict: true\n"
+            ),
+        }
+    raise ValueError(f"Unsupported template: {template}")
+
 
 def discover_spec_files(project_root: Path) -> list[Path]:
     """Discover agent specs for auto-mode commands in deterministic order."""
@@ -154,6 +228,24 @@ def enable_workspace(project_root: Path) -> list[Path]:
     """Initialize workspace and return discovered specs for onboarding output."""
     initialize_workspace(project_root.resolve())
     return discover_spec_files(project_root.resolve())
+
+
+def apply_enable_template(project_root: Path, template: str) -> list[Path]:
+    normalized = template.strip().lower()
+    if normalized not in SUPPORTED_ENABLE_TEMPLATES:
+        supported = ", ".join(sorted(SUPPORTED_ENABLE_TEMPLATES))
+        raise ValueError(f"Unsupported template: {template}. Supported templates: {supported}")
+
+    created: list[Path] = []
+    assets = _template_assets(normalized)
+    for rel_path, content in assets.items():
+        path = (project_root.resolve() / rel_path).resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            continue
+        path.write_text(content, encoding="utf-8")
+        created.append(path)
+    return created
 
 
 def _build_trace(spec: AgentSpec, result: ExecutionResult, run_id: str) -> list[TraceEvent]:

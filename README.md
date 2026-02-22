@@ -17,6 +17,12 @@ trajectly record --auto
 trajectly run tests/*.agent.yaml
 ```
 
+Starter template option:
+
+```bash
+trajectly enable --template openai
+```
+
 ### Pip Editable Install (Supported)
 
 ```bash

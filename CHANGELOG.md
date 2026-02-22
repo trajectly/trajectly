@@ -20,6 +20,7 @@ All notable changes to this project are documented in this file.
 - Repro artifacts in `.trajectly/repros/` plus `trajectly repro` command for one-command local reproduction.
 - Basic trace minimization in repro artifacts (`*.baseline.min.jsonl`, `*.current.min.jsonl`).
 - PR-comment-ready markdown output via `trajectly report --pr-comment`.
+- `trajectly enable --template {openai,langchain,autogen}` starter template scaffolds.
 
 ### Changed
 

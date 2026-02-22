@@ -7,7 +7,9 @@ import typer
 
 from trajectly.constants import EXIT_INTERNAL_ERROR, EXIT_REGRESSION, EXIT_SUCCESS
 from trajectly.engine import (
+    SUPPORTED_ENABLE_TEMPLATES,
     CommandOutcome,
+    apply_enable_template,
     build_repro_command,
     diff_traces,
     discover_spec_files,
@@ -74,15 +76,41 @@ def init(project_root: Path = typer.Argument(Path("."), help="Project root to in
 
 
 @app.command()
-def enable(project_root: Path = typer.Argument(Path("."), help="Project root to enable")) -> None:
+def enable(
+    project_root: Path = typer.Argument(Path("."), help="Project root to enable"),
+    template: str | None = typer.Option(
+        None,
+        "--template",
+        help="Starter template: openai | langchain | autogen",
+    ),
+) -> None:
+    """Enable Trajectly with starter workspace scaffolding and auto-discovery hints."""
+    _enable(project_root=project_root, template=template)
+
+
+def _enable(project_root: Path, template: str | None) -> None:
     """Enable Trajectly with starter workspace scaffolding and auto-discovery hints."""
     try:
         discovered = enable_workspace(project_root.resolve())
+        created_template_files: list[Path] = []
+        if template is not None:
+            created_template_files = apply_enable_template(project_root.resolve(), template)
     except Exception as exc:
         typer.echo(f"ERROR: {exc}", err=True)
         raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
 
     typer.echo(f"Enabled Trajectly workspace at {project_root.resolve()}")
+    if template is not None:
+        typer.echo(f"Applied template: {template}")
+        if created_template_files:
+            typer.echo("Template files created:")
+            for path in created_template_files:
+                typer.echo(f"- {path}")
+        else:
+            supported = ", ".join(sorted(SUPPORTED_ENABLE_TEMPLATES))
+            typer.echo("Template files already existed; no files written.")
+            typer.echo(f"Supported templates: {supported}")
+
     typer.echo("Next step: trajectly record --auto")
     if discovered:
         typer.echo("Discovered specs:")

@@ -7,6 +7,8 @@ import pytest
 
 from trajectly.constants import EXIT_INTERNAL_ERROR
 from trajectly.engine import (
+    SUPPORTED_ENABLE_TEMPLATES,
+    apply_enable_template,
     build_repro_command,
     diff_traces,
     discover_spec_files,
@@ -38,6 +40,23 @@ def test_enable_workspace_returns_discovered_specs(tmp_path: Path) -> None:
 
     assert (tmp_path / ".trajectly" / "config.yaml").exists()
     assert (tmp_path / "tests" / "sample.agent.yaml").resolve() in discovered
+
+
+def test_apply_enable_template_creates_expected_files(tmp_path: Path) -> None:
+    created = apply_enable_template(tmp_path, "openai")
+    created_set = {path.resolve() for path in created}
+
+    assert (tmp_path / "openai.agent.yaml").resolve() in created_set
+    assert (tmp_path / "templates" / "openai_agent.py").resolve() in created_set
+
+    second_pass = apply_enable_template(tmp_path, "openai")
+    assert second_pass == []
+
+
+def test_apply_enable_template_rejects_unknown_template(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Unsupported template"):
+        apply_enable_template(tmp_path, "unknown")
+    assert {"openai", "langchain", "autogen"} == SUPPORTED_ENABLE_TEMPLATES
 
 
 def test_discover_spec_files_excludes_runtime_and_hidden_dirs(tmp_path: Path) -> None:

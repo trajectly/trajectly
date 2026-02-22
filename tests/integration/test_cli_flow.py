@@ -390,3 +390,26 @@ strict: true
 
     execute_result = runner.invoke(app, ["repro", "--project-root", str(tmp_path)])
     assert execute_result.exit_code == 1
+
+
+def test_enable_with_openai_template_creates_files_and_runs(tmp_path: Path) -> None:
+    enable_result = runner.invoke(app, ["enable", str(tmp_path), "--template", "openai"])
+    assert enable_result.exit_code == 0
+    assert "Applied template: openai" in enable_result.stdout
+
+    spec_path = tmp_path / "openai.agent.yaml"
+    script_path = tmp_path / "templates" / "openai_agent.py"
+    assert spec_path.exists()
+    assert script_path.exists()
+
+    record_result = runner.invoke(app, ["record", str(spec_path), "--project-root", str(tmp_path)])
+    assert record_result.exit_code == 0
+
+    run_result = runner.invoke(app, ["run", str(spec_path), "--project-root", str(tmp_path)])
+    assert run_result.exit_code == 0
+
+
+def test_enable_with_invalid_template_returns_error(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["enable", str(tmp_path), "--template", "unknown-template"])
+    assert result.exit_code == 2
+    assert "Unsupported template" in result.output
