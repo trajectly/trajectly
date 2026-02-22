@@ -1,0 +1,8 @@
+name: tool-flow
+command: python tests/agents/tool_agent.py
+workdir: ..
+fixture_policy: by_index
+strict: true
+budget_thresholds:
+  max_latency_ms: 10000
+  max_tool_calls: 6

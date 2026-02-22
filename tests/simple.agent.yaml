@@ -1,0 +1,11 @@
+name: simple
+command: python tests/agents/simple_agent.py
+workdir: ..
+fixture_policy: by_hash
+strict: true
+redact:
+  - "secret_[0-9]+"
+budget_thresholds:
+  max_latency_ms: 10000
+  max_tool_calls: 4
+  max_tokens: 100
