@@ -92,4 +92,4 @@ def test_cli_report_missing_latest_file_returns_error(tmp_path: Path) -> None:
     result = runner.invoke(app, ["report", "--project-root", str(tmp_path), "--json"])
 
     assert result.exit_code == 2
-    assert "Latest report not found" in result.stdout
+    assert "Latest report not found" in result.output
