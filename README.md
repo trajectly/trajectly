@@ -6,8 +6,23 @@ Trajectly is the "Playwright for AI agents": record tool-using agent runs, repla
 
 ## Quickstart
 
+### Recommended (`uv`)
+
 ```bash
-pip install -e .
+uv venv
+source .venv/bin/activate
+uv sync --extra dev
+trajectly init
+trajectly record tests/*.agent.yaml
+trajectly run tests/*.agent.yaml
+```
+
+### Pip Editable Install (Supported)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
 trajectly init
 trajectly record tests/*.agent.yaml
 trajectly run tests/*.agent.yaml

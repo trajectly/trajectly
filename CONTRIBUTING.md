@@ -2,18 +2,28 @@
 
 ## Local Setup
 
+### Recommended (`uv`)
+
+```bash
+uv venv
+source .venv/bin/activate
+uv sync --extra dev
+```
+
+### Pip Editable Install (Supported)
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
 ```
 
-## Quality Gates
+## Quality Gates (`uv`)
 
 ```bash
-ruff check .
-mypy src
-pytest
+uv run ruff check .
+uv run mypy src
+uv run pytest
 ```
 
 ## Development Workflow

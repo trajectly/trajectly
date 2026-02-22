@@ -16,20 +16,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - name: Install
         run: |
-          python -m pip install --upgrade pip
-          pip install -e .[dev]
+          uv sync --extra dev
+      - name: Pip Editable Install Compatibility
+        run: |
+          uv run python -m pip install -e .
       - name: Private File Policy
         run: ./scripts/check_blocked_paths.sh
       - name: Lint
-        run: ruff check .
+        run: uv run ruff check .
       - name: Typecheck
-        run: mypy src
+        run: uv run mypy src
       - name: Test
-        run: pytest -q
+        run: uv run pytest -q
       - name: Smoke
         run: |
-          trajectly init
-          trajectly record tests/*.agent.yaml
-          trajectly run tests/*.agent.yaml
+          uv run trajectly init
+          uv run trajectly record tests/*.agent.yaml
+          uv run trajectly run tests/*.agent.yaml
