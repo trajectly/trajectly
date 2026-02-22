@@ -16,6 +16,8 @@ All notable changes to this project are documented in this file.
 - `.agent.yaml` contracts schema parsing/validation for tools, sequence, side effects, and network sections.
 - Replay-time contract enforcement engine with stable tool error codes.
 - Replay network allowlist support via `contracts.network.allowlist`.
+- First-divergence summary in diff outputs and reports.
+- Repro artifacts in `.trajectly/repros/` plus `trajectly repro` command for one-command local reproduction.
 
 ### Changed
 

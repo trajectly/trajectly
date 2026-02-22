@@ -8,6 +8,7 @@ import typer
 from trajectly.constants import EXIT_INTERNAL_ERROR, EXIT_REGRESSION, EXIT_SUCCESS
 from trajectly.engine import (
     CommandOutcome,
+    build_repro_command,
     diff_traces,
     discover_spec_files,
     enable_workspace,
@@ -15,6 +16,7 @@ from trajectly.engine import (
     latest_report_path,
     read_latest_report,
     record_specs,
+    resolve_repro_spec,
     run_specs,
     write_diff_report,
 )
@@ -125,6 +127,42 @@ def run(
         strict_override=strict,
     )
 
+    if outcome.latest_report_md and outcome.latest_report_md.exists():
+        typer.echo(outcome.latest_report_md.read_text(encoding="utf-8"))
+    _emit_outcome(outcome)
+
+
+@app.command()
+def repro(
+    selector: str = typer.Argument("latest", help="Spec name/slug from latest report, or explicit spec path"),
+    project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
+    strict: bool | None = typer.Option(None, "--strict/--no-strict", help="Override strict mode"),
+    print_only: bool = typer.Option(False, "--print-only", help="Print repro command without executing"),
+) -> None:
+    """Reproduce the latest regression (or selected spec) with one command."""
+    project_root = project_root.resolve()
+
+    explicit_path = Path(selector)
+    if selector != "latest" and explicit_path.exists():
+        spec_path = explicit_path.resolve()
+    else:
+        resolved_selector = None if selector == "latest" else selector
+        try:
+            _, spec_path = resolve_repro_spec(project_root, resolved_selector)
+        except (FileNotFoundError, ValueError) as exc:
+            typer.echo(f"ERROR: {exc}", err=True)
+            raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
+
+    command = build_repro_command(spec_path=spec_path, project_root=project_root, strict_override=strict)
+    typer.echo(f"Repro command: {command}")
+    if print_only:
+        raise typer.Exit(EXIT_SUCCESS)
+
+    outcome = run_specs(
+        targets=[str(spec_path)],
+        project_root=project_root,
+        strict_override=strict,
+    )
     if outcome.latest_report_md and outcome.latest_report_md.exists():
         typer.echo(outcome.latest_report_md.read_text(encoding="utf-8"))
     _emit_outcome(outcome)

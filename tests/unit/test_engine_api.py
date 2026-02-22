@@ -7,12 +7,14 @@ import pytest
 
 from trajectly.constants import EXIT_INTERNAL_ERROR
 from trajectly.engine import (
+    build_repro_command,
     diff_traces,
     discover_spec_files,
     enable_workspace,
     initialize_workspace,
     latest_report_path,
     read_latest_report,
+    resolve_repro_spec,
     run_specs,
     write_diff_report,
 )
@@ -156,3 +158,36 @@ def test_read_latest_report_rejects_unsupported_schema_version(tmp_path: Path) -
 
     with pytest.raises(SchemaValidationError, match="Unsupported report schema_version"):
         read_latest_report(tmp_path, as_json=True)
+
+
+def test_resolve_repro_spec_prefers_latest_regression(tmp_path: Path) -> None:
+    spec_a = tmp_path / "a.agent.yaml"
+    spec_b = tmp_path / "b.agent.yaml"
+    _write(spec_a, "command: python a.py")
+    _write(spec_b, "command: python b.py")
+
+    reports_dir = tmp_path / ".trajectly" / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    (reports_dir / "latest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "v1",
+                "processed_specs": 2,
+                "regressions": 1,
+                "errors": [],
+                "reports": [
+                    {"spec": "a", "slug": "a", "regression": False, "spec_path": str(spec_a.resolve())},
+                    {"spec": "b", "slug": "b", "regression": True, "spec_path": str(spec_b.resolve())},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    spec_name, spec_path = resolve_repro_spec(tmp_path)
+    assert spec_name == "b"
+    assert spec_path == spec_b.resolve()
+
+    command = build_repro_command(spec_path=spec_path, project_root=tmp_path.resolve())
+    assert "trajectly run" in command
+    assert str(spec_b.resolve()) in command

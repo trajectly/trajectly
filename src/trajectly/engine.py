@@ -17,6 +17,7 @@ from trajectly.constants import (
     EXIT_SUCCESS,
     FIXTURES_DIR,
     REPORTS_DIR,
+    REPROS_DIR,
     SCHEMA_VERSION,
     STATE_DIR,
     TMP_DIR,
@@ -59,6 +60,7 @@ class _StatePaths:
     current: Path
     fixtures: Path
     reports: Path
+    repros: Path
     tmp: Path
 
 
@@ -77,12 +79,22 @@ def _state_paths(project_root: Path) -> _StatePaths:
         current=project_root / CURRENT_DIR,
         fixtures=project_root / FIXTURES_DIR,
         reports=project_root / REPORTS_DIR,
+        repros=project_root / REPROS_DIR,
         tmp=project_root / TMP_DIR,
     )
 
 
 def _ensure_state_dirs(paths: _StatePaths) -> None:
-    for directory in [paths.state, paths.baselines, paths.current, paths.fixtures, paths.reports, paths.tmp]:
+    directories = [
+        paths.state,
+        paths.baselines,
+        paths.current,
+        paths.fixtures,
+        paths.reports,
+        paths.repros,
+        paths.tmp,
+    ]
+    for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
 
 
@@ -255,8 +267,91 @@ def _aggregate_markdown(rows: list[dict[str, Any]], errors: list[str]) -> str:
             lines.append(f"- `{row['spec']}`: {status}")
             lines.append(f"  - json: `{row['report_json']}`")
             lines.append(f"  - md: `{row['report_md']}`")
+            if row.get("repro_command"):
+                lines.append(f"  - repro: `{row['repro_command']}`")
     lines.append("")
     return "\n".join(lines)
+
+
+def _build_repro_command(spec_path: Path, project_root: Path, strict_override: bool | None = None) -> str:
+    command = f'trajectly run "{spec_path}" --project-root "{project_root}"'
+    if strict_override is True:
+        command += " --strict"
+    if strict_override is False:
+        command += " --no-strict"
+    return command
+
+
+def _write_repro_artifact(
+    *,
+    paths: _StatePaths,
+    spec: AgentSpec,
+    slug: str,
+    diff_result: DiffResult,
+    report_json: Path,
+    report_md: Path,
+) -> Path:
+    repro_path = paths.repros / f"{slug}.json"
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "spec": spec.name,
+        "slug": slug,
+        "spec_path": str(spec.source_path),
+        "first_divergence": diff_result.summary.get("first_divergence"),
+        "finding_count": diff_result.summary.get("finding_count", 0),
+        "regression": diff_result.summary.get("regression", False),
+        "report_json": str(report_json),
+        "report_md": str(report_md),
+        "repro_command": _build_repro_command(spec_path=spec.source_path, project_root=paths.root),
+    }
+    repro_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return repro_path
+
+
+def _read_latest_report_dict(project_root: Path) -> dict[str, Any]:
+    report_path = latest_report_path(project_root, as_json=True)
+    if not report_path.exists():
+        raise FileNotFoundError(f"Latest report not found: {report_path}")
+    data = json.loads(report_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"Latest report must be JSON object: {report_path}")
+    return validate_latest_report_dict(data)
+
+
+def resolve_repro_spec(project_root: Path, selector: str | None = None) -> tuple[str, Path]:
+    report = _read_latest_report_dict(project_root)
+    rows = report.get("reports", [])
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("Latest report contains no specs to reproduce")
+
+    chosen: dict[str, Any] | None = None
+    if selector and selector != "latest":
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            if row.get("spec") == selector or row.get("slug") == selector:
+                chosen = row
+                break
+        if chosen is None:
+            raise ValueError(f"Spec not found in latest report: {selector}")
+    else:
+        for row in rows:
+            if isinstance(row, dict) and row.get("regression"):
+                chosen = row
+                break
+        if chosen is None:
+            first = rows[0]
+            if isinstance(first, dict):
+                chosen = first
+
+    if chosen is None:
+        raise ValueError("Unable to resolve repro target from latest report")
+    spec_path_raw = chosen.get("spec_path")
+    if not isinstance(spec_path_raw, str) or not spec_path_raw.strip():
+        raise ValueError(
+            "Latest report is missing `spec_path`. Re-run `trajectly run` with this version to generate repro metadata."
+        )
+    return str(chosen.get("spec", "unknown")), Path(spec_path_raw).resolve()
 
 
 def record_specs(targets: list[str], project_root: Path) -> CommandOutcome:
@@ -382,6 +477,14 @@ def run_specs(
         report_json = paths.reports / f"{slug}.json"
         report_md = paths.reports / f"{slug}.md"
         write_reports(spec_name=spec.name, result=diff_result, json_path=report_json, md_path=report_md)
+        repro_artifact = _write_repro_artifact(
+            paths=paths,
+            spec=spec,
+            slug=slug,
+            diff_result=diff_result,
+            report_json=report_json,
+            report_md=report_md,
+        )
 
         run_run_hooks(
             context={
@@ -411,6 +514,9 @@ def run_specs(
                 "report_md": str(report_md),
                 "baseline": str(baseline_path),
                 "current": str(current_path),
+                "spec_path": str(spec.source_path),
+                "repro_artifact": str(repro_artifact),
+                "repro_command": _build_repro_command(spec_path=spec.source_path, project_root=paths.root),
             }
         )
 
@@ -478,3 +584,7 @@ def read_latest_report(project_root: Path, as_json: bool) -> str:
 def latest_report_path(project_root: Path, as_json: bool) -> Path:
     paths = _state_paths(project_root)
     return paths.reports / ("latest.json" if as_json else "latest.md")
+
+
+def build_repro_command(spec_path: Path, project_root: Path, strict_override: bool | None = None) -> str:
+    return _build_repro_command(spec_path=spec_path, project_root=project_root, strict_override=strict_override)

@@ -9,6 +9,7 @@ CURRENT_DIR = STATE_DIR / "current"
 FIXTURES_DIR = STATE_DIR / "fixtures"
 REPORTS_DIR = STATE_DIR / "reports"
 TMP_DIR = STATE_DIR / "tmp"
+REPROS_DIR = STATE_DIR / "repros"
 
 TRACE_EVENT_TYPES = {
     "run_started",

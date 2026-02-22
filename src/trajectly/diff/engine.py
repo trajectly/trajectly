@@ -59,6 +59,39 @@ def _tool_calls(events: list[TraceEvent]) -> int:
     return sum(1 for event in events if event.event_type == "tool_called")
 
 
+def _first_divergence(baseline_ops: list[TraceEvent], current_ops: list[TraceEvent]) -> dict[str, Any] | None:
+    limit = max(len(baseline_ops), len(current_ops))
+    for index in range(limit):
+        baseline_event = baseline_ops[index] if index < len(baseline_ops) else None
+        current_event = current_ops[index] if index < len(current_ops) else None
+
+        baseline_signature = _signature(baseline_event) if baseline_event else None
+        current_signature = _signature(current_event) if current_event else None
+
+        if baseline_signature != current_signature:
+            return {
+                "kind": "sequence",
+                "index": index,
+                "baseline": baseline_signature,
+                "current": current_signature,
+            }
+
+        if baseline_event is None or current_event is None:
+            continue
+        changes = structural_diff(baseline_event.payload, current_event.payload, path="$.payload")
+        if changes:
+            first_change = changes[0]
+            return {
+                "kind": "payload",
+                "index": index,
+                "signature": baseline_signature,
+                "path": first_change.path,
+                "baseline": first_change.baseline,
+                "current": first_change.current,
+            }
+    return None
+
+
 def compare_traces(
     baseline: list[TraceEvent],
     current: list[TraceEvent],
@@ -163,6 +196,7 @@ def compare_traces(
         "regression": bool(findings),
         "finding_count": len(findings),
         "classifications": dict(classification_counts),
+        "first_divergence": _first_divergence(baseline_ops, current_ops),
         "baseline": {
             "duration_ms": duration_baseline,
             "tool_calls": tool_calls_baseline,

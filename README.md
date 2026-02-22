@@ -38,6 +38,14 @@ trajectly baseline update tests/*.agent.yaml
 trajectly baseline update --auto
 ```
 
+## Reproduce A Failure
+
+```bash
+trajectly repro
+# or pick a specific spec from latest report
+trajectly repro example-contract-tool-denied
+```
+
 ## Contracts Schema (v1 Draft)
 
 ```yaml

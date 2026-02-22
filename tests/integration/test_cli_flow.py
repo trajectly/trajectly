@@ -328,3 +328,56 @@ contracts:
     run_result = runner.invoke(app, ["run", str(spec), "--project-root", str(tmp_path)])
     assert run_result.exit_code == 1
     assert not marker.exists()
+
+
+def test_repro_command_uses_latest_regression_and_repro_artifact(tmp_path: Path) -> None:
+    script = tmp_path / "agent.py"
+    _write_script(
+        script,
+        """
+import os
+from trajectly.sdk import tool
+
+@tool("add")
+def add(a, b):
+    return a + b
+
+if os.getenv("TRAJECTLY_MODE") == "replay":
+    add(9, 9)
+else:
+    add(1, 2)
+""".strip(),
+    )
+
+    spec = tmp_path / "repro.agent.yaml"
+    _write_spec(
+        spec,
+        """
+name: repro
+command: python agent.py
+workdir: .
+fixture_policy: by_hash
+strict: true
+""".strip(),
+    )
+
+    runner.invoke(app, ["init", str(tmp_path)])
+    record_result = runner.invoke(app, ["record", str(spec), "--project-root", str(tmp_path)])
+    assert record_result.exit_code == 0
+
+    run_result = runner.invoke(app, ["run", str(spec), "--project-root", str(tmp_path)])
+    assert run_result.exit_code == 1
+
+    repro_artifact = tmp_path / ".trajectly" / "repros" / "repro.json"
+    assert repro_artifact.exists()
+    repro_payload = json.loads(repro_artifact.read_text(encoding="utf-8"))
+    assert repro_payload["spec"] == "repro"
+    assert "repro_command" in repro_payload
+
+    print_only_result = runner.invoke(app, ["repro", "--project-root", str(tmp_path), "--print-only"])
+    assert print_only_result.exit_code == 0
+    assert "Repro command:" in print_only_result.stdout
+    assert str(spec.resolve()) in print_only_result.stdout
+
+    execute_result = runner.invoke(app, ["repro", "--project-root", str(tmp_path)])
+    assert execute_result.exit_code == 1

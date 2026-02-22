@@ -34,6 +34,10 @@ def test_compare_traces_detects_sequence_and_structural_mismatches() -> None:
     assert "sequence_mismatch" in classes
     assert "structural_mismatch" in classes
     assert result.summary["regression"] is True
+    first_divergence = result.summary["first_divergence"]
+    assert first_divergence["kind"] == "payload"
+    assert first_divergence["index"] == 1
+    assert first_divergence["path"] == "$.payload.output"
 
 
 def test_compare_traces_detects_budget_breaches() -> None:
@@ -56,3 +60,6 @@ def test_compare_traces_detects_budget_breaches() -> None:
     assert result.summary["current"]["duration_ms"] == 500
     assert result.summary["current"]["tool_calls"] == 2
     assert result.summary["current"]["tokens"] == 50
+    first_divergence = result.summary["first_divergence"]
+    assert first_divergence["kind"] == "sequence"
+    assert first_divergence["index"] == 0
