@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import uuid
 from collections import Counter
@@ -103,6 +104,43 @@ def initialize_workspace(project_root: Path) -> None:
             "name: sample\ncommand: python agents/simple_agent.py\nfixture_policy: by_index\nstrict: true\n",
             encoding="utf-8",
         )
+
+
+_AUTO_SPEC_EXCLUDED_DIRS = {
+    ".git",
+    ".github",
+    ".trajectly",
+    ".venv",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+}
+
+
+def discover_spec_files(project_root: Path) -> list[Path]:
+    """Discover agent specs for auto-mode commands in deterministic order."""
+    root = project_root.resolve()
+    discovered: list[Path] = []
+    for walk_root, dirs, files in os.walk(root):
+        dirs[:] = sorted(
+            directory
+            for directory in dirs
+            if directory not in _AUTO_SPEC_EXCLUDED_DIRS and not directory.startswith(".")
+        )
+        for filename in sorted(files):
+            if filename.endswith(".agent.yaml"):
+                discovered.append((Path(walk_root) / filename).resolve())
+    return sorted(discovered, key=lambda path: str(path))
+
+
+def enable_workspace(project_root: Path) -> list[Path]:
+    """Initialize workspace and return discovered specs for onboarding output."""
+    initialize_workspace(project_root.resolve())
+    return discover_spec_files(project_root.resolve())
 
 
 def _build_trace(spec: AgentSpec, result: ExecutionResult, run_id: str) -> list[TraceEvent]:

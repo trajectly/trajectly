@@ -32,6 +32,13 @@ uv run pytest
 2. Keep trace schema and plugin interfaces backward compatible.
 3. Keep CLI errors actionable and deterministic.
 4. Do not mark work complete without test evidence (unit + integration/e2e where applicable).
+5. Use explicit baseline updates when behavior intentionally changes:
+
+```bash
+trajectly baseline update <spec-or-glob>
+# or
+trajectly baseline update --auto
+```
 
 ## Release Notes
 

@@ -12,8 +12,8 @@ Trajectly is the "Playwright for AI agents": record tool-using agent runs, repla
 uv venv
 source .venv/bin/activate
 uv sync --extra dev
-trajectly init
-trajectly record tests/*.agent.yaml
+trajectly enable
+trajectly record --auto
 trajectly run tests/*.agent.yaml
 ```
 
@@ -23,9 +23,19 @@ trajectly run tests/*.agent.yaml
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
-trajectly init
-trajectly record tests/*.agent.yaml
+trajectly enable
+trajectly record --auto
 trajectly run tests/*.agent.yaml
+```
+
+## Baseline Update Workflow
+
+Baselines are updated explicitly. Re-record only when a behavior change is intended:
+
+```bash
+trajectly baseline update tests/*.agent.yaml
+# or
+trajectly baseline update --auto
 ```
 
 ## Example Diff Output

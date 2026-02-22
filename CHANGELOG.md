@@ -10,10 +10,14 @@ All notable changes to this project are documented in this file.
 - Pre-release smoke workflow covering core and cross-repo checks.
 - Strict trace/report schema validation with compatibility tests.
 - Adapter helpers and examples for LlamaIndex, CrewAI, AutoGen, and DSPy.
+- `trajectly enable` command for onboarding workspace scaffolding and spec discovery hints.
+- `record --auto` for deterministic spec auto-discovery.
+- `baseline update` command for explicit baseline refresh workflow.
 
 ### Changed
 
 - Expanded deterministic replay coverage and integration smoke scenarios.
+- Quickstart docs now use `enable` + `record --auto` flow.
 
 ### Fixed
 

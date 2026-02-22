@@ -8,6 +8,8 @@ import pytest
 from trajectly.constants import EXIT_INTERNAL_ERROR
 from trajectly.engine import (
     diff_traces,
+    discover_spec_files,
+    enable_workspace,
     initialize_workspace,
     latest_report_path,
     read_latest_report,
@@ -27,6 +29,32 @@ def test_initialize_workspace_creates_expected_files(tmp_path: Path) -> None:
 
     assert (tmp_path / ".trajectly" / "config.yaml").exists()
     assert (tmp_path / "tests" / "sample.agent.yaml").exists()
+
+
+def test_enable_workspace_returns_discovered_specs(tmp_path: Path) -> None:
+    discovered = enable_workspace(tmp_path)
+
+    assert (tmp_path / ".trajectly" / "config.yaml").exists()
+    assert (tmp_path / "tests" / "sample.agent.yaml").resolve() in discovered
+
+
+def test_discover_spec_files_excludes_runtime_and_hidden_dirs(tmp_path: Path) -> None:
+    (tmp_path / "specs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".trajectly").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".venv").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "node_modules").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "specs" / "a.agent.yaml").write_text("command: python a.py\n", encoding="utf-8")
+    (tmp_path / "z.agent.yaml").write_text("command: python z.py\n", encoding="utf-8")
+    (tmp_path / ".trajectly" / "hidden.agent.yaml").write_text("command: python x.py\n", encoding="utf-8")
+    (tmp_path / ".venv" / "venv.agent.yaml").write_text("command: python x.py\n", encoding="utf-8")
+    (tmp_path / "node_modules" / "npm.agent.yaml").write_text("command: python x.py\n", encoding="utf-8")
+
+    discovered = discover_spec_files(tmp_path)
+
+    assert discovered == [
+        (tmp_path / "specs" / "a.agent.yaml").resolve(),
+        (tmp_path / "z.agent.yaml").resolve(),
+    ]
 
 
 def test_run_specs_reports_missing_baseline(tmp_path: Path) -> None:
