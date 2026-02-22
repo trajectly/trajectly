@@ -60,6 +60,13 @@ Plugin Bus -> semantic diff plugins + SaaS export hooks
 OSS (MIT) contains the CLI, replay engine, diff engine, local reporting, and plugin hooks.
 Future SaaS adds hosted history, team dashboards, flakiness detection, semantic diff services, and alerting.
 
+## Documentation
+
+- End-to-end roadmap: `docs/end_to_end_plan.md`
+- Platform adapters: `docs/platform_adapters.md`
+- Testing commands: `docs/testing_guide.md`
+- Paid services plan: `docs/paid_services_plan.md`
+
 ## Roadmap
 
 - v0.1: deterministic record/replay/diff, GitHub Action, examples

@@ -4,6 +4,14 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypeVar
 
+from trajectly.sdk.adapters import (
+    SDKContextLike,
+    anthropic_messages_create,
+    invoke_llm_call,
+    invoke_tool_call,
+    langchain_invoke,
+    openai_chat_completion,
+)
 from trajectly.sdk.context import SDKContext, get_context
 
 T = TypeVar("T")
@@ -40,4 +48,16 @@ def agent_step(name: str, details: dict[str, Any] | None = None) -> None:
     get_context().agent_step(name=name, details=details)
 
 
-__all__ = ["SDKContext", "agent_step", "get_context", "llm_call", "tool"]
+__all__ = [
+    "SDKContext",
+    "SDKContextLike",
+    "agent_step",
+    "anthropic_messages_create",
+    "get_context",
+    "invoke_llm_call",
+    "invoke_tool_call",
+    "langchain_invoke",
+    "llm_call",
+    "openai_chat_completion",
+    "tool",
+]
