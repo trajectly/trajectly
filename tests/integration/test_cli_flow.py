@@ -373,6 +373,15 @@ strict: true
     repro_payload = json.loads(repro_artifact.read_text(encoding="utf-8"))
     assert repro_payload["spec"] == "repro"
     assert "repro_command" in repro_payload
+    baseline_min = Path(repro_payload["baseline_min_trace"])
+    current_min = Path(repro_payload["current_min_trace"])
+    assert baseline_min.exists()
+    assert current_min.exists()
+    full_current = tmp_path / ".trajectly" / "current" / "repro.jsonl"
+    min_lines = [line for line in current_min.read_text(encoding="utf-8").splitlines() if line.strip()]
+    full_lines = [line for line in full_current.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert min_lines
+    assert len(min_lines) <= len(full_lines)
 
     print_only_result = runner.invoke(app, ["repro", "--project-root", str(tmp_path), "--print-only"])
     assert print_only_result.exit_code == 0

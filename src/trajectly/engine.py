@@ -288,24 +288,95 @@ def _write_repro_artifact(
     spec: AgentSpec,
     slug: str,
     diff_result: DiffResult,
+    baseline_events: list[TraceEvent],
+    current_events: list[TraceEvent],
     report_json: Path,
     report_md: Path,
 ) -> Path:
+    first_divergence = diff_result.summary.get("first_divergence")
+    cutoff_index: int | None = None
+    if isinstance(first_divergence, dict):
+        raw_index = first_divergence.get("index")
+        if isinstance(raw_index, int) and raw_index >= 0:
+            cutoff_index = raw_index
+
+    baseline_min_path, current_min_path = _write_minimized_repro_traces(
+        paths=paths,
+        slug=slug,
+        baseline_events=baseline_events,
+        current_events=current_events,
+        cutoff_index=cutoff_index,
+    )
+
     repro_path = paths.repros / f"{slug}.json"
     payload = {
         "schema_version": SCHEMA_VERSION,
         "spec": spec.name,
         "slug": slug,
         "spec_path": str(spec.source_path),
-        "first_divergence": diff_result.summary.get("first_divergence"),
+        "first_divergence": first_divergence,
         "finding_count": diff_result.summary.get("finding_count", 0),
         "regression": diff_result.summary.get("regression", False),
         "report_json": str(report_json),
         "report_md": str(report_md),
         "repro_command": _build_repro_command(spec_path=spec.source_path, project_root=paths.root),
+        "baseline_min_trace": str(baseline_min_path),
+        "current_min_trace": str(current_min_path),
     }
     repro_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return repro_path
+
+
+def _minimize_trace(events: list[TraceEvent], cutoff_index: int | None) -> list[TraceEvent]:
+    op_types = {"tool_called", "tool_returned", "llm_called", "llm_returned"}
+    minimized: list[TraceEvent] = []
+    op_index = 0
+
+    for event in events:
+        if event.event_type == "run_started":
+            minimized.append(event)
+            continue
+
+        if event.event_type in op_types:
+            should_include = cutoff_index is None or op_index <= cutoff_index
+            if should_include:
+                minimized.append(event)
+            op_index += 1
+            continue
+
+        if event.event_type == "agent_step":
+            if cutoff_index is None or op_index <= cutoff_index + 1:
+                minimized.append(event)
+            continue
+
+    finished = [event for event in events if event.event_type == "run_finished"]
+    if finished:
+        minimized.append(finished[-1])
+
+    deduped: list[TraceEvent] = []
+    seen: set[tuple[str, int, str]] = set()
+    for event in minimized:
+        key = (event.event_type, event.seq, event.event_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(event)
+    return deduped
+
+
+def _write_minimized_repro_traces(
+    *,
+    paths: _StatePaths,
+    slug: str,
+    baseline_events: list[TraceEvent],
+    current_events: list[TraceEvent],
+    cutoff_index: int | None,
+) -> tuple[Path, Path]:
+    baseline_min_path = paths.repros / f"{slug}.baseline.min.jsonl"
+    current_min_path = paths.repros / f"{slug}.current.min.jsonl"
+    write_events_jsonl(baseline_min_path, _minimize_trace(baseline_events, cutoff_index=cutoff_index))
+    write_events_jsonl(current_min_path, _minimize_trace(current_events, cutoff_index=cutoff_index))
+    return baseline_min_path, current_min_path
 
 
 def _read_latest_report_dict(project_root: Path) -> dict[str, Any]:
@@ -482,6 +553,8 @@ def run_specs(
             spec=spec,
             slug=slug,
             diff_result=diff_result,
+            baseline_events=baseline_events,
+            current_events=current_events,
             report_json=report_json,
             report_md=report_md,
         )

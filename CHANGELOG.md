@@ -18,6 +18,7 @@ All notable changes to this project are documented in this file.
 - Replay network allowlist support via `contracts.network.allowlist`.
 - First-divergence summary in diff outputs and reports.
 - Repro artifacts in `.trajectly/repros/` plus `trajectly repro` command for one-command local reproduction.
+- Basic trace minimization in repro artifacts (`*.baseline.min.jsonl`, `*.current.min.jsonl`).
 
 ### Changed
 
