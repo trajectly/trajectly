@@ -1,0 +1,53 @@
+name: Feature request
+description: Propose a new capability or improvement.
+labels:
+  - status:needs-triage
+  - type:feature
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user pain is this solving?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - core
+        - action
+        - examples
+        - docs
+        - schema
+        - adapters
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - p1
+        - p2
+        - p3
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Definition of done / acceptance checks
+      description: Include testing expectations and user-visible outputs.
+    validations:
+      required: true

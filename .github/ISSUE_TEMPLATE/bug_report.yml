@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a defect in core behavior, CI, replay, diffing, or adapters.
+labels:
+  - status:needs-triage
+  - type:bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What failed and where?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - core
+        - action
+        - examples
+        - docs
+        - schema
+        - adapters
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Initial Priority Suggestion
+      options:
+        - p0
+        - p1
+        - p2
+        - p3
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include exact commands/specs if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and artifacts
+      description: Include run IDs, report JSON/MD paths, or CI links.
