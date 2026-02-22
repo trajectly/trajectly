@@ -35,6 +35,7 @@ from trajectly.plugins import run_run_hooks, run_semantic_plugins
 from trajectly.redaction import apply_redactions
 from trajectly.report import write_reports
 from trajectly.runtime import ExecutionResult, execute_spec
+from trajectly.schema import validate_latest_report_dict
 from trajectly.specs import AgentSpec, BudgetThresholds, load_specs
 
 
@@ -424,7 +425,11 @@ def read_latest_report(project_root: Path, as_json: bool) -> str:
         path = paths.reports / "latest.md"
     if not path.exists():
         raise FileNotFoundError(f"Latest report not found: {path}")
-    return path.read_text(encoding="utf-8")
+    content = path.read_text(encoding="utf-8")
+    if as_json:
+        parsed = json.loads(content)
+        validate_latest_report_dict(parsed)
+    return content
 
 
 def latest_report_path(project_root: Path, as_json: bool) -> Path:

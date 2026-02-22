@@ -7,6 +7,7 @@ from typing import Any
 
 from trajectly.canonical import sha256_of_subset
 from trajectly.constants import SCHEMA_VERSION, TRACE_EVENT_TYPES
+from trajectly.schema import validate_trace_event_dict
 
 
 @dataclass(slots=True)
@@ -36,15 +37,16 @@ class TraceEvent:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TraceEvent:
-        event_id = str(data.get("event_id", ""))
+        normalized = validate_trace_event_dict(data)
+        event_id = str(normalized.get("event_id", ""))
         event = cls(
-            schema_version=str(data.get("schema_version", SCHEMA_VERSION)),
-            event_type=str(data["event_type"]),
-            seq=int(data["seq"]),
-            run_id=str(data["run_id"]),
-            rel_ms=int(data["rel_ms"]),
-            payload=dict(data.get("payload", {})),
-            meta=dict(data.get("meta", {})),
+            schema_version=str(normalized.get("schema_version", SCHEMA_VERSION)),
+            event_type=str(normalized["event_type"]),
+            seq=int(normalized["seq"]),
+            run_id=str(normalized["run_id"]),
+            rel_ms=int(normalized["rel_ms"]),
+            payload=dict(normalized.get("payload", {})),
+            meta=dict(normalized.get("meta", {})),
             event_id=event_id,
         )
         if not event.event_id:
@@ -83,7 +85,8 @@ def write_events_jsonl(path: Path, events: list[TraceEvent]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         for event in events:
-            handle.write(json.dumps(event.to_dict(), sort_keys=True, separators=(",", ":")))
+            validated = validate_trace_event_dict(event.to_dict())
+            handle.write(json.dumps(validated, sort_keys=True, separators=(",", ":")))
             handle.write("\n")
 
 

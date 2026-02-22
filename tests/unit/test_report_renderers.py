@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from trajectly.constants import SCHEMA_VERSION
 from trajectly.diff.models import DiffResult, Finding
 from trajectly.report.renderers import render_markdown, write_reports
 
@@ -41,5 +42,6 @@ def test_write_reports_outputs_json_and_markdown(tmp_path: Path) -> None:
     assert json_path.exists()
     assert md_path.exists()
     data = json.loads(json_path.read_text(encoding="utf-8"))
+    assert data["schema_version"] == SCHEMA_VERSION
     assert data["summary"]["regression"] is True
     assert "Trajectly Report" in md_path.read_text(encoding="utf-8")

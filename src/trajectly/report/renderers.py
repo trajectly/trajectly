@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from trajectly.constants import SCHEMA_VERSION
 from trajectly.diff.models import DiffResult
+from trajectly.schema import validate_diff_report_dict
 
 
 def render_markdown(spec_name: str, result: DiffResult) -> str:
@@ -45,5 +47,7 @@ def render_markdown(spec_name: str, result: DiffResult) -> str:
 def write_reports(spec_name: str, result: DiffResult, json_path: Path, md_path: Path) -> None:
     json_path.parent.mkdir(parents=True, exist_ok=True)
     md_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(json.dumps(result.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    report_payload = {"schema_version": SCHEMA_VERSION, **result.to_dict()}
+    validated_payload = validate_diff_report_dict(report_payload)
+    json_path.write_text(json.dumps(validated_payload, indent=2, sort_keys=True), encoding="utf-8")
     md_path.write_text(render_markdown(spec_name=spec_name, result=result), encoding="utf-8")

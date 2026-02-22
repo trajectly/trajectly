@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from trajectly.engine import (
     write_diff_report,
 )
 from trajectly.events import make_event, write_events_jsonl
+from trajectly.schema import SchemaValidationError
 
 
 def _write(path: Path, body: str) -> None:
@@ -106,3 +108,23 @@ def test_read_latest_report_missing_raises(tmp_path: Path) -> None:
         read_latest_report(tmp_path, as_json=True)
 
     assert latest_report_path(tmp_path, as_json=False).name == "latest.md"
+
+
+def test_read_latest_report_rejects_unsupported_schema_version(tmp_path: Path) -> None:
+    reports_dir = tmp_path / ".trajectly" / "reports"
+    reports_dir.mkdir(parents=True)
+    (reports_dir / "latest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "v999",
+                "processed_specs": 0,
+                "regressions": 0,
+                "errors": [],
+                "reports": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SchemaValidationError, match="Unsupported report schema_version"):
+        read_latest_report(tmp_path, as_json=True)
