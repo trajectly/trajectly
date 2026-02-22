@@ -7,9 +7,13 @@ import pytest
 
 from trajectly.sdk.adapters import (
     anthropic_messages_create,
+    autogen_chat_run,
+    crewai_run_task,
+    dspy_call,
     invoke_llm_call,
     invoke_tool_call,
     langchain_invoke,
+    llamaindex_query,
     openai_chat_completion,
 )
 
@@ -116,6 +120,90 @@ class FakeRunnable:
     def invoke(self, input_value: Any, **kwargs: Any) -> Any:
         self.calls.append((input_value, kwargs))
         return self.result
+
+
+class FakeQueryEngine:
+    def __init__(self, result: Any) -> None:
+        self.result = result
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def query(self, prompt: str, **kwargs: Any) -> Any:
+        self.calls.append((prompt, kwargs))
+        return self.result
+
+
+class LlamaIndexResponse:
+    def __init__(self, response: str, prompt_tokens: int, completion_tokens: int) -> None:
+        self.response = response
+        self.metadata = {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
+
+
+class FakeCrewTaskExecute:
+    def __init__(self, result: Any) -> None:
+        self.result = result
+        self.calls: list[dict[str, Any]] = []
+
+    def execute(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        return self.result
+
+
+class FakeCrewTaskRun:
+    def __init__(self, result: Any) -> None:
+        self.result = result
+        self.calls: list[dict[str, Any]] = []
+
+    def run(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        return self.result
+
+
+class CrewTaskResponse:
+    def __init__(self, output: str, total_tokens: int) -> None:
+        self.output = output
+        self.usage = {"total_tokens": total_tokens}
+
+
+class FakeAutoGenRunner:
+    def __init__(self, result: Any) -> None:
+        self.result = result
+        self.calls: list[tuple[list[dict[str, Any]], dict[str, Any]]] = []
+
+    def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> Any:
+        self.calls.append((messages, kwargs))
+        return self.result
+
+
+class AutoGenResult:
+    def __init__(self, content: str, total_tokens: int) -> None:
+        self.response = content
+        self.usage = {"total_tokens": total_tokens}
+
+
+class FakeDSPYCallableProgram:
+    def __init__(self, result: Any) -> None:
+        self.result = result
+        self.calls: list[tuple[Any, dict[str, Any]]] = []
+
+    def __call__(self, input_value: Any, **kwargs: Any) -> Any:
+        self.calls.append((input_value, kwargs))
+        return self.result
+
+
+class FakeDSPYForwardProgram:
+    def __init__(self, result: Any) -> None:
+        self.result = result
+        self.calls: list[tuple[Any, dict[str, Any]]] = []
+
+    def forward(self, input_value: Any, **kwargs: Any) -> Any:
+        self.calls.append((input_value, kwargs))
+        return self.result
+
+
+class DSPYResult:
+    def __init__(self, answer: str, total_tokens: int) -> None:
+        self.answer = answer
+        self.usage = {"total_tokens": total_tokens}
 
 
 def test_invoke_tool_call_uses_context() -> None:
@@ -269,3 +357,168 @@ def test_langchain_adapter_with_string_result() -> None:
 def test_langchain_adapter_validates_invoke() -> None:
     with pytest.raises(ValueError, match="invoke"):
         langchain_invoke(object(), "prompt")
+
+
+def test_llamaindex_adapter_from_mapping_response() -> None:
+    context = FakeContext()
+    query_engine = FakeQueryEngine(
+        {
+            "response": "llamaindex answer",
+            "metadata": {"prompt_tokens": 4, "completion_tokens": 6},
+        }
+    )
+
+    result = llamaindex_query(
+        query_engine,
+        "What is trajectly?",
+        model="llamaindex-query-v1",
+        provider="llamaindex",
+        context=context,
+        top_k=2,
+    )
+
+    assert result["response"] == "llamaindex answer"
+    assert result["usage"] == {"prompt_tokens": 4, "completion_tokens": 6}
+    assert query_engine.calls[0] == ("What is trajectly?", {"top_k": 2})
+    assert context.calls[0]["provider"] == "llamaindex"
+    assert context.calls[0]["model"] == "llamaindex-query-v1"
+
+
+def test_llamaindex_adapter_from_object_response() -> None:
+    context = FakeContext()
+    query_engine = FakeQueryEngine(
+        LlamaIndexResponse(response="object answer", prompt_tokens=3, completion_tokens=5)
+    )
+
+    result = llamaindex_query(query_engine, "prompt", context=context)
+
+    assert result["response"] == "object answer"
+    assert result["usage"] == {"completion_tokens": 5, "prompt_tokens": 3}
+
+
+def test_llamaindex_adapter_validates_query_method() -> None:
+    with pytest.raises(ValueError, match="query"):
+        llamaindex_query(object(), "prompt")
+
+
+def test_crewai_adapter_with_execute_method_and_mapping_result() -> None:
+    context = FakeContext()
+    task = FakeCrewTaskExecute(
+        {
+            "output": "crew output",
+            "usage": {"total_tokens": 9},
+        }
+    )
+
+    result = crewai_run_task(
+        task,
+        inputs={"topic": "ci reliability"},
+        model="crew-task-v1",
+        provider="crewai",
+        context=context,
+        temperature=0,
+    )
+
+    assert result["response"] == "crew output"
+    assert result["usage"] == {"total_tokens": 9}
+    assert task.calls[0] == {"topic": "ci reliability", "temperature": 0}
+    assert context.calls[0]["provider"] == "crewai"
+    assert context.calls[0]["model"] == "crew-task-v1"
+
+
+def test_crewai_adapter_with_run_method_and_object_result() -> None:
+    context = FakeContext()
+    task = FakeCrewTaskRun(CrewTaskResponse(output="run output", total_tokens=12))
+
+    result = crewai_run_task(task, inputs={"goal": "summarize"}, context=context)
+
+    assert result["response"] == "run output"
+    assert result["usage"] == {"total_tokens": 12}
+    assert task.calls[0] == {"goal": "summarize"}
+
+
+def test_crewai_adapter_validates_execute_or_run() -> None:
+    with pytest.raises(ValueError, match="execute"):
+        crewai_run_task(object())
+
+
+def test_autogen_adapter_with_mapping_result() -> None:
+    context = FakeContext()
+    runner = FakeAutoGenRunner(
+        {
+            "response": "autogen reply",
+            "usage": {"total_tokens": 14},
+        }
+    )
+    messages = [{"role": "user", "content": "hello"}]
+
+    result = autogen_chat_run(
+        runner,
+        messages,
+        model="autogen-model",
+        provider="autogen",
+        context=context,
+        temperature=0,
+    )
+
+    assert result["response"] == "autogen reply"
+    assert result["usage"] == {"total_tokens": 14}
+    assert runner.calls[0] == (messages, {"temperature": 0})
+    assert context.calls[0]["provider"] == "autogen"
+    assert context.calls[0]["model"] == "autogen-model"
+
+
+def test_autogen_adapter_with_object_result() -> None:
+    context = FakeContext()
+    runner = FakeAutoGenRunner(AutoGenResult(content="object reply", total_tokens=10))
+
+    result = autogen_chat_run(runner, [{"role": "user", "content": "question"}], context=context)
+
+    assert result["response"] == "object reply"
+    assert result["usage"] == {"total_tokens": 10}
+
+
+def test_autogen_adapter_validates_runner_shape() -> None:
+    with pytest.raises(ValueError, match="run"):
+        autogen_chat_run(object(), [])
+
+
+def test_dspy_adapter_with_callable_program() -> None:
+    context = FakeContext()
+    program = FakeDSPYCallableProgram(
+        {
+            "answer": "dspy answer",
+            "usage": {"total_tokens": 8},
+        }
+    )
+
+    result = dspy_call(
+        program,
+        "What is trajectly?",
+        model="dspy-program-v1",
+        provider="dspy",
+        context=context,
+        max_depth=2,
+    )
+
+    assert result["response"] == "dspy answer"
+    assert result["usage"] == {"total_tokens": 8}
+    assert program.calls[0] == ("What is trajectly?", {"max_depth": 2})
+    assert context.calls[0]["provider"] == "dspy"
+    assert context.calls[0]["model"] == "dspy-program-v1"
+
+
+def test_dspy_adapter_with_forward_program_object_result() -> None:
+    context = FakeContext()
+    program = FakeDSPYForwardProgram(DSPYResult(answer="forward answer", total_tokens=11))
+
+    result = dspy_call(program, {"question": "hi"}, context=context)
+
+    assert result["response"] == "forward answer"
+    assert result["usage"] == {"total_tokens": 11}
+    assert program.calls[0] == ({"question": "hi"}, {})
+
+
+def test_dspy_adapter_validates_program_shape() -> None:
+    with pytest.raises(ValueError, match="forward"):
+        dspy_call(object(), "prompt")

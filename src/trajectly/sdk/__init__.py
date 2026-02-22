@@ -7,9 +7,13 @@ from typing import Any, TypeVar
 from trajectly.sdk.adapters import (
     SDKContextLike,
     anthropic_messages_create,
+    autogen_chat_run,
+    crewai_run_task,
+    dspy_call,
     invoke_llm_call,
     invoke_tool_call,
     langchain_invoke,
+    llamaindex_query,
     openai_chat_completion,
 )
 from trajectly.sdk.context import SDKContext, get_context
@@ -53,10 +57,14 @@ __all__ = [
     "SDKContextLike",
     "agent_step",
     "anthropic_messages_create",
+    "autogen_chat_run",
+    "crewai_run_task",
+    "dspy_call",
     "get_context",
     "invoke_llm_call",
     "invoke_tool_call",
     "langchain_invoke",
+    "llamaindex_query",
     "llm_call",
     "openai_chat_completion",
     "tool",
