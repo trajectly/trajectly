@@ -59,6 +59,11 @@ Future SaaS adds hosted history, team dashboards, flakiness detection, semantic 
 - v0.2: richer adapters, stronger schema validation, plugin ecosystem
 - v0.3: hosted ingestion API, historical trend surfacing
 
+## Release Process
+
+- Checklist and policy: `RELEASING.md`
+- Release history: `CHANGELOG.md`
+
 ## License
 
 MIT

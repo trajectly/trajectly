@@ -1,0 +1,151 @@
+name: pre-release-smoke
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  core-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: trajectly
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install core
+        working-directory: trajectly
+        run: |
+          uv sync --extra dev
+          uv pip install -e .
+      - name: Core smoke sequence
+        working-directory: trajectly
+        run: |
+          uv run trajectly init
+          uv run trajectly record tests/*.agent.yaml
+          uv run trajectly run tests/*.agent.yaml
+
+  examples-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: trajectly
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Configure cross-repo examples mode
+        run: |
+          if [ -z "${{ secrets.TRAJECTLY_CI_TOKEN }}" ]; then
+            echo "RUN_EXAMPLES=false" >> "$GITHUB_ENV"
+          else
+            echo "RUN_EXAMPLES=true" >> "$GITHUB_ENV"
+          fi
+      - name: Skip note (no token)
+        if: env.RUN_EXAMPLES != 'true'
+        run: |
+          echo "Skipping examples smoke because TRAJECTLY_CI_TOKEN is not set."
+      - uses: actions/checkout@v4
+        if: env.RUN_EXAMPLES == 'true'
+        with:
+          repository: trajectly/trajectly-examples
+          token: ${{ secrets.TRAJECTLY_CI_TOKEN }}
+          path: trajectly-examples
+      - name: Examples smoke sequence
+        if: env.RUN_EXAMPLES == 'true'
+        working-directory: trajectly-examples
+        run: |
+          uv run --with-editable ../trajectly trajectly init
+          uv run --with-editable ../trajectly trajectly record specs/simple.agent.yaml specs/tool.agent.yaml specs/openai.agent.yaml specs/anthropic.agent.yaml specs/langchain.agent.yaml specs/llamaindex.agent.yaml specs/crewai.agent.yaml specs/autogen.agent.yaml specs/dspy.agent.yaml
+          uv run --with-editable ../trajectly trajectly run specs/simple.agent.yaml specs/tool.agent.yaml specs/openai.agent.yaml specs/anthropic.agent.yaml specs/langchain.agent.yaml specs/llamaindex.agent.yaml specs/crewai.agent.yaml specs/autogen.agent.yaml specs/dspy.agent.yaml
+          uv run --with-editable ../trajectly trajectly record specs/regression.agent.yaml specs/llamaindex-regression.agent.yaml
+          set +e
+          uv run --with-editable ../trajectly trajectly run specs/regression.agent.yaml
+          code_one=$?
+          uv run --with-editable ../trajectly trajectly run specs/llamaindex-regression.agent.yaml
+          code_two=$?
+          set -e
+          if [ "$code_one" -ne 1 ] || [ "$code_two" -ne 1 ]; then
+            echo "Intentional regression checks did not return exit code 1" >&2
+            exit 1
+          fi
+
+  action-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure cross-repo action mode
+        run: |
+          if [ -z "${{ secrets.TRAJECTLY_CI_TOKEN }}" ]; then
+            echo "RUN_ACTION=false" >> "$GITHUB_ENV"
+          else
+            echo "RUN_ACTION=true" >> "$GITHUB_ENV"
+          fi
+      - name: Skip note (no token)
+        if: env.RUN_ACTION != 'true'
+        run: |
+          echo "Skipping action smoke because TRAJECTLY_CI_TOKEN is not set."
+      - uses: actions/checkout@v4
+        if: env.RUN_ACTION == 'true'
+        with:
+          repository: trajectly/trajectly-action
+          token: ${{ secrets.TRAJECTLY_CI_TOKEN }}
+          path: trajectly-action
+      - uses: actions/setup-python@v5
+        if: env.RUN_ACTION == 'true'
+        with:
+          python-version: "3.11"
+      - name: Install action test dependencies
+        if: env.RUN_ACTION == 'true'
+        run: |
+          python -m pip install pytest
+      - name: Action smoke checks
+        if: env.RUN_ACTION == 'true'
+        working-directory: trajectly-action
+        run: |
+          ./scripts/check_blocked_paths.sh
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
+          bash -n scripts/run.sh
+          docker run --rm -v "$PWD":/repo -w /repo rhysd/actionlint:latest
+
+  docs-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure cross-repo docs mode
+        run: |
+          if [ -z "${{ secrets.TRAJECTLY_CI_TOKEN }}" ]; then
+            echo "RUN_DOCS=false" >> "$GITHUB_ENV"
+          else
+            echo "RUN_DOCS=true" >> "$GITHUB_ENV"
+          fi
+      - name: Skip note (no token)
+        if: env.RUN_DOCS != 'true'
+        run: |
+          echo "Skipping docs smoke because TRAJECTLY_CI_TOKEN is not set."
+      - uses: actions/checkout@v4
+        if: env.RUN_DOCS == 'true'
+        with:
+          repository: trajectly/trajectly-docs
+          token: ${{ secrets.TRAJECTLY_CI_TOKEN }}
+          path: trajectly-docs
+      - uses: actions/setup-python@v5
+        if: env.RUN_DOCS == 'true'
+        with:
+          python-version: "3.11"
+      - name: Docs smoke checks
+        if: env.RUN_DOCS == 'true'
+        working-directory: trajectly-docs
+        run: |
+          ./scripts/check_blocked_paths.sh
+          python scripts/check_markdown_links.py
+          python scripts/check_markdown_style.py

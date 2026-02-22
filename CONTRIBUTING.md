@@ -31,8 +31,11 @@ uv run pytest
 1. Add or update tests first for behavior changes.
 2. Keep trace schema and plugin interfaces backward compatible.
 3. Keep CLI errors actionable and deterministic.
+4. Do not mark work complete without test evidence (unit + integration/e2e where applicable).
 
 ## Release Notes
 
 - `trajectly` uses SemVer and starts at `v0.x`.
 - Do not break public CLI flags, trace schema, or plugin interfaces in patch releases.
+- Follow the release checklist and changelog policy in `RELEASING.md`.
+- Update `CHANGELOG.md` for every behavior or contract change.
