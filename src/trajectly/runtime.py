@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from trajectly.specs import AgentSpec
@@ -62,11 +62,17 @@ def execute_spec(
             "TRAJECTLY_EVENTS_FILE": str(events_path),
             "TRAJECTLY_FIXTURE_POLICY": spec.fixture_policy,
             "TRAJECTLY_STRICT": "1" if strict else "0",
+            "TRAJECTLY_CONTRACTS_JSON": json.dumps(
+                asdict(spec.contracts), sort_keys=True, separators=(",", ":")
+            ),
         }
     )
 
     if fixtures_path is not None:
         env["TRAJECTLY_FIXTURES_FILE"] = str(fixtures_path)
+
+    if spec.contracts.network.allowlist:
+        env["TRAJECTLY_NETWORK_ALLOWLIST"] = ",".join(spec.contracts.network.allowlist)
 
     src_path = str(_repo_src_path())
     prior = env.get("PYTHONPATH", "")

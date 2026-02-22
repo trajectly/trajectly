@@ -5,7 +5,7 @@ import os
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -25,6 +25,82 @@ class _RuntimeSettings:
     fixtures_path: Path | None
     fixture_policy: str
     strict: bool
+    contracts: _RuntimeContracts = field(default_factory=lambda: _RuntimeContracts())
+
+
+@dataclass(slots=True)
+class _RuntimeContracts:
+    tools_allow: set[str] = field(default_factory=set)
+    tools_deny: set[str] = field(default_factory=set)
+    max_calls_total: int | None = None
+    deny_write_tools: bool = False
+
+
+_WRITE_TOOL_HINTS = (
+    "write",
+    "delete",
+    "remove",
+    "rm",
+    "update",
+    "patch",
+    "save",
+    "create",
+    "insert",
+    "upsert",
+)
+
+
+def _looks_like_write_tool(tool_name: str) -> bool:
+    normalized = tool_name.strip().lower()
+    return any(token in normalized for token in _WRITE_TOOL_HINTS)
+
+
+def _parse_runtime_contracts(raw: str | None) -> _RuntimeContracts:
+    if not raw:
+        return _RuntimeContracts()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return _RuntimeContracts()
+    if not isinstance(payload, dict):
+        return _RuntimeContracts()
+
+    tools = payload.get("tools") or {}
+    side_effects = payload.get("side_effects") or {}
+    if not isinstance(tools, dict):
+        tools = {}
+    if not isinstance(side_effects, dict):
+        side_effects = {}
+
+    allow_raw = tools.get("allow")
+    deny_raw = tools.get("deny")
+    max_calls_raw = tools.get("max_calls_total")
+    deny_write_raw = side_effects.get("deny_write_tools", False)
+
+    allow = set()
+    if isinstance(allow_raw, list):
+        allow = {str(item) for item in allow_raw}
+
+    deny = set()
+    if isinstance(deny_raw, list):
+        deny = {str(item) for item in deny_raw}
+
+    max_calls_total: int | None = None
+    if max_calls_raw is not None:
+        try:
+            parsed_max = int(max_calls_raw)
+            if parsed_max >= 0:
+                max_calls_total = parsed_max
+        except (TypeError, ValueError):
+            max_calls_total = None
+
+    deny_write_tools = bool(deny_write_raw)
+    return _RuntimeContracts(
+        tools_allow=allow,
+        tools_deny=deny,
+        max_calls_total=max_calls_total,
+        deny_write_tools=deny_write_tools,
+    )
 
 
 class SDKContext:
@@ -33,6 +109,7 @@ class SDKContext:
         self._start = time.monotonic()
         self._lock = threading.Lock()
         self._matcher: FixtureMatcher | None = None
+        self._tool_calls_total = 0
 
         if settings.mode == "replay" and settings.fixtures_path and settings.fixtures_path.exists():
             store = FixtureStore.load(settings.fixtures_path)
@@ -49,12 +126,14 @@ class SDKContext:
         fixtures_file = os.getenv("TRAJECTLY_FIXTURES_FILE")
         policy = os.getenv("TRAJECTLY_FIXTURE_POLICY", "by_index")
         strict = os.getenv("TRAJECTLY_STRICT", "0") == "1"
+        contracts = _parse_runtime_contracts(os.getenv("TRAJECTLY_CONTRACTS_JSON"))
         settings = _RuntimeSettings(
             mode=mode,
             events_path=Path(events_file) if events_file else None,
             fixtures_path=Path(fixtures_file) if fixtures_file else None,
             fixture_policy=policy,
             strict=strict,
+            contracts=contracts,
         )
         return SDKContext(settings=settings)
 
@@ -75,6 +154,11 @@ class SDKContext:
     ) -> T:
         input_payload = {"args": self._safe(args), "kwargs": self._safe(kwargs)}
         self._emit("tool_called", {"tool_name": name, "input": input_payload})
+
+        contract_error = self._check_tool_contracts(name)
+        if contract_error:
+            self._emit("tool_returned", {"tool_name": name, "error": contract_error, "output": None})
+            raise SDKRuntimeError(contract_error)
 
         if self.mode == "replay" and self._matcher is not None:
             try:
@@ -108,6 +192,27 @@ class SDKContext:
 
         self._emit("tool_returned", {"tool_name": name, "output": self._safe(output), "error": None})
         return output
+
+    def _check_tool_contracts(self, tool_name: str) -> str | None:
+        contracts = self._settings.contracts
+
+        self._tool_calls_total += 1
+        if contracts.max_calls_total is not None and self._tool_calls_total > contracts.max_calls_total:
+            return (
+                "CONTRACT_MAX_CALLS_TOTAL_EXCEEDED: "
+                f"limit={contracts.max_calls_total}, actual={self._tool_calls_total}"
+            )
+
+        if tool_name in contracts.tools_deny:
+            return f"CONTRACT_TOOL_DENIED: {tool_name}"
+
+        if contracts.tools_allow and tool_name not in contracts.tools_allow:
+            return f"CONTRACT_TOOL_NOT_ALLOWED: {tool_name}"
+
+        if contracts.deny_write_tools and _looks_like_write_tool(tool_name):
+            return f"CONTRACT_WRITE_TOOL_DENIED: {tool_name}"
+
+        return None
 
     def invoke_llm(
         self,

@@ -29,6 +29,21 @@ budget_thresholds:
   max_latency_ms: 500
   max_tool_calls: 3
   max_tokens: 42
+contracts:
+  tools:
+    allow: [add, search]
+    deny: [delete]
+    max_calls_total: 5
+    schema:
+      add:
+        type: object
+  sequence:
+    require: [tool:add]
+    forbid: [tool:delete]
+  side_effects:
+    deny_write_tools: true
+  network:
+    allowlist: [api.example.com]
 """,
     )
 
@@ -44,6 +59,13 @@ budget_thresholds:
     assert spec.budget_thresholds.max_latency_ms == 500
     assert spec.budget_thresholds.max_tool_calls == 3
     assert spec.budget_thresholds.max_tokens == 42
+    assert spec.contracts.tools.allow == ["add", "search"]
+    assert spec.contracts.tools.deny == ["delete"]
+    assert spec.contracts.tools.max_calls_total == 5
+    assert spec.contracts.sequence.require == ["tool:add"]
+    assert spec.contracts.sequence.forbid == ["tool:delete"]
+    assert spec.contracts.side_effects.deny_write_tools is True
+    assert spec.contracts.network.allowlist == ["api.example.com"]
     assert spec.resolved_workdir() == spec_path.parent.resolve()
 
 
@@ -63,6 +85,13 @@ command: python script.py
     assert spec.strict is False
     assert spec.env == {}
     assert spec.redact == []
+    assert spec.contracts.tools.allow == []
+    assert spec.contracts.tools.deny == []
+    assert spec.contracts.tools.max_calls_total is None
+    assert spec.contracts.sequence.require == []
+    assert spec.contracts.sequence.forbid == []
+    assert spec.contracts.side_effects.deny_write_tools is False
+    assert spec.contracts.network.allowlist == []
     assert spec.resolved_workdir() == tmp_path.resolve()
 
 
@@ -86,6 +115,58 @@ command: python script.py
         (
             "command: python a.py\nbudget_thresholds: nope",
             "budget_thresholds must be a mapping",
+        ),
+        (
+            "command: python a.py\ncontracts: nope",
+            "contracts must be a mapping",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  tools: nope",
+            "contracts.tools must be a mapping",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  tools:\n    allow: nope",
+            "contracts.tools.allow must be a list",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  tools:\n    deny: nope",
+            "contracts.tools.deny must be a list",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  tools:\n    allow: [add]\n    deny: [add]",
+            "contracts.tools allow/deny overlap",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  tools:\n    max_calls_total: -1",
+            "contracts.tools.max_calls_total must be >= 0",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  tools:\n    schema: nope",
+            "contracts.tools.schema must be a mapping",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  sequence: nope",
+            "contracts.sequence must be a mapping",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  sequence:\n    require: nope",
+            "contracts.sequence.require must be a list",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  side_effects: nope",
+            "contracts.side_effects must be a mapping",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  side_effects:\n    deny_write_tools: nope",
+            "contracts.side_effects.deny_write_tools must be a boolean",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  network: nope",
+            "contracts.network must be a mapping",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  network:\n    allowlist: nope",
+            "contracts.network.allowlist must be a list",
         ),
     ],
 )

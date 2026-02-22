@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -220,3 +221,110 @@ env:
 
     clean_after_update = runner.invoke(app, ["run", str(spec), "--project-root", str(tmp_path)])
     assert clean_after_update.exit_code == 0
+
+
+def test_run_enforces_contract_tool_deny(tmp_path: Path) -> None:
+    script = tmp_path / "agent.py"
+    _write_script(
+        script,
+        """
+from trajectly.sdk import tool
+
+@tool("add")
+def add(a, b):
+    return a + b
+
+add(1, 2)
+""".strip(),
+    )
+    spec = tmp_path / "contracts.agent.yaml"
+    _write_spec(
+        spec,
+        """
+name: contracts
+command: python agent.py
+workdir: .
+fixture_policy: by_hash
+strict: true
+""".strip(),
+    )
+
+    runner.invoke(app, ["init", str(tmp_path)])
+    record_result = runner.invoke(app, ["record", str(spec), "--project-root", str(tmp_path)])
+    assert record_result.exit_code == 0
+
+    _write_spec(
+        spec,
+        """
+name: contracts
+command: python agent.py
+workdir: .
+fixture_policy: by_hash
+strict: true
+contracts:
+  tools:
+    deny: [add]
+""".strip(),
+    )
+
+    run_result = runner.invoke(app, ["run", str(spec), "--project-root", str(tmp_path)])
+    assert run_result.exit_code == 1
+
+    latest_report = tmp_path / ".trajectly" / "reports" / "contracts.json"
+    payload = json.loads(latest_report.read_text(encoding="utf-8"))
+    classifications = {finding["classification"] for finding in payload["findings"]}
+    assert "contract_tool_denied" in classifications
+
+
+def test_run_contract_violation_fails_fast_before_followup_steps(tmp_path: Path) -> None:
+    marker = tmp_path / "should_not_exist.txt"
+    script = tmp_path / "agent.py"
+    _write_script(
+        script,
+        f"""
+from pathlib import Path
+from trajectly.sdk import tool
+
+@tool("delete_account")
+def delete_account(user_id):
+    return user_id
+
+delete_account("u-1")
+Path("{marker.name}").write_text("ran", encoding="utf-8")
+""".strip(),
+    )
+    spec = tmp_path / "failfast.agent.yaml"
+    _write_spec(
+        spec,
+        """
+name: failfast
+command: python agent.py
+workdir: .
+fixture_policy: by_hash
+strict: true
+""".strip(),
+    )
+
+    runner.invoke(app, ["init", str(tmp_path)])
+    record_result = runner.invoke(app, ["record", str(spec), "--project-root", str(tmp_path)])
+    assert record_result.exit_code == 0
+    assert marker.exists()
+    marker.unlink()
+
+    _write_spec(
+        spec,
+        """
+name: failfast
+command: python agent.py
+workdir: .
+fixture_policy: by_hash
+strict: true
+contracts:
+  tools:
+    deny: [delete_account]
+""".strip(),
+    )
+
+    run_result = runner.invoke(app, ["run", str(spec), "--project-root", str(tmp_path)])
+    assert run_result.exit_code == 1
+    assert not marker.exists()

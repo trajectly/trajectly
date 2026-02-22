@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from trajectly.fixtures import FixtureEntry, FixtureStore
-from trajectly.sdk.context import SDKContext, SDKRuntimeError, _RuntimeSettings
+from trajectly.sdk.context import SDKContext, SDKRuntimeError, _RuntimeContracts, _RuntimeSettings
 
 
 def _read_events(path: Path) -> list[dict[str, object]]:
@@ -116,3 +116,34 @@ def test_sdk_context_replay_strict_missing_fixture_raises(tmp_path: Path) -> Non
 
     with pytest.raises(SDKRuntimeError, match="Missing fixture for tool call"):
         ctx.invoke_tool("missing", lambda: "nope", (), {})
+
+
+def test_sdk_context_contract_deny_raises_with_stable_error_code(tmp_path: Path) -> None:
+    settings = _RuntimeSettings(
+        mode="record",
+        events_path=tmp_path / "events.jsonl",
+        fixtures_path=None,
+        fixture_policy="by_index",
+        strict=False,
+        contracts=_RuntimeContracts(tools_deny={"delete_account"}),
+    )
+    ctx = SDKContext(settings)
+
+    with pytest.raises(SDKRuntimeError, match="CONTRACT_TOOL_DENIED"):
+        ctx.invoke_tool("delete_account", lambda: "ok", (), {})
+
+
+def test_sdk_context_contract_max_calls_total_raises(tmp_path: Path) -> None:
+    settings = _RuntimeSettings(
+        mode="record",
+        events_path=tmp_path / "events.jsonl",
+        fixtures_path=None,
+        fixture_policy="by_index",
+        strict=False,
+        contracts=_RuntimeContracts(max_calls_total=1),
+    )
+    ctx = SDKContext(settings)
+
+    assert ctx.invoke_tool("first", lambda: "ok", (), {}) == "ok"
+    with pytest.raises(SDKRuntimeError, match="CONTRACT_MAX_CALLS_TOTAL_EXCEEDED"):
+        ctx.invoke_tool("second", lambda: "boom", (), {})

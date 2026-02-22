@@ -22,6 +22,7 @@ from trajectly.constants import (
     TMP_DIR,
     TRACE_EVENT_TYPES,
 )
+from trajectly.contracts import evaluate_contracts
 from trajectly.diff import compare_traces
 from trajectly.diff.models import DiffResult, Finding
 from trajectly.events import (
@@ -374,6 +375,8 @@ def run_specs(
 
         plugin_findings = run_semantic_plugins(baseline=baseline_events, current=current_events)
         diff_result.findings.extend(plugin_findings)
+        contract_findings = evaluate_contracts(current=current_events, contracts=spec.contracts)
+        diff_result.findings.extend(contract_findings)
         _refresh_summary(diff_result)
 
         report_json = paths.reports / f"{slug}.json"

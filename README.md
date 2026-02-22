@@ -38,6 +38,31 @@ trajectly baseline update tests/*.agent.yaml
 trajectly baseline update --auto
 ```
 
+## Contracts Schema (v1 Draft)
+
+```yaml
+contracts:
+  tools:
+    allow: []
+    deny: []
+    max_calls_total: 5
+    schema: {}
+  sequence:
+    require: []
+    forbid: []
+  side_effects:
+    deny_write_tools: true
+  network:
+    allowlist: []
+```
+
+Contract checks in replay emit stable codes in tool errors/findings, including:
+
+- `CONTRACT_TOOL_DENIED`
+- `CONTRACT_TOOL_NOT_ALLOWED`
+- `CONTRACT_MAX_CALLS_TOTAL_EXCEEDED`
+- `CONTRACT_WRITE_TOOL_DENIED`
+
 ## Example Diff Output
 
 ```text

@@ -18,6 +18,38 @@ class BudgetThresholds:
 
 
 @dataclass(slots=True)
+class ToolContracts:
+    allow: list[str] = field(default_factory=list)
+    deny: list[str] = field(default_factory=list)
+    max_calls_total: int | None = None
+    schema: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class SequenceContracts:
+    require: list[str] = field(default_factory=list)
+    forbid: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class SideEffectContracts:
+    deny_write_tools: bool = False
+
+
+@dataclass(slots=True)
+class NetworkContracts:
+    allowlist: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class AgentContracts:
+    tools: ToolContracts = field(default_factory=ToolContracts)
+    sequence: SequenceContracts = field(default_factory=SequenceContracts)
+    side_effects: SideEffectContracts = field(default_factory=SideEffectContracts)
+    network: NetworkContracts = field(default_factory=NetworkContracts)
+
+
+@dataclass(slots=True)
 class AgentSpec:
     name: str
     command: str
@@ -28,6 +60,7 @@ class AgentSpec:
     strict: bool = False
     redact: list[str] = field(default_factory=list)
     budget_thresholds: BudgetThresholds = field(default_factory=BudgetThresholds)
+    contracts: AgentContracts = field(default_factory=AgentContracts)
 
     def resolved_workdir(self) -> Path:
         if self.workdir is None:
@@ -62,6 +95,76 @@ def _parse_budget_thresholds(raw: Any) -> BudgetThresholds:
     )
 
 
+def _parse_string_list(raw: Any, *, field_name: str) -> list[str]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"{field_name} must be a list")
+    return [str(item) for item in raw]
+
+
+def _parse_contracts(raw: Any) -> AgentContracts:
+    if raw is None:
+        return AgentContracts()
+    if not isinstance(raw, dict):
+        raise ValueError("contracts must be a mapping")
+
+    tools_raw = raw.get("tools") or {}
+    if not isinstance(tools_raw, dict):
+        raise ValueError("contracts.tools must be a mapping")
+    tools_allow = _parse_string_list(tools_raw.get("allow"), field_name="contracts.tools.allow")
+    tools_deny = _parse_string_list(tools_raw.get("deny"), field_name="contracts.tools.deny")
+    tools_overlap = sorted(set(tools_allow).intersection(tools_deny))
+    if tools_overlap:
+        joined = ", ".join(tools_overlap)
+        raise ValueError(f"contracts.tools allow/deny overlap: {joined}")
+
+    tools_max_calls_total_raw = tools_raw.get("max_calls_total")
+    if tools_max_calls_total_raw is None:
+        tools_max_calls_total: int | None = None
+    else:
+        tools_max_calls_total = int(tools_max_calls_total_raw)
+        if tools_max_calls_total < 0:
+            raise ValueError("contracts.tools.max_calls_total must be >= 0")
+
+    tools_schema_raw = tools_raw.get("schema") or {}
+    if not isinstance(tools_schema_raw, dict):
+        raise ValueError("contracts.tools.schema must be a mapping")
+
+    sequence_raw = raw.get("sequence") or {}
+    if not isinstance(sequence_raw, dict):
+        raise ValueError("contracts.sequence must be a mapping")
+
+    side_effects_raw = raw.get("side_effects") or {}
+    if not isinstance(side_effects_raw, dict):
+        raise ValueError("contracts.side_effects must be a mapping")
+
+    network_raw = raw.get("network") or {}
+    if not isinstance(network_raw, dict):
+        raise ValueError("contracts.network must be a mapping")
+
+    deny_write_tools_raw = side_effects_raw.get("deny_write_tools", False)
+    if not isinstance(deny_write_tools_raw, bool):
+        raise ValueError("contracts.side_effects.deny_write_tools must be a boolean")
+
+    return AgentContracts(
+        tools=ToolContracts(
+            allow=tools_allow,
+            deny=tools_deny,
+            max_calls_total=tools_max_calls_total,
+            schema={str(k): v for k, v in tools_schema_raw.items()},
+        ),
+        sequence=SequenceContracts(
+            require=_parse_string_list(sequence_raw.get("require"), field_name="contracts.sequence.require"),
+            forbid=_parse_string_list(sequence_raw.get("forbid"), field_name="contracts.sequence.forbid"),
+        ),
+        side_effects=SideEffectContracts(deny_write_tools=deny_write_tools_raw),
+        network=NetworkContracts(
+            allowlist=_parse_string_list(network_raw.get("allowlist"), field_name="contracts.network.allowlist")
+        ),
+    )
+
+
 def load_spec(path: Path) -> AgentSpec:
     data = _load_yaml(path)
     name = str(data.get("name") or path.stem)
@@ -93,6 +196,7 @@ def load_spec(path: Path) -> AgentSpec:
         strict=bool(data.get("strict", False)),
         redact=[str(pattern) for pattern in raw_redact],
         budget_thresholds=_parse_budget_thresholds(data.get("budget_thresholds")),
+        contracts=_parse_contracts(data.get("contracts")),
     )
 
 
