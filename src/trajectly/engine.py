@@ -346,6 +346,8 @@ def run_specs(
             context={
                 "schema_version": SCHEMA_VERSION,
                 "spec": spec.name,
+                "slug": slug,
+                "run_id": run_id,
                 "regression": diff_result.summary.get("regression", False),
             },
             report_paths={

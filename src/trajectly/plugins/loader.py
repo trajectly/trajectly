@@ -6,6 +6,7 @@ from typing import Any
 
 from trajectly.diff.models import Finding
 from trajectly.events import TraceEvent
+from trajectly.plugins.cloud_exporter import CloudRunHookExporter
 from trajectly.plugins.interfaces import RunHookPlugin, SemanticDiffPlugin
 
 
@@ -29,7 +30,10 @@ def run_semantic_plugins(
 
 
 def run_run_hooks(context: dict[str, Any], report_paths: dict[str, Path]) -> None:
-    for plugin in _load_group("trajectly.run_hook_plugins"):
+    built_in_exporter = CloudRunHookExporter.from_env()
+    built_ins: list[Any] = [built_in_exporter] if built_in_exporter is not None else []
+
+    for plugin in [*built_ins, *_load_group("trajectly.run_hook_plugins")]:
         instance: RunHookPlugin
         instance = plugin() if callable(plugin) else plugin
         instance.on_run_finished(context=context, report_paths=report_paths)
