@@ -2,8 +2,7 @@
 set -euo pipefail
 
 blocked_paths=(
-  "docs/architecture.md"
-  "docs/launch_plan.md"
+  "docs/"
   "first_prompt.txt"
   "first_prompt.md"
   "dev_prompt.txt"

@@ -48,24 +48,10 @@ Both traces -> Diff Engine (sequence + args + outputs + budgets) -> Reporters (m
 Plugin Bus -> semantic diff plugins + SaaS export hooks
 ```
 
-## Why Trajectly vs Existing Tools
-
-- LangSmith: excellent observability and tracing, but Trajectly is CI-first deterministic replay/diff for strict regression gating.
-- Braintrust: strong eval workflows, while Trajectly focuses on trajectory determinism and fixture-backed replay semantics.
-- Promptfoo: prompt/output evaluation centric; Trajectly diffs full tool/LLM call trajectories, arguments, outputs, and budgets.
-- agent-ci.com: CI orchestration focused; Trajectly centers on canonical trace contracts and reproducible local+CI replay behavior.
-
 ## Open-Core Model
 
 OSS (MIT) contains the CLI, replay engine, diff engine, local reporting, and plugin hooks.
 Future SaaS adds hosted history, team dashboards, flakiness detection, semantic diff services, and alerting.
-
-## Documentation
-
-- End-to-end roadmap: `docs/end_to_end_plan.md`
-- Platform adapters: `docs/platform_adapters.md`
-- Testing commands: `docs/testing_guide.md`
-- Paid services plan: `docs/paid_services_plan.md`
 
 ## Roadmap
 

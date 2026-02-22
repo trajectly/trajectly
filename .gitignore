@@ -16,8 +16,6 @@ first_prompt.md
 dev_prompt.txt
 dev_prompt.md
 PLAN.md
-docs/architecture.md
-docs/launch_plan.md
-docs/private/
+docs/
 .private/
 internal/
