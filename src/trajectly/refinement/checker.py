@@ -1,3 +1,20 @@
+"""Skeleton refinement checker (Definitions 4-5 in trt_theory.md).
+
+Implements ``check_skeleton_refinement``, which verifies the skeleton
+refinement preorder: baseline call names must embed as a subsequence in the
+current call names, and any extra calls must be permitted by policy.
+
+**Algorithm:** Greedy left-to-right subsequence scan in O(|S_b| + |S_c|).
+The greedy match is optimal because every matched element consumes the
+earliest possible position, maximizing room for subsequent matches.
+
+**Determinism:** The scan is single-pass, index-ordered, and appends
+violations in traversal order — no randomness or hash iteration.
+
+**Vacuity:** Empty baseline skeleton is always satisfied (contracts remain
+the only active obligations).
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -24,9 +41,12 @@ class RefinementCheckResult:
 def _is_subsequence_with_matches(
     baseline_names: list[str],
     current_names: list[str],
-) -> tuple[bool, list[int]]:
-    # Multiplicity-aware subsequence check used by skeleton refinement:
-    # each baseline call must match a distinct current call in order.
+) -> tuple[bool, list[int], str | None]:
+    """Greedy O(|baseline| + |current|) subsequence check.
+
+    Returns (matched, match_indices, first_missing_name).
+    If matched is True, first_missing_name is None.
+    """
     matches: list[int] = []
     baseline_idx = 0
     current_idx = 0
@@ -39,7 +59,10 @@ def _is_subsequence_with_matches(
             continue
         current_idx += 1
 
-    return baseline_idx == len(baseline_names), matches
+    if baseline_idx == len(baseline_names):
+        return True, matches, None
+
+    return False, matches, baseline_names[baseline_idx]
 
 
 def check_skeleton_refinement(
@@ -61,30 +84,16 @@ def check_skeleton_refinement(
         return RefinementCheckResult(violations=[], refinement_skeleton_vacuous=True)
 
     violations: list[TRTViolation] = []
-    matched, matched_indices = _is_subsequence_with_matches(baseline_names, current_names)
+    matched, matched_indices, first_missing = _is_subsequence_with_matches(baseline_names, current_names)
     if not matched:
-        missing_tool = None
-        current_cursor = 0
-        for baseline_tool in baseline_names:
-            found = False
-            while current_cursor < len(current_names):
-                if current_names[current_cursor] == baseline_tool:
-                    found = True
-                    current_cursor += 1
-                    break
-                current_cursor += 1
-            if not found:
-                missing_tool = baseline_tool
-                break
-
         event_index = current_steps[-1].event_index if current_steps else 0
         violations.append(
             TRTViolation(
                 code="REFINEMENT_BASELINE_CALL_MISSING",
-                message=f"Baseline skeleton call missing in current run: {missing_tool or 'unknown'}",
+                message=f"Baseline skeleton call missing in current run: {first_missing or 'unknown'}",
                 failure_class=FAILURE_CLASS_REFINEMENT,
                 event_index=event_index,
-                expected=missing_tool,
+                expected=first_missing,
                 observed=current_names,
                 hint="Ensure baseline-required tool protocol remains a subsequence.",
             )

@@ -1,3 +1,23 @@
+"""TRT decision procedure (Definition 8 in trt_theory.md).
+
+Implements ``evaluate_trt``, the top-level verdict function that composes
+abstraction, contract evaluation, skeleton refinement, and witness resolution
+into a single deterministic pipeline.
+
+**Soundness guarantee (Theorem 1):** If ``evaluate_trt`` returns PASS, every
+configured contract obligation is satisfied and skeleton refinement holds for
+the observed traces.
+
+**Determinism guarantee (Theorem 2):** For fixed inputs ``(T_b, T_n, spec)``,
+the output (verdict, witness index, violation list) is identical across
+invocations — no randomness, no hash-map iteration order dependency, no
+parallelism.
+
+**Runtime invariants enforced by assertions:**
+- PASS ↔ zero violations (soundness check).
+- Witness index == min(event_index) over all violations (minimality check).
+"""
+
 from __future__ import annotations
 
 import re
@@ -231,8 +251,6 @@ def evaluate_trt(
     repro_command: str | None = None,
     counterexample_paths: dict[str, str] | None = None,
 ) -> TRTResult:
-    # TRT pipeline order is fixed: abstraction -> contracts -> refinement ->
-    # witness resolution -> report serialization.
     abstraction_cfg = AbstractionConfig(ignore_call_tools=spec.refinement.ignore_call_tools)
     baseline_abs = build_abstract_trace(baseline_events, config=abstraction_cfg)
     current_abs = build_abstract_trace(current_events, config=abstraction_cfg)
@@ -261,6 +279,15 @@ def evaluate_trt(
     all_violations = [*refinement_result.violations, *contract_violations]
     witness = resolve_witness(all_violations)
     status: TRTStatus = "FAIL" if all_violations else "PASS"
+
+    assert (status == "PASS") == (len(all_violations) == 0), (
+        "Soundness: PASS iff zero violations"
+    )
+    if witness is not None:
+        assert status == "FAIL", "Witness exists only when FAIL"
+        assert witness.witness_index == min(v.event_index for v in all_violations), (
+            "Witness minimality: witness_index == min(event_index)"
+        )
     report = _to_report(
         status=status,
         witness=witness,

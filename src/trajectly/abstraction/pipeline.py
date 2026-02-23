@@ -1,3 +1,19 @@
+"""Deterministic abstraction pipeline (Definition 2 in trt_theory.md).
+
+Implements ``build_abstract_trace``, which maps a concrete event trace to an
+abstract representation consisting of a token stream and a predicate bag.
+
+**Determinism (Theorem 2 precondition):** The pipeline iterates events by
+index, applies a fixed token-mapping function per event type, and accumulates
+predicates in a single pass.  Output keys are sorted (``tool_calls_by_name``,
+``domains``) so the abstract trace is identical for identical inputs regardless
+of Python dict insertion order.
+
+**Abstraction homomorphism:** ``alpha(T, c) = (Tokens, Predicates)`` where
+each token preserves the event index and causal kind, and predicates aggregate
+over the full trace.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

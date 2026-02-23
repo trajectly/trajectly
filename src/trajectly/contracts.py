@@ -1,3 +1,22 @@
+"""Contract monitor evaluation (Definition 3 in trt_theory.md).
+
+Implements ``evaluate_contracts``, which checks every obligation in the
+contract set Φ independently and collects all violations (no short-circuit).
+
+**Obligation categories:** tool policy, cardinality, sequence automata
+(require, forbid, require_before, eventually, never, at_most_once), argument
+schema, network domain policy, data-leak (PII + secret-pattern), and write
+safety.
+
+**Determinism:** Events and tool lists are iterated in index order; findings
+are appended in traversal order.  Pre-compiled regexes (``_RE_EMAIL``,
+``_RE_PHONE``, ``_REGEX_CACHE``) eliminate non-determinism from compilation
+ordering.
+
+**Completeness:** Every obligation type is checked; the empty violation list
+implies all obligations passed (Theorem 1 precondition).
+"""
+
 from __future__ import annotations
 
 import re
@@ -21,6 +40,11 @@ _WRITE_TOOL_HINTS = (
     "insert",
     "upsert",
 )
+
+_RE_EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+_RE_PHONE = re.compile(r"\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}\b")
+
+_REGEX_CACHE: dict[str, re.Pattern[str]] = {}
 
 
 def _tool_name_from_event(event: TraceEvent) -> str | None:
@@ -115,9 +139,7 @@ def _coerce_number(value: Any) -> float | None:
 
 def _contains_pii(value: Any) -> bool:
     if isinstance(value, str):
-        email_match = re.search(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", value)
-        phone_match = re.search(r"\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}\b", value)
-        return email_match is not None or phone_match is not None
+        return _RE_EMAIL.search(value) is not None or _RE_PHONE.search(value) is not None
     if isinstance(value, dict):
         return any(_contains_pii(v) for v in value.values())
     if isinstance(value, list):
@@ -125,9 +147,19 @@ def _contains_pii(value: Any) -> bool:
     return False
 
 
+def _compiled_pattern(pattern: str) -> re.Pattern[str]:
+    cached = _REGEX_CACHE.get(pattern)
+    if cached is not None:
+        return cached
+    compiled = re.compile(pattern)
+    _REGEX_CACHE[pattern] = compiled
+    return compiled
+
+
 def _contains_regex(value: Any, pattern: str) -> bool:
+    compiled = _compiled_pattern(pattern)
     if isinstance(value, str):
-        return re.search(pattern, value) is not None
+        return compiled.search(value) is not None
     if isinstance(value, dict):
         return any(_contains_regex(v, pattern) for v in value.values())
     if isinstance(value, list):
