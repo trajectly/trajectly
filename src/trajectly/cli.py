@@ -5,13 +5,12 @@ from pathlib import Path
 
 import typer
 
-from trajectly.constants import EXIT_INTERNAL_ERROR, EXIT_REGRESSION, EXIT_SUCCESS
+from trajectly.constants import EXIT_INTERNAL_ERROR, EXIT_SUCCESS
 from trajectly.engine import (
     SUPPORTED_ENABLE_TEMPLATES,
     CommandOutcome,
     apply_enable_template,
     build_repro_command,
-    diff_traces,
     discover_spec_files,
     enable_workspace,
     initialize_workspace,
@@ -20,14 +19,16 @@ from trajectly.engine import (
     record_specs,
     resolve_repro_spec,
     run_specs,
-    write_diff_report,
+    shrink_repro,
 )
-from trajectly.report import render_markdown, render_pr_comment
-from trajectly.specs import BudgetThresholds
+from trajectly.report import render_pr_comment
+from trajectly.specs.migrate import migrate_spec_file
 
 app = typer.Typer(add_completion=False, help="Deterministic regression testing for AI agent trajectories")
 baseline_app = typer.Typer(add_completion=False, help="Manage baseline update workflows")
+migrate_app = typer.Typer(add_completion=False, help="Migration helpers")
 app.add_typer(baseline_app, name="baseline")
+app.add_typer(migrate_app, name="migrate")
 
 
 def _emit_outcome(outcome: CommandOutcome) -> None:
@@ -124,6 +125,11 @@ def record(
     targets: list[str] | None = typer.Argument(None, help="Spec files or glob patterns"),
     project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
     auto: bool = typer.Option(False, "--auto", help="Auto-discover .agent.yaml specs"),
+    allow_ci_write: bool = typer.Option(
+        False,
+        "--allow-ci-write",
+        help="Allow baseline writes when TRAJECTLY_CI=1 (explicit override).",
+    ),
 ) -> None:
     """Record deterministic baseline trajectories and fixtures."""
     try:
@@ -132,7 +138,11 @@ def record(
         typer.echo(f"ERROR: {exc}", err=True)
         raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
 
-    outcome = record_specs(targets=resolved_targets, project_root=project_root.resolve())
+    outcome = record_specs(
+        targets=resolved_targets,
+        project_root=project_root.resolve(),
+        allow_ci_write=allow_ci_write,
+    )
     if outcome.exit_code == EXIT_SUCCESS:
         typer.echo(f"Recorded {outcome.processed_specs} spec(s) successfully")
     _emit_outcome(outcome)
@@ -196,11 +206,36 @@ def repro(
     _emit_outcome(outcome)
 
 
+@app.command()
+def shrink(
+    selector: str = typer.Argument("latest", help="Spec name/slug from latest report, or explicit selector"),
+    project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
+    max_seconds: float = typer.Option(10.0, "--max-seconds", min=0.1, help="Maximum shrink time budget"),
+    max_iterations: int = typer.Option(200, "--max-iterations", min=1, help="Maximum ddmin iterations"),
+) -> None:
+    """Shrink failing counterexample trace while preserving TRT failure class."""
+    resolved_selector = None if selector == "latest" else selector
+    outcome = shrink_repro(
+        project_root=project_root.resolve(),
+        selector=resolved_selector,
+        max_seconds=max_seconds,
+        max_iterations=max_iterations,
+    )
+    if outcome.exit_code == EXIT_SUCCESS:
+        typer.echo("Shrink completed and report updated with shrink stats.")
+    _emit_outcome(outcome)
+
+
 @baseline_app.command("update")
 def baseline_update(
     targets: list[str] | None = typer.Argument(None, help="Spec files or glob patterns"),
     project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
     auto: bool = typer.Option(False, "--auto", help="Auto-discover .agent.yaml specs"),
+    allow_ci_write: bool = typer.Option(
+        False,
+        "--allow-ci-write",
+        help="Allow baseline writes when TRAJECTLY_CI=1 (explicit override).",
+    ),
 ) -> None:
     """Explicitly update baselines by re-recording selected specs."""
     try:
@@ -209,49 +244,14 @@ def baseline_update(
         typer.echo(f"ERROR: {exc}", err=True)
         raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
 
-    outcome = record_specs(targets=resolved_targets, project_root=project_root.resolve())
+    outcome = record_specs(
+        targets=resolved_targets,
+        project_root=project_root.resolve(),
+        allow_ci_write=allow_ci_write,
+    )
     if outcome.exit_code == EXIT_SUCCESS:
         typer.echo(f"Updated baseline for {outcome.processed_specs} spec(s)")
     _emit_outcome(outcome)
-
-
-@app.command()
-def diff(
-    baseline: Path = typer.Option(..., "--baseline", exists=True, file_okay=True, dir_okay=False),
-    current: Path = typer.Option(..., "--current", exists=True, file_okay=True, dir_okay=False),
-    spec_name: str = typer.Option("adhoc", "--spec-name", help="Spec label in report output"),
-    json_output: Path | None = typer.Option(None, "--json-output", help="Write JSON report to this path"),
-    markdown_output: Path | None = typer.Option(None, "--markdown-output", help="Write Markdown report path"),
-    max_latency_ms: int | None = typer.Option(None, "--max-latency-ms"),
-    max_tool_calls: int | None = typer.Option(None, "--max-tool-calls"),
-    max_tokens: int | None = typer.Option(None, "--max-tokens"),
-) -> None:
-    """Diff two trace files directly."""
-    budgets = BudgetThresholds(
-        max_latency_ms=max_latency_ms,
-        max_tool_calls=max_tool_calls,
-        max_tokens=max_tokens,
-    )
-    result = diff_traces(
-        baseline_path=baseline.resolve(),
-        current_path=current.resolve(),
-        budgets=budgets,
-    )
-
-    markdown = render_markdown(spec_name=spec_name, result=result)
-    typer.echo(markdown)
-
-    if json_output is not None and markdown_output is not None:
-        write_diff_report(
-            spec_name=spec_name,
-            result=result,
-            json_output=json_output.resolve(),
-            markdown_output=markdown_output.resolve(),
-        )
-
-    if result.summary.get("regression", False):
-        raise typer.Exit(EXIT_REGRESSION)
-    raise typer.Exit(EXIT_SUCCESS)
 
 
 @app.command()
@@ -288,4 +288,25 @@ def report(
         else:
             typer.echo(content)
             typer.echo(f"Source: {latest_report_path(project_root.resolve(), as_json=False)}")
+    raise typer.Exit(EXIT_SUCCESS)
+
+
+@migrate_app.command("spec")
+def migrate_spec_command(
+    spec_path: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, help="Spec file to convert"),
+    output: Path | None = typer.Option(None, "--output", help="Output file path for converted v0.3 spec"),
+    in_place: bool = typer.Option(False, "--in-place", help="Rewrite the input file in place"),
+) -> None:
+    """Convert a legacy Trajectly spec to v0.3 TRT format."""
+    try:
+        destination = migrate_spec_file(
+            spec_path=spec_path.resolve(),
+            output_path=output.resolve() if output is not None else None,
+            in_place=in_place,
+        )
+    except Exception as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
+        raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
+
+    typer.echo(f"Migrated spec written to: {destination}")
     raise typer.Exit(EXIT_SUCCESS)

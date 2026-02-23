@@ -10,18 +10,17 @@ from trajectly.engine import (
     SUPPORTED_ENABLE_TEMPLATES,
     apply_enable_template,
     build_repro_command,
-    diff_traces,
     discover_spec_files,
     enable_workspace,
     initialize_workspace,
     latest_report_path,
     read_latest_report,
+    record_specs,
     resolve_repro_spec,
     run_specs,
-    write_diff_report,
 )
-from trajectly.events import make_event, write_events_jsonl
 from trajectly.schema import SchemaValidationError
+from trajectly.trace.io import read_trace_meta
 
 
 def _write(path: Path, body: str) -> None:
@@ -101,55 +100,63 @@ strict: true
     assert outcome.latest_report_json.exists()
 
 
-def test_diff_traces_and_write_diff_report(tmp_path: Path) -> None:
-    baseline_path = tmp_path / "baseline.jsonl"
-    current_path = tmp_path / "current.jsonl"
+def test_record_specs_blocks_ci_baseline_writes_without_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    initialize_workspace(tmp_path)
+    agent = tmp_path / "agent.py"
+    _write(agent, "print('ok')")
+    spec = tmp_path / "record.agent.yaml"
+    _write(
+        spec,
+        """
+name: record
+command: python agent.py
+workdir: .
+strict: true
+""",
+    )
+    monkeypatch.setenv("TRAJECTLY_CI", "1")
 
-    baseline = [
-        make_event(
-            event_type="tool_returned",
-            seq=1,
-            run_id="r",
-            rel_ms=1,
-            payload={"tool_name": "add", "output": 3, "error": None},
-        ),
-        make_event(
-            event_type="run_finished",
-            seq=2,
-            run_id="r",
-            rel_ms=2,
-            payload={"duration_ms": 2, "returncode": 0},
-        ),
-    ]
-    current = [
-        make_event(
-            event_type="tool_returned",
-            seq=1,
-            run_id="r",
-            rel_ms=1,
-            payload={"tool_name": "add", "output": 4, "error": None},
-        ),
-        make_event(
-            event_type="run_finished",
-            seq=2,
-            run_id="r",
-            rel_ms=3,
-            payload={"duration_ms": 3, "returncode": 0},
-        ),
-    ]
+    blocked = record_specs(targets=[str(spec)], project_root=tmp_path)
+    assert blocked.exit_code == EXIT_INTERNAL_ERROR
+    assert any("Baseline writes are blocked when TRAJECTLY_CI=1" in error for error in blocked.errors)
 
-    write_events_jsonl(baseline_path, baseline)
-    write_events_jsonl(current_path, current)
+    allowed = record_specs(targets=[str(spec)], project_root=tmp_path, allow_ci_write=True)
+    assert allowed.exit_code == 0
 
-    result = diff_traces(baseline_path=baseline_path, current_path=current_path)
-    assert result.summary["regression"] is True
 
-    out_json = tmp_path / "reports" / "diff.json"
-    out_md = tmp_path / "reports" / "diff.md"
-    write_diff_report("demo", result, out_json, out_md)
+def test_run_specs_fails_fast_on_normalizer_version_mismatch(tmp_path: Path) -> None:
+    initialize_workspace(tmp_path)
+    agent = tmp_path / "agent.py"
+    _write(agent, "print('ok')")
+    spec = tmp_path / "trt.agent.yaml"
+    _write(
+        spec,
+        """
+schema_version: "0.3"
+name: trt-demo
+command: python agent.py
+workdir: .
+strict: true
+""",
+    )
 
-    assert out_json.exists()
-    assert out_md.exists()
+    recorded = record_specs(targets=[str(spec)], project_root=tmp_path)
+    assert recorded.exit_code == 0
+
+    baseline_meta = tmp_path / ".trajectly" / "baselines" / "trt-demo.meta.json"
+    assert baseline_meta.exists()
+    assert read_trace_meta(baseline_meta).normalizer_version == "1"
+
+    payload = json.loads(baseline_meta.read_text(encoding="utf-8"))
+    payload["normalizer_version"] = "999"
+    baseline_meta.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    run_outcome = run_specs(targets=[str(spec)], project_root=tmp_path)
+    assert run_outcome.exit_code == EXIT_INTERNAL_ERROR
+    assert any("NORMALIZER_VERSION_MISMATCH" in error for error in run_outcome.errors)
 
 
 def test_read_latest_report_missing_raises(tmp_path: Path) -> None:

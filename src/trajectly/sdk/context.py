@@ -9,7 +9,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypeVar
 
-from trajectly.fixtures import FixtureLookupError, FixtureMatcher, FixtureStore
+from trajectly.constants import TRT_TRACE_SCHEMA_VERSION
+from trajectly.fixtures import (
+    FixtureExhaustedError,
+    FixtureLookupError,
+    FixtureMatcher,
+    FixtureStore,
+)
+from trajectly.normalize.canonical import DEFAULT_CANONICAL_NORMALIZER
+from trajectly.trace.io import append_trace_event, write_trace_meta
+from trajectly.trace.meta import default_trace_meta_path
+from trajectly.trace.models import TraceMetaV03
 
 T = TypeVar("T")
 
@@ -25,6 +35,9 @@ class _RuntimeSettings:
     fixtures_path: Path | None
     fixture_policy: str
     strict: bool
+    trace_path: Path | None = None
+    trace_meta_path: Path | None = None
+    spec_name: str | None = None
     contracts: _RuntimeContracts = field(default_factory=lambda: _RuntimeContracts())
 
 
@@ -48,6 +61,14 @@ _WRITE_TOOL_HINTS = (
     "insert",
     "upsert",
 )
+
+_EVENT_TYPE_TO_TRACE_KIND = {
+    "llm_called": "LLM_REQUEST",
+    "llm_returned": "LLM_RESPONSE",
+    "tool_called": "TOOL_CALL",
+    "tool_returned": "TOOL_RESULT",
+    "agent_step": "MESSAGE",
+}
 
 
 def _looks_like_write_tool(tool_name: str) -> bool:
@@ -110,6 +131,8 @@ class SDKContext:
         self._lock = threading.Lock()
         self._matcher: FixtureMatcher | None = None
         self._tool_calls_total = 0
+        self._trace_event_index = 0
+        self._normalizer = DEFAULT_CANONICAL_NORMALIZER
 
         if settings.mode == "replay" and settings.fixtures_path and settings.fixtures_path.exists():
             store = FixtureStore.load(settings.fixtures_path)
@@ -119,11 +142,24 @@ class SDKContext:
                 strict=settings.strict,
             )
 
+        if settings.trace_path is not None:
+            trace_meta_path = settings.trace_meta_path or default_trace_meta_path(settings.trace_path)
+            write_trace_meta(
+                trace_meta_path,
+                TraceMetaV03(
+                    spec_name=settings.spec_name,
+                    mode=settings.mode,
+                ),
+            )
+
     @staticmethod
     def from_env() -> SDKContext:
         mode = os.getenv("TRAJECTLY_MODE", "record").strip().lower()
         events_file = os.getenv("TRAJECTLY_EVENTS_FILE")
         fixtures_file = os.getenv("TRAJECTLY_FIXTURES_FILE")
+        trace_file = os.getenv("TRAJECTLY_TRACE_FILE")
+        trace_meta_file = os.getenv("TRAJECTLY_TRACE_META_FILE")
+        spec_name = os.getenv("TRAJECTLY_SPEC_NAME")
         policy = os.getenv("TRAJECTLY_FIXTURE_POLICY", "by_index")
         strict = os.getenv("TRAJECTLY_STRICT", "0") == "1"
         contracts = _parse_runtime_contracts(os.getenv("TRAJECTLY_CONTRACTS_JSON"))
@@ -131,6 +167,9 @@ class SDKContext:
             mode=mode,
             events_path=Path(events_file) if events_file else None,
             fixtures_path=Path(fixtures_file) if fixtures_file else None,
+            trace_path=Path(trace_file) if trace_file else None,
+            trace_meta_path=Path(trace_meta_file) if trace_meta_file else None,
+            spec_name=spec_name,
             fixture_policy=policy,
             strict=strict,
             contracts=contracts,
@@ -163,6 +202,19 @@ class SDKContext:
         if self.mode == "replay" and self._matcher is not None:
             try:
                 fixture = self._matcher.match("tool", name, input_payload)
+            except FixtureExhaustedError as exc:
+                error_payload = exc.to_payload()
+                self._emit(
+                    "tool_returned",
+                    {
+                        "tool_name": name,
+                        "error": str(exc),
+                        "error_code": error_payload["code"],
+                        "error_details": error_payload,
+                        "output": None,
+                    },
+                )
+                raise SDKRuntimeError(str(exc)) from exc
             except FixtureLookupError as exc:
                 self._emit("tool_returned", {"tool_name": name, "error": str(exc), "output": None})
                 raise SDKRuntimeError(str(exc)) from exc
@@ -236,6 +288,21 @@ class SDKContext:
         if self.mode == "replay" and self._matcher is not None:
             try:
                 fixture = self._matcher.match("llm", name, request_payload)
+            except FixtureExhaustedError as exc:
+                error_payload = exc.to_payload()
+                self._emit(
+                    "llm_returned",
+                    {
+                        "provider": provider,
+                        "model": model,
+                        "response": None,
+                        "usage": {},
+                        "error": str(exc),
+                        "error_code": error_payload["code"],
+                        "error_details": error_payload,
+                    },
+                )
+                raise SDKRuntimeError(str(exc)) from exc
             except FixtureLookupError as exc:
                 self._emit(
                     "llm_returned",
@@ -329,20 +396,37 @@ class SDKContext:
         return result, {}
 
     def _emit(self, event_type: str, payload: dict[str, Any], meta: dict[str, Any] | None = None) -> None:
-        if self._settings.events_path is None:
-            return
+        safe_payload = self._safe(payload)
+        safe_meta = self._safe(meta or {})
         record = {
             "event_type": event_type,
             "rel_ms": int((time.monotonic() - self._start) * 1000),
-            "payload": self._safe(payload),
-            "meta": meta or {},
+            "payload": safe_payload,
+            "meta": safe_meta,
         }
-        line = json.dumps(record, sort_keys=True, separators=(",", ":"))
         with self._lock:
-            self._settings.events_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._settings.events_path.open("a", encoding="utf-8") as handle:
-                handle.write(line)
-                handle.write("\n")
+            if self._settings.events_path is not None:
+                line = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                self._settings.events_path.parent.mkdir(parents=True, exist_ok=True)
+                with self._settings.events_path.open("a", encoding="utf-8") as handle:
+                    handle.write(line)
+                    handle.write("\n")
+
+            trace_kind = _EVENT_TYPE_TO_TRACE_KIND.get(event_type)
+            if trace_kind is not None and self._settings.trace_path is not None:
+                trace_payload = {"kind": trace_kind, "payload": safe_payload}
+                stable_hash = self._normalizer.sha256(trace_payload, strip_volatile=True)
+                append_trace_event(
+                    self._settings.trace_path,
+                    {
+                        "schema_version": TRT_TRACE_SCHEMA_VERSION,
+                        "event_index": self._trace_event_index,
+                        "kind": trace_kind,
+                        "payload": safe_payload,
+                        "stable_hash": stable_hash,
+                    },
+                )
+                self._trace_event_index += 1
 
     def _safe(self, value: Any) -> Any:
         try:

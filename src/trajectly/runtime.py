@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from trajectly.specs import AgentSpec
+from trajectly.trace.meta import default_trace_meta_path, default_trace_path
 
 
 @dataclass(slots=True)
@@ -49,6 +50,12 @@ def execute_spec(
     events_path.parent.mkdir(parents=True, exist_ok=True)
     if events_path.exists():
         events_path.unlink()
+    trace_path = default_trace_path(events_path)
+    trace_meta_path = default_trace_meta_path(trace_path)
+    if trace_path.exists():
+        trace_path.unlink()
+    if trace_meta_path.exists():
+        trace_meta_path.unlink()
 
     env = dict(os.environ)
     env.update(spec.env)
@@ -60,6 +67,9 @@ def execute_spec(
             "TZ": "UTC",
             "TRAJECTLY_MODE": mode,
             "TRAJECTLY_EVENTS_FILE": str(events_path),
+            "TRAJECTLY_TRACE_FILE": str(trace_path),
+            "TRAJECTLY_TRACE_META_FILE": str(trace_meta_path),
+            "TRAJECTLY_SPEC_NAME": spec.name,
             "TRAJECTLY_FIXTURE_POLICY": spec.fixture_policy,
             "TRAJECTLY_STRICT": "1" if strict else "0",
             "TRAJECTLY_CONTRACTS_JSON": json.dumps(

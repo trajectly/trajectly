@@ -118,6 +118,54 @@ def test_sdk_context_replay_strict_missing_fixture_raises(tmp_path: Path) -> Non
         ctx.invoke_tool("missing", lambda: "nope", (), {})
 
 
+def test_sdk_context_replay_fixture_exhausted_raises_stable_error(tmp_path: Path) -> None:
+    fixtures_path = tmp_path / "fixtures.json"
+    events_path = tmp_path / "events.jsonl"
+
+    store = FixtureStore(
+        entries=[
+            FixtureEntry(
+                kind="tool",
+                name="add",
+                input_payload={"args": [2, 3], "kwargs": {}},
+                input_hash="",
+                output_payload={"output": 5, "error": None},
+            )
+        ]
+    )
+    normalized = FixtureStore.from_dict(store.to_dict())
+    for entry in normalized.entries:
+        from trajectly.canonical import sha256_of_data
+
+        entry.input_hash = sha256_of_data(entry.input_payload)
+    normalized.save(fixtures_path)
+
+    settings = _RuntimeSettings(
+        mode="replay",
+        events_path=events_path,
+        fixtures_path=fixtures_path,
+        fixture_policy="by_hash",
+        strict=True,
+    )
+    ctx = SDKContext(settings)
+
+    assert ctx.invoke_tool("add", lambda _a, _b: 99, (2, 3), {}) == 5
+    with pytest.raises(SDKRuntimeError, match="FIXTURE_EXHAUSTED"):
+        ctx.invoke_tool("add", lambda _a, _b: 99, (2, 3), {})
+
+    events = _read_events(events_path)
+    exhausted = [
+        event
+        for event in events
+        if event["event_type"] == "tool_returned"
+        and "FIXTURE_EXHAUSTED" in str(event["payload"].get("error", ""))
+    ]
+    assert exhausted
+    payload = exhausted[-1]["payload"]
+    assert payload["error_code"] == "FIXTURE_EXHAUSTED"
+    assert payload["error_details"]["failure_class"] == "CONTRACT"
+
+
 def test_sdk_context_contract_deny_raises_with_stable_error_code(tmp_path: Path) -> None:
     settings = _RuntimeSettings(
         mode="record",
@@ -147,3 +195,32 @@ def test_sdk_context_contract_max_calls_total_raises(tmp_path: Path) -> None:
     assert ctx.invoke_tool("first", lambda: "ok", (), {}) == "ok"
     with pytest.raises(SDKRuntimeError, match="CONTRACT_MAX_CALLS_TOTAL_EXCEEDED"):
         ctx.invoke_tool("second", lambda: "boom", (), {})
+
+
+def test_sdk_context_emits_v03_trace_when_trace_paths_provided(tmp_path: Path) -> None:
+    events_path = tmp_path / "events.jsonl"
+    trace_path = tmp_path / "events.trace.jsonl"
+    trace_meta_path = tmp_path / "events.trace.meta.json"
+    settings = _RuntimeSettings(
+        mode="record",
+        events_path=events_path,
+        fixtures_path=None,
+        fixture_policy="by_index",
+        strict=False,
+        trace_path=trace_path,
+        trace_meta_path=trace_meta_path,
+        spec_name="demo-spec",
+    )
+    ctx = SDKContext(settings)
+
+    ctx.agent_step("start")
+    _ = ctx.invoke_tool("add", lambda a, b: a + b, (1, 2), {})
+
+    raw_meta = json.loads(trace_meta_path.read_text(encoding="utf-8"))
+    trace_lines = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    assert raw_meta["schema_version"] == "0.3"
+    assert raw_meta["normalizer_version"] == "1"
+    assert trace_lines[0]["kind"] == "MESSAGE"
+    assert trace_lines[1]["kind"] == "TOOL_CALL"
+    assert trace_lines[2]["kind"] == "TOOL_RESULT"

@@ -8,6 +8,9 @@ from trajectly.events import TraceEvent
 
 
 class SemanticDiffPlugin(Protocol):
+    # v0.3.x compatibility surface:
+    # Semantic plugins still receive legacy diff findings while TRT remains
+    # authoritative for verdict semantics.
     def compare(
         self,
         baseline_trace: list[TraceEvent],

@@ -22,9 +22,14 @@ def _fake_create_connection(*_args, **_kwargs):
     return None
 
 
+def _fake_getaddrinfo(*_args, **_kwargs):
+    return []
+
+
 def test_activate_blocks_network_and_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_socket_module = types.SimpleNamespace(
         create_connection=_fake_create_connection,
+        getaddrinfo=_fake_getaddrinfo,
         socket=_FakeSocketClass,
     )
 
@@ -47,6 +52,7 @@ def test_activate_blocks_network_and_sets_env(monkeypatch: pytest.MonkeyPatch) -
 def test_activate_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_socket_module = types.SimpleNamespace(
         create_connection=_fake_create_connection,
+        getaddrinfo=_fake_getaddrinfo,
         socket=_FakeSocketClass,
     )
     monkeypatch.setattr(replay_guard, "socket", fake_socket_module)
@@ -79,6 +85,7 @@ def test_activate_respects_network_allowlist(monkeypatch: pytest.MonkeyPatch) ->
 
     fake_socket_module = types.SimpleNamespace(
         create_connection=_tracking_create_connection,
+        getaddrinfo=_fake_getaddrinfo,
         socket=_TrackingSocketClass,
     )
 
@@ -94,3 +101,24 @@ def test_activate_respects_network_allowlist(monkeypatch: pytest.MonkeyPatch) ->
         fake_socket_module.create_connection(("blocked.example", 443))
     assert calls["create_connection"] == 1
     assert calls["connect"] == 1
+
+
+def test_activate_blocks_subprocess_network_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(replay_guard, "_PATCHED", False)
+    monkeypatch.delenv("TRAJECTLY_NETWORK_ALLOWLIST", raising=False)
+    monkeypatch.delenv("TRAJECTLY_SUBPROCESS_ALLOWLIST", raising=False)
+
+    replay_guard.activate()
+
+    with pytest.raises(replay_guard.NetworkBlockedError):
+        __import__("subprocess").run(["curl", "https://example.com"], check=False)
+
+
+def test_activate_blocks_urllib_requests(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(replay_guard, "_PATCHED", False)
+    monkeypatch.delenv("TRAJECTLY_NETWORK_ALLOWLIST", raising=False)
+
+    replay_guard.activate()
+
+    with pytest.raises(replay_guard.NetworkBlockedError):
+        __import__("urllib.request").request.urlopen("https://example.com")

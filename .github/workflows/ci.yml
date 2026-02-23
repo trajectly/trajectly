@@ -33,6 +33,10 @@ jobs:
         run: uv run mypy src
       - name: Test
         run: uv run pytest -q
+      - name: Determinism Replay Tests
+        run: uv run pytest -q tests/integration/test_determinism_replay.py
+      - name: Coverage
+        run: uv run pytest --cov=src/trajectly --cov-report=term-missing -q
       - name: Smoke
         run: |
           uv run trajectly init

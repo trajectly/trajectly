@@ -22,6 +22,8 @@ from trajectly.constants import (
     STATE_DIR,
     TMP_DIR,
     TRACE_EVENT_TYPES,
+    TRT_NORMALIZER_VERSION,
+    TRT_SPEC_SCHEMA_VERSION,
 )
 from trajectly.contracts import evaluate_contracts
 from trajectly.diff import compare_traces
@@ -37,9 +39,15 @@ from trajectly.fixtures import FixtureStore
 from trajectly.plugins import run_run_hooks, run_semantic_plugins
 from trajectly.redaction import apply_redactions
 from trajectly.report import write_reports
+from trajectly.report.schema import ShrinkStatsV03
 from trajectly.runtime import ExecutionResult, execute_spec
 from trajectly.schema import validate_latest_report_dict
-from trajectly.specs import AgentSpec, BudgetThresholds, load_specs
+from trajectly.shrink import ddmin_shrink
+from trajectly.specs import AgentSpec, load_specs
+from trajectly.trace.io import read_trace_meta, write_trace_meta
+from trajectly.trace.models import TraceMetaV03
+from trajectly.trt.runner import TRTResult, evaluate_trt
+from trajectly.trt.types import TRTViolation
 
 
 @dataclass(slots=True)
@@ -82,6 +90,10 @@ def _state_paths(project_root: Path) -> _StatePaths:
         repros=project_root / REPROS_DIR,
         tmp=project_root / TMP_DIR,
     )
+
+
+def _baseline_meta_path(baseline_trace_path: Path) -> Path:
+    return baseline_trace_path.with_name(f"{baseline_trace_path.stem}.meta.json")
 
 
 def _ensure_state_dirs(paths: _StatePaths) -> None:
@@ -338,6 +350,54 @@ def _refresh_summary(result: DiffResult) -> None:
     result.summary["classifications"] = dict(counts)
 
 
+def _trt_violation_to_finding(violation: TRTViolation) -> Finding:
+    path = f"$.trt.event[{violation.event_index}]"
+    classification = violation.code.strip().lower()
+    return Finding(
+        classification=classification,
+        message=violation.message,
+        path=path,
+        baseline=violation.expected,
+        current=violation.observed,
+    )
+
+
+def _merge_trt_findings(diff_result: DiffResult, trt_result: TRTResult) -> None:
+    existing_keys = {
+        (finding.classification, finding.message, finding.path)
+        for finding in diff_result.findings
+    }
+    for violation in trt_result.all_violations:
+        finding = _trt_violation_to_finding(violation)
+        key = (finding.classification, finding.message, finding.path)
+        if key in existing_keys:
+            continue
+        diff_result.findings.append(finding)
+        existing_keys.add(key)
+
+
+def _write_counterexample_prefix(
+    *,
+    paths: _StatePaths,
+    slug: str,
+    current_events: list[TraceEvent],
+    witness_index: int,
+) -> Path:
+    cutoff = max(witness_index, 0)
+    prefix_events = current_events[: cutoff + 1]
+    prefix_path = paths.repros / f"{slug}.counterexample.prefix.jsonl"
+    write_events_jsonl(prefix_path, prefix_events)
+    return prefix_path
+
+
+def _augment_report_with_trt(report_json: Path, trt_result: TRTResult) -> None:
+    raw = json.loads(report_json.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return
+    raw["trt_v03"] = trt_result.report.to_dict()
+    report_json.write_text(json.dumps(raw, indent=2, sort_keys=True), encoding="utf-8")
+
+
 def _aggregate_markdown(rows: list[dict[str, Any]], errors: list[str]) -> str:
     lines: list[str] = []
     lines.append("# Trajectly Latest Run")
@@ -359,8 +419,17 @@ def _aggregate_markdown(rows: list[dict[str, Any]], errors: list[str]) -> str:
             lines.append(f"- `{row['spec']}`: {status}")
             lines.append(f"  - json: `{row['report_json']}`")
             lines.append(f"  - md: `{row['report_md']}`")
+            if row.get("trt_status"):
+                trt_status = str(row["trt_status"])
+                witness = row.get("trt_witness_index")
+                if witness is None:
+                    lines.append(f"  - trt: `{trt_status}`")
+                else:
+                    lines.append(f"  - trt: `{trt_status}` (witness={witness})")
             if row.get("repro_command"):
                 lines.append(f"  - repro: `{row['repro_command']}`")
+            if row.get("trt_counterexample_reduced"):
+                lines.append(f"  - trt reduced: `{row['trt_counterexample_reduced']}`")
     lines.append("")
     return "\n".join(lines)
 
@@ -384,6 +453,10 @@ def _write_repro_artifact(
     current_events: list[TraceEvent],
     report_json: Path,
     report_md: Path,
+    trt_status: str | None = None,
+    trt_failure_class: str | None = None,
+    trt_witness_index: int | None = None,
+    trt_counterexample_prefix: Path | None = None,
 ) -> Path:
     first_divergence = diff_result.summary.get("first_divergence")
     cutoff_index: int | None = None
@@ -415,6 +488,14 @@ def _write_repro_artifact(
         "baseline_min_trace": str(baseline_min_path),
         "current_min_trace": str(current_min_path),
     }
+    if trt_status is not None:
+        payload["trt_status"] = trt_status
+    if trt_failure_class is not None:
+        payload["trt_failure_class"] = trt_failure_class
+    if trt_witness_index is not None:
+        payload["trt_witness_index"] = trt_witness_index
+    if trt_counterexample_prefix is not None:
+        payload["trt_counterexample_prefix"] = str(trt_counterexample_prefix)
     repro_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return repro_path
 
@@ -481,7 +562,7 @@ def _read_latest_report_dict(project_root: Path) -> dict[str, Any]:
     return validate_latest_report_dict(data)
 
 
-def resolve_repro_spec(project_root: Path, selector: str | None = None) -> tuple[str, Path]:
+def _resolve_latest_report_row(project_root: Path, selector: str | None = None) -> dict[str, Any]:
     report = _read_latest_report_dict(project_root)
     rows = report.get("reports", [])
     if not isinstance(rows, list) or not rows:
@@ -509,6 +590,12 @@ def resolve_repro_spec(project_root: Path, selector: str | None = None) -> tuple
 
     if chosen is None:
         raise ValueError("Unable to resolve repro target from latest report")
+
+    return chosen
+
+
+def resolve_repro_spec(project_root: Path, selector: str | None = None) -> tuple[str, Path]:
+    chosen = _resolve_latest_report_row(project_root, selector)
     spec_path_raw = chosen.get("spec_path")
     if not isinstance(spec_path_raw, str) or not spec_path_raw.strip():
         raise ValueError(
@@ -517,7 +604,12 @@ def resolve_repro_spec(project_root: Path, selector: str | None = None) -> tuple
     return str(chosen.get("spec", "unknown")), Path(spec_path_raw).resolve()
 
 
-def record_specs(targets: list[str], project_root: Path) -> CommandOutcome:
+def record_specs(
+    targets: list[str],
+    project_root: Path,
+    *,
+    allow_ci_write: bool = False,
+) -> CommandOutcome:
     paths = _state_paths(project_root)
     _ensure_state_dirs(paths)
 
@@ -525,6 +617,16 @@ def record_specs(targets: list[str], project_root: Path) -> CommandOutcome:
         specs = load_specs(targets, cwd=project_root)
     except Exception as exc:
         return CommandOutcome(exit_code=EXIT_INTERNAL_ERROR, processed_specs=0, errors=[str(exc)])
+
+    if os.getenv("TRAJECTLY_CI") == "1" and not allow_ci_write:
+        return CommandOutcome(
+            exit_code=EXIT_INTERNAL_ERROR,
+            processed_specs=0,
+            errors=[
+                "Baseline writes are blocked when TRAJECTLY_CI=1. "
+                "Re-run `trajectly record ... --allow-ci-write` only for explicit baseline updates."
+            ],
+        )
 
     errors: list[str] = []
     for spec in specs:
@@ -543,6 +645,18 @@ def record_specs(targets: list[str], project_root: Path) -> CommandOutcome:
 
         baseline_path = paths.baselines / f"{slug}.jsonl"
         write_events_jsonl(baseline_path, events)
+        write_trace_meta(
+            _baseline_meta_path(baseline_path),
+            TraceMetaV03(
+                spec_name=spec.name,
+                run_id=run_id,
+                mode="record",
+                metadata={
+                    "legacy_event_schema_version": SCHEMA_VERSION,
+                    "spec_schema_version": spec.schema_version,
+                },
+            ),
+        )
 
         fixture_store = FixtureStore.from_events(events)
         fixture_store.save(paths.fixtures / f"{slug}.json")
@@ -586,6 +700,27 @@ def run_specs(
         if not baseline_path.exists():
             errors.append(f"{spec.name}: missing baseline trace at {baseline_path}")
             continue
+        if spec.schema_version == TRT_SPEC_SCHEMA_VERSION:
+            baseline_meta_path = _baseline_meta_path(baseline_path)
+            if not baseline_meta_path.exists():
+                errors.append(
+                    f"{spec.name}: NORMALIZER_VERSION_MISMATCH: missing baseline meta at {baseline_meta_path}. "
+                    "Re-run `trajectly record` to regenerate baseline artifacts."
+                )
+                continue
+            try:
+                baseline_meta = read_trace_meta(baseline_meta_path)
+            except Exception as exc:
+                errors.append(
+                    f"{spec.name}: NORMALIZER_VERSION_MISMATCH: invalid baseline meta at {baseline_meta_path}: {exc}"
+                )
+                continue
+            if baseline_meta.normalizer_version != TRT_NORMALIZER_VERSION:
+                errors.append(
+                    f"{spec.name}: NORMALIZER_VERSION_MISMATCH: baseline={baseline_meta.normalizer_version} "
+                    f"runtime={TRT_NORMALIZER_VERSION}. Re-record baselines."
+                )
+                continue
         if not fixture_path.exists():
             errors.append(f"{spec.name}: missing fixtures at {fixture_path}")
             continue
@@ -635,11 +770,34 @@ def run_specs(
         diff_result.findings.extend(plugin_findings)
         contract_findings = evaluate_contracts(current=current_events, contracts=spec.contracts)
         diff_result.findings.extend(contract_findings)
+
+        repro_command = _build_repro_command(spec_path=spec.source_path, project_root=paths.root)
+        trt_result = evaluate_trt(
+            baseline_events=baseline_events,
+            current_events=current_events,
+            spec=spec,
+            repro_command=repro_command,
+            counterexample_paths={},
+        )
+        counterexample_prefix: Path | None = None
+        if trt_result.witness is not None:
+            counterexample_prefix = _write_counterexample_prefix(
+                paths=paths,
+                slug=slug,
+                current_events=current_events,
+                witness_index=trt_result.witness.witness_index,
+            )
+            trt_result.report.counterexample_paths["prefix"] = str(counterexample_prefix)
+
+        if trt_result.status == "FAIL":
+            _merge_trt_findings(diff_result, trt_result)
+
         _refresh_summary(diff_result)
 
         report_json = paths.reports / f"{slug}.json"
         report_md = paths.reports / f"{slug}.md"
         write_reports(spec_name=spec.name, result=diff_result, json_path=report_json, md_path=report_md)
+        _augment_report_with_trt(report_json, trt_result)
         repro_artifact = _write_repro_artifact(
             paths=paths,
             spec=spec,
@@ -649,6 +807,10 @@ def run_specs(
             current_events=current_events,
             report_json=report_json,
             report_md=report_md,
+            trt_status=trt_result.status,
+            trt_failure_class=trt_result.report.failure_class,
+            trt_witness_index=trt_result.report.witness_index,
+            trt_counterexample_prefix=counterexample_prefix,
         )
 
         run_run_hooks(
@@ -658,6 +820,9 @@ def run_specs(
                 "slug": slug,
                 "run_id": run_id,
                 "regression": diff_result.summary.get("regression", False),
+                "trt_status": trt_result.status,
+                "trt_failure_class": trt_result.report.failure_class,
+                "trt_witness_index": trt_result.report.witness_index,
             },
             report_paths={
                 "json": report_json,
@@ -681,12 +846,20 @@ def run_specs(
                 "current": str(current_path),
                 "spec_path": str(spec.source_path),
                 "repro_artifact": str(repro_artifact),
-                "repro_command": _build_repro_command(spec_path=spec.source_path, project_root=paths.root),
+                "repro_command": repro_command,
+                "trt_status": trt_result.status,
+                "trt_failure_class": trt_result.report.failure_class,
+                "trt_witness_index": trt_result.report.witness_index,
+                "trt_primary_violation": (
+                    trt_result.report.primary_violation.to_dict() if trt_result.report.primary_violation else None
+                ),
+                "trt_counterexample_prefix": str(counterexample_prefix) if counterexample_prefix else None,
             }
         )
 
     aggregate = {
         "schema_version": SCHEMA_VERSION,
+        "trt_mode": True,
         "processed_specs": len(rows),
         "regressions": regressions,
         "errors": errors,
@@ -712,23 +885,230 @@ def run_specs(
     )
 
 
-def diff_traces(
-    baseline_path: Path,
-    current_path: Path,
-    budgets: BudgetThresholds | None = None,
-) -> DiffResult:
+def _refresh_latest_report_row(
+    *,
+    paths: _StatePaths,
+    slug: str,
+    row_updates: dict[str, Any],
+) -> tuple[Path, Path]:
+    latest_json = paths.reports / "latest.json"
+    if not latest_json.exists():
+        raise FileNotFoundError(f"Latest report not found: {latest_json}")
+
+    aggregate = _read_latest_report_dict(paths.root)
+    rows = aggregate.get("reports", [])
+    if not isinstance(rows, list):
+        raise ValueError("Latest report payload is invalid: reports must be a list")
+
+    updated = False
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if row.get("slug") != slug:
+            continue
+        row.update(row_updates)
+        updated = True
+        break
+    if not updated:
+        raise ValueError(f"Spec slug not found in latest report: {slug}")
+
+    aggregate["reports"] = rows
+    markdown = _aggregate_markdown(rows=rows, errors=[str(item) for item in aggregate.get("errors", [])])
+    return _write_latest_report(paths=paths, aggregate=aggregate, markdown=markdown)
+
+
+def shrink_repro(
+    *,
+    project_root: Path,
+    selector: str | None = None,
+    max_seconds: float = 10.0,
+    max_iterations: int = 200,
+) -> CommandOutcome:
+    paths = _state_paths(project_root.resolve())
+    _ensure_state_dirs(paths)
+
+    try:
+        selected = _resolve_latest_report_row(paths.root, selector)
+    except Exception as exc:
+        return CommandOutcome(exit_code=EXIT_INTERNAL_ERROR, processed_specs=0, errors=[str(exc)])
+
+    slug = str(selected.get("slug", "")).strip()
+    spec_name = str(selected.get("spec", slug or "unknown"))
+    if not slug:
+        return CommandOutcome(
+            exit_code=EXIT_INTERNAL_ERROR,
+            processed_specs=0,
+            errors=["Latest report row is missing slug for shrink target"],
+        )
+
+    spec_path_raw = selected.get("spec_path")
+    baseline_path_raw = selected.get("baseline")
+    current_path_raw = selected.get("current")
+    report_json_raw = selected.get("report_json")
+
+    missing_fields: list[str] = []
+    if not isinstance(spec_path_raw, str) or not spec_path_raw.strip():
+        missing_fields.append("spec_path")
+    if not isinstance(baseline_path_raw, str) or not baseline_path_raw.strip():
+        missing_fields.append("baseline")
+    if not isinstance(current_path_raw, str) or not current_path_raw.strip():
+        missing_fields.append("current")
+    if not isinstance(report_json_raw, str) or not report_json_raw.strip():
+        missing_fields.append("report_json")
+    if missing_fields:
+        joined = ", ".join(sorted(missing_fields))
+        return CommandOutcome(
+            exit_code=EXIT_INTERNAL_ERROR,
+            processed_specs=0,
+            errors=[
+                f"Latest report row for `{spec_name}` missing required fields: {joined}. Re-run `trajectly run` first."
+            ],
+        )
+
+    spec_path = Path(str(spec_path_raw)).resolve()
+    baseline_path = Path(str(baseline_path_raw)).resolve()
+    current_path = Path(str(current_path_raw)).resolve()
+    report_json_path = Path(str(report_json_raw)).resolve()
+
+    try:
+        spec = load_specs([str(spec_path)], cwd=paths.root)[0]
+    except Exception as exc:
+        return CommandOutcome(exit_code=EXIT_INTERNAL_ERROR, processed_specs=0, errors=[str(exc)])
+
+    if not baseline_path.exists() or not current_path.exists():
+        return CommandOutcome(
+            exit_code=EXIT_INTERNAL_ERROR,
+            processed_specs=0,
+            errors=[f"Missing baseline/current traces for shrink target `{spec_name}`"],
+        )
+
     baseline_events = read_events_jsonl(baseline_path)
-    current_events = read_events_jsonl(current_path)
-    return compare_traces(baseline_events, current_events, budgets=budgets)
+    source_counterexample = selected.get("trt_counterexample_prefix")
+    if isinstance(source_counterexample, str) and source_counterexample:
+        source_path = Path(source_counterexample).resolve()
+        current_events = read_events_jsonl(source_path) if source_path.exists() else read_events_jsonl(current_path)
+        prefix_path = source_path if source_path.exists() else None
+    else:
+        current_events = read_events_jsonl(current_path)
+        prefix_path = None
 
+    repro_command = str(selected.get("repro_command", "")).strip() or _build_repro_command(
+        spec_path=spec.source_path, project_root=paths.root
+    )
+    original_result = evaluate_trt(
+        baseline_events=baseline_events,
+        current_events=current_events,
+        spec=spec,
+        repro_command=repro_command,
+        counterexample_paths={},
+    )
+    if original_result.status != "FAIL" or original_result.report.failure_class is None:
+        return CommandOutcome(
+            exit_code=EXIT_INTERNAL_ERROR,
+            processed_specs=0,
+            errors=[f"Shrink requires a failing TRT trace for `{spec_name}`"],
+        )
 
-def write_diff_report(
-    spec_name: str,
-    result: DiffResult,
-    json_output: Path,
-    markdown_output: Path,
-) -> None:
-    write_reports(spec_name=spec_name, result=result, json_path=json_output, md_path=markdown_output)
+    if prefix_path is None and original_result.witness is not None:
+        prefix_path = _write_counterexample_prefix(
+            paths=paths,
+            slug=slug,
+            current_events=current_events,
+            witness_index=original_result.witness.witness_index,
+        )
+
+    original_failure_class = original_result.report.failure_class
+
+    def _preserves_failure_class(candidate: list[TraceEvent]) -> bool:
+        candidate_result = evaluate_trt(
+            baseline_events=baseline_events,
+            current_events=candidate,
+            spec=spec,
+            repro_command=repro_command,
+            counterexample_paths={},
+        )
+        return (
+            candidate_result.status == "FAIL"
+            and candidate_result.report.failure_class == original_failure_class
+        )
+
+    try:
+        shrink_result = ddmin_shrink(
+            events=current_events,
+            failure_predicate=_preserves_failure_class,
+            max_seconds=max_seconds,
+            max_iterations=max_iterations,
+        )
+    except Exception as exc:
+        return CommandOutcome(exit_code=EXIT_INTERNAL_ERROR, processed_specs=0, errors=[str(exc)])
+
+    reduced_path: Path | None = None
+    if shrink_result.reduced:
+        reduced_path = paths.repros / f"{slug}.counterexample.reduced.trace.jsonl"
+        write_events_jsonl(reduced_path, shrink_result.reduced_events)
+
+    final_counterexample_paths: dict[str, str] = {}
+    if prefix_path is not None:
+        final_counterexample_paths["prefix"] = str(prefix_path)
+    if reduced_path is not None:
+        final_counterexample_paths["reduced"] = str(reduced_path)
+
+    final_result = evaluate_trt(
+        baseline_events=baseline_events,
+        current_events=shrink_result.reduced_events,
+        spec=spec,
+        repro_command=repro_command,
+        counterexample_paths=final_counterexample_paths,
+    )
+    final_result.report.shrink_stats = ShrinkStatsV03(
+        original_len=shrink_result.original_len,
+        reduced_len=shrink_result.reduced_len,
+        iterations=shrink_result.iterations,
+        seconds=shrink_result.seconds,
+    )
+
+    _augment_report_with_trt(report_json_path, final_result)
+
+    repro_artifact_raw = selected.get("repro_artifact")
+    if isinstance(repro_artifact_raw, str) and repro_artifact_raw.strip():
+        repro_artifact_path = Path(repro_artifact_raw).resolve()
+        if repro_artifact_path.exists():
+            payload = json.loads(repro_artifact_path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                if prefix_path is not None:
+                    payload["trt_counterexample_prefix"] = str(prefix_path)
+                if reduced_path is not None:
+                    payload["trt_counterexample_reduced"] = str(reduced_path)
+                payload["trt_failure_class"] = final_result.report.failure_class
+                payload["trt_witness_index"] = final_result.report.witness_index
+                payload["trt_shrink_stats"] = final_result.report.shrink_stats.to_dict()
+                repro_artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    row_updates: dict[str, Any] = {
+        "trt_status": final_result.status,
+        "trt_failure_class": final_result.report.failure_class,
+        "trt_witness_index": final_result.report.witness_index,
+        "trt_primary_violation": (
+            final_result.report.primary_violation.to_dict() if final_result.report.primary_violation else None
+        ),
+        "trt_shrink_stats": final_result.report.shrink_stats.to_dict() if final_result.report.shrink_stats else None,
+    }
+    if prefix_path is not None:
+        row_updates["trt_counterexample_prefix"] = str(prefix_path)
+    if reduced_path is not None:
+        row_updates["trt_counterexample_reduced"] = str(reduced_path)
+
+    try:
+        latest_json_path, latest_md_path = _refresh_latest_report_row(paths=paths, slug=slug, row_updates=row_updates)
+    except Exception as exc:
+        return CommandOutcome(exit_code=EXIT_INTERNAL_ERROR, processed_specs=0, errors=[str(exc)])
+
+    return CommandOutcome(
+        exit_code=EXIT_SUCCESS,
+        processed_specs=1,
+        latest_report_json=latest_json_path,
+        latest_report_md=latest_md_path,
+    )
 
 
 def read_latest_report(project_root: Path, as_json: bool) -> str:
