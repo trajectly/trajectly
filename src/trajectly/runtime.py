@@ -4,10 +4,11 @@ import json
 import os
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from trajectly.specs import AgentSpec
+from trajectly.trace.meta import default_trace_meta_path, default_trace_path
 
 
 @dataclass(slots=True)
@@ -49,6 +50,12 @@ def execute_spec(
     events_path.parent.mkdir(parents=True, exist_ok=True)
     if events_path.exists():
         events_path.unlink()
+    trace_path = default_trace_path(events_path)
+    trace_meta_path = default_trace_meta_path(trace_path)
+    if trace_path.exists():
+        trace_path.unlink()
+    if trace_meta_path.exists():
+        trace_meta_path.unlink()
 
     env = dict(os.environ)
     env.update(spec.env)
@@ -60,13 +67,22 @@ def execute_spec(
             "TZ": "UTC",
             "TRAJECTLY_MODE": mode,
             "TRAJECTLY_EVENTS_FILE": str(events_path),
+            "TRAJECTLY_TRACE_FILE": str(trace_path),
+            "TRAJECTLY_TRACE_META_FILE": str(trace_meta_path),
+            "TRAJECTLY_SPEC_NAME": spec.name,
             "TRAJECTLY_FIXTURE_POLICY": spec.fixture_policy,
             "TRAJECTLY_STRICT": "1" if strict else "0",
+            "TRAJECTLY_CONTRACTS_JSON": json.dumps(
+                asdict(spec.contracts), sort_keys=True, separators=(",", ":")
+            ),
         }
     )
 
     if fixtures_path is not None:
         env["TRAJECTLY_FIXTURES_FILE"] = str(fixtures_path)
+
+    if spec.contracts.network.allowlist:
+        env["TRAJECTLY_NETWORK_ALLOWLIST"] = ",".join(spec.contracts.network.allowlist)
 
     src_path = str(_repo_src_path())
     prior = env.get("PYTHONPATH", "")

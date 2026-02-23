@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from trajectly.events import make_event
-from trajectly.fixtures import FixtureMatcher, FixtureStore
+from trajectly.fixtures import FixtureExhaustedError, FixtureMatcher, FixtureStore
 
 
 def _sample_events() -> list:
@@ -58,3 +60,23 @@ def test_fixture_matcher_by_hash() -> None:
     assert second is not None
     assert first.output_payload["output"] == 3
     assert second.output_payload["output"] == 9
+
+
+def test_fixture_matcher_by_hash_raises_fixture_exhausted_on_overuse() -> None:
+    store = FixtureStore.from_events(_sample_events())
+    matcher = FixtureMatcher(store=store, policy="by_hash", strict=False)
+    first = matcher.match("tool", "add", {"args": [1, 2], "kwargs": {}})
+    assert first is not None
+
+    with pytest.raises(FixtureExhaustedError, match="FIXTURE_EXHAUSTED"):
+        matcher.match("tool", "add", {"args": [1, 2], "kwargs": {}})
+
+
+def test_fixture_matcher_by_index_raises_fixture_exhausted_on_overuse() -> None:
+    store = FixtureStore.from_events(_sample_events())
+    matcher = FixtureMatcher(store=store, policy="by_index", strict=False)
+    assert matcher.match("tool", "add", {"args": [1, 2], "kwargs": {}}) is not None
+    assert matcher.match("tool", "add", {"args": [4, 5], "kwargs": {}}) is not None
+
+    with pytest.raises(FixtureExhaustedError, match="FIXTURE_EXHAUSTED"):
+        matcher.match("tool", "add", {"args": [9, 9], "kwargs": {}})

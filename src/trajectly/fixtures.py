@@ -15,6 +15,34 @@ class FixtureLookupError(RuntimeError):
 
 
 @dataclass(slots=True)
+class FixtureExhaustedError(FixtureLookupError):
+    kind: str
+    name: str
+    expected_signature: str
+    consumed_count: int
+    available_count: int
+
+    def to_payload(self) -> dict[str, object]:
+        context_key = "tool_name" if self.kind == "tool" else "llm_signature"
+        return {
+            "code": "FIXTURE_EXHAUSTED",
+            "failure_class": "CONTRACT",
+            "expected_signature": self.expected_signature,
+            "consumed_count": self.consumed_count,
+            "available_count": self.available_count,
+            context_key: self.name,
+        }
+
+    def __str__(self) -> str:
+        context_key = "tool_name" if self.kind == "tool" else "llm_signature"
+        return (
+            "FIXTURE_EXHAUSTED: "
+            f"{context_key}={self.name} expected_signature={self.expected_signature} "
+            f"consumed_count={self.consumed_count} available_count={self.available_count}"
+        )
+
+
+@dataclass(slots=True)
 class FixtureEntry:
     kind: str
     name: str
@@ -149,6 +177,14 @@ class FixtureMatcher:
         if self._policy == "by_index":
             idx = self._index[key]
             if idx >= len(entries):
+                if entries:
+                    raise FixtureExhaustedError(
+                        kind=kind,
+                        name=name,
+                        expected_signature=request_hash,
+                        consumed_count=idx,
+                        available_count=len(entries),
+                    )
                 return None
             candidate = entries[idx]
             self._index[key] += 1
@@ -158,11 +194,23 @@ class FixtureMatcher:
                 )
             return candidate
 
+        matching_indices: list[int] = []
         for idx, candidate in enumerate(entries):
+            if candidate.input_hash != request_hash:
+                continue
+            matching_indices.append(idx)
             slot = (key, idx)
             if slot in self._used_hash_slots:
                 continue
-            if candidate.input_hash == request_hash:
-                self._used_hash_slots.add(slot)
-                return candidate
+            self._used_hash_slots.add(slot)
+            return candidate
+        if matching_indices:
+            consumed_count = sum(1 for idx in matching_indices if (key, idx) in self._used_hash_slots)
+            raise FixtureExhaustedError(
+                kind=kind,
+                name=name,
+                expected_signature=request_hash,
+                consumed_count=consumed_count,
+                available_count=len(matching_indices),
+            )
         return None

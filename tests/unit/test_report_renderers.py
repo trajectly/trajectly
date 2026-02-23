@@ -5,7 +5,7 @@ from pathlib import Path
 
 from trajectly.constants import SCHEMA_VERSION
 from trajectly.diff.models import DiffResult, Finding
-from trajectly.report.renderers import render_markdown, write_reports
+from trajectly.report.renderers import render_markdown, render_pr_comment, write_reports
 
 
 def _result_with_finding() -> DiffResult:
@@ -45,3 +45,21 @@ def test_write_reports_outputs_json_and_markdown(tmp_path: Path) -> None:
     assert data["schema_version"] == SCHEMA_VERSION
     assert data["summary"]["regression"] is True
     assert "Trajectly Report" in md_path.read_text(encoding="utf-8")
+
+
+def test_render_pr_comment_outputs_markdown_table() -> None:
+    markdown = render_pr_comment(
+        {
+            "processed_specs": 2,
+            "regressions": 1,
+            "errors": [],
+            "reports": [
+                {"spec": "a", "regression": False, "repro_command": "trajectly run a.agent.yaml"},
+                {"spec": "b", "regression": True, "repro_command": "trajectly run b.agent.yaml"},
+            ],
+        }
+    )
+
+    assert "Trajectly PR Report" in markdown
+    assert "| `a` | `clean` |" in markdown
+    assert "| `b` | `regression` |" in markdown

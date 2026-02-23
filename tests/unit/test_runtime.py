@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 from trajectly.runtime import execute_spec
-from trajectly.specs import AgentSpec
+from trajectly.specs import AgentContracts, AgentSpec, NetworkContracts
 
 
 def _write(path: Path, body: str) -> None:
@@ -93,3 +94,75 @@ print(os.getenv("CUSTOM_ENV"))
 
     assert result.returncode == 0
     assert "works" in result.stdout
+
+
+def test_execute_spec_sets_network_allowlist_env(tmp_path: Path) -> None:
+    script_path = tmp_path / "agent.py"
+    _write(
+        script_path,
+        """
+import os
+print(os.getenv("TRAJECTLY_NETWORK_ALLOWLIST", "missing"))
+""",
+    )
+
+    spec = AgentSpec(
+        name="demo",
+        command=f"{sys.executable} {script_path.name}",
+        source_path=tmp_path / "demo.agent.yaml",
+        workdir=".",
+        contracts=AgentContracts(network=NetworkContracts(allowlist=["api.example.com", "localhost"])),
+    )
+
+    result = execute_spec(
+        spec=spec,
+        mode="replay",
+        events_path=tmp_path / "events.jsonl",
+        fixtures_path=None,
+        strict=True,
+    )
+
+    assert result.returncode == 0
+    assert "api.example.com,localhost" in result.stdout
+
+
+def test_execute_spec_sets_trace_env_and_writes_meta(tmp_path: Path) -> None:
+    script_path = tmp_path / "agent.py"
+    _write(
+        script_path,
+        """
+import os
+from trajectly.sdk import agent_step
+
+agent_step("start")
+print(os.getenv("TRAJECTLY_TRACE_FILE", "missing"))
+print(os.getenv("TRAJECTLY_TRACE_META_FILE", "missing"))
+print(os.getenv("TRAJECTLY_SPEC_NAME", "missing"))
+""",
+    )
+
+    spec = AgentSpec(
+        name="trace-demo",
+        command=f"{sys.executable} {script_path.name}",
+        source_path=tmp_path / "trace-demo.agent.yaml",
+        workdir=".",
+    )
+    events_path = tmp_path / "trace.events.jsonl"
+
+    result = execute_spec(
+        spec=spec,
+        mode="record",
+        events_path=events_path,
+        fixtures_path=None,
+        strict=False,
+    )
+
+    assert result.returncode == 0
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    assert lines[0].endswith(".trace.jsonl")
+    assert lines[1].endswith(".trace.meta.json")
+    assert lines[2] == "trace-demo"
+    meta_path = Path(lines[1])
+    assert meta_path.exists()
+    payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert payload["normalizer_version"] == "1"

@@ -22,15 +22,21 @@ def _fake_create_connection(*_args, **_kwargs):
     return None
 
 
+def _fake_getaddrinfo(*_args, **_kwargs):
+    return []
+
+
 def test_activate_blocks_network_and_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_socket_module = types.SimpleNamespace(
         create_connection=_fake_create_connection,
+        getaddrinfo=_fake_getaddrinfo,
         socket=_FakeSocketClass,
     )
 
     monkeypatch.setattr(replay_guard, "socket", fake_socket_module)
     monkeypatch.setattr(replay_guard, "_PATCHED", False)
     monkeypatch.delenv("TRAJECTLY_REPLAY_GUARD_ACTIVE", raising=False)
+    monkeypatch.delenv("TRAJECTLY_NETWORK_ALLOWLIST", raising=False)
 
     replay_guard.activate()
 
@@ -46,12 +52,73 @@ def test_activate_blocks_network_and_sets_env(monkeypatch: pytest.MonkeyPatch) -
 def test_activate_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_socket_module = types.SimpleNamespace(
         create_connection=_fake_create_connection,
+        getaddrinfo=_fake_getaddrinfo,
         socket=_FakeSocketClass,
     )
     monkeypatch.setattr(replay_guard, "socket", fake_socket_module)
     monkeypatch.setattr(replay_guard, "_PATCHED", False)
+    monkeypatch.delenv("TRAJECTLY_NETWORK_ALLOWLIST", raising=False)
 
     replay_guard.activate()
     replay_guard.activate()
 
     assert replay_guard._PATCHED is True
+
+
+def test_activate_respects_network_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"create_connection": 0, "connect": 0}
+
+    class _TrackingSocketClass:
+        def connect(self, *_args, **_kwargs):
+            calls["connect"] += 1
+            return None
+
+        def connect_ex(self, *_args, **_kwargs):
+            return 0
+
+        def sendto(self, *_args, **_kwargs):
+            return 0
+
+    def _tracking_create_connection(*_args, **_kwargs):
+        calls["create_connection"] += 1
+        return "ok"
+
+    fake_socket_module = types.SimpleNamespace(
+        create_connection=_tracking_create_connection,
+        getaddrinfo=_fake_getaddrinfo,
+        socket=_TrackingSocketClass,
+    )
+
+    monkeypatch.setattr(replay_guard, "socket", fake_socket_module)
+    monkeypatch.setattr(replay_guard, "_PATCHED", False)
+    monkeypatch.setenv("TRAJECTLY_NETWORK_ALLOWLIST", "localhost,api.example.com")
+
+    replay_guard.activate()
+
+    assert fake_socket_module.create_connection(("localhost", 443)) == "ok"
+    assert _TrackingSocketClass().connect(("api.example.com", 443)) is None
+    with pytest.raises(replay_guard.NetworkBlockedError):
+        fake_socket_module.create_connection(("blocked.example", 443))
+    assert calls["create_connection"] == 1
+    assert calls["connect"] == 1
+
+
+def test_activate_blocks_subprocess_network_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(replay_guard, "_PATCHED", False)
+    monkeypatch.delenv("TRAJECTLY_NETWORK_ALLOWLIST", raising=False)
+    monkeypatch.delenv("TRAJECTLY_SUBPROCESS_ALLOWLIST", raising=False)
+
+    replay_guard.activate()
+
+    with pytest.raises(replay_guard.NetworkBlockedError):
+        __import__("subprocess").run(["curl", "https://example.com"], check=False)
+
+
+def test_activate_blocks_urllib_requests(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(replay_guard, "_PATCHED", False)
+    monkeypatch.delenv("TRAJECTLY_NETWORK_ALLOWLIST", raising=False)
+
+    replay_guard.activate()
+
+    with pytest.raises(replay_guard.NetworkBlockedError):
+        __import__("urllib.request").request.urlopen("https://example.com")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from trajectly.constants import SCHEMA_VERSION
 from trajectly.diff.models import DiffResult
@@ -16,6 +17,13 @@ def render_markdown(spec_name: str, result: DiffResult) -> str:
     status = "Regression detected" if summary.get("regression") else "No regression"
     lines.append(f"- Status: **{status}**")
     lines.append(f"- Findings: **{summary.get('finding_count', 0)}**")
+    first_divergence = summary.get("first_divergence")
+    if isinstance(first_divergence, dict):
+        lines.append(
+            "- First divergence: "
+            f"**{first_divergence.get('kind', 'unknown')}** at index "
+            f"**{first_divergence.get('index', '?')}**"
+        )
 
     baseline = summary.get("baseline", {})
     current = summary.get("current", {})
@@ -51,3 +59,33 @@ def write_reports(spec_name: str, result: DiffResult, json_path: Path, md_path: 
     validated_payload = validate_diff_report_dict(report_payload)
     json_path.write_text(json.dumps(validated_payload, indent=2, sort_keys=True), encoding="utf-8")
     md_path.write_text(render_markdown(spec_name=spec_name, result=result), encoding="utf-8")
+
+
+def render_pr_comment(latest_report: dict[str, Any]) -> str:
+    processed_specs = int(latest_report.get("processed_specs", 0))
+    regressions = int(latest_report.get("regressions", 0))
+    errors = latest_report.get("errors", [])
+    reports = latest_report.get("reports", [])
+
+    lines: list[str] = []
+    lines.append("### Trajectly PR Report")
+    lines.append("")
+    lines.append(f"- Specs processed: **{processed_specs}**")
+    lines.append(f"- Regressions: **{regressions}**")
+    lines.append(f"- Errors: **{len(errors) if isinstance(errors, list) else 0}**")
+    lines.append("")
+    lines.append("| Spec | Status | Repro |")
+    lines.append("|---|---|---|")
+
+    if isinstance(reports, list) and reports:
+        for row in reports:
+            if not isinstance(row, dict):
+                continue
+            spec_name = str(row.get("spec", "unknown"))
+            status = "regression" if row.get("regression") else "clean"
+            repro = str(row.get("repro_command", "n/a"))
+            lines.append(f"| `{spec_name}` | `{status}` | `{repro}` |")
+    else:
+        lines.append("| n/a | n/a | n/a |")
+
+    return "\n".join(lines) + "\n"

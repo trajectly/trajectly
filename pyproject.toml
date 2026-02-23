@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trajectly"
-version = "0.1.0"
-description = "Deterministic regression testing for AI agent trajectories"
+version = "0.3.0rc1"
+description = "Trajectory Refinement Testing (TRT) for deterministic agent CI"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
