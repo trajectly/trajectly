@@ -72,14 +72,6 @@ class AgentSpec:
             return candidate
         return (self.source_path.parent / candidate).resolve()
 
-    def resolve_path(self, raw: str | None) -> Path | None:
-        if raw is None:
-            return None
-        path = Path(raw)
-        if path.is_absolute():
-            return path
-        return (self.source_path.parent / path).resolve()
-
 
 def _load_yaml(path: Path) -> dict[str, Any]:
     loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
