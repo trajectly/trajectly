@@ -274,6 +274,7 @@ def evaluate_contracts(current: list[TraceEvent], contracts: AgentContracts) -> 
     deny_tools = set(contracts.tools.deny)
     allow_tools = set(contracts.tools.allow)
 
+    # 1) Tool-level policy checks.
     for position, tool_name in enumerate(tool_names):
         if tool_name in deny_tools:
             findings.append(
@@ -305,6 +306,7 @@ def evaluate_contracts(current: list[TraceEvent], contracts: AgentContracts) -> 
                 )
             )
 
+    # 2) Cardinality checks.
     max_calls_total = contracts.tools.max_calls_total
     if max_calls_total is not None and len(tool_names) > max_calls_total:
         findings.append(
@@ -338,6 +340,7 @@ def evaluate_contracts(current: list[TraceEvent], contracts: AgentContracts) -> 
                     )
                 )
 
+    # 3) Sequence constraints over the normalized operation list.
     missing_required = _find_required_sequence_missing(contracts.sequence.require, operations)
     for required in missing_required:
         findings.append(
@@ -412,6 +415,7 @@ def evaluate_contracts(current: list[TraceEvent], contracts: AgentContracts) -> 
                 )
             )
 
+    # 4) Per-tool argument schema validation.
     schema_map = contracts.tools.schema
     for event in tool_events:
         event_tool_name = _tool_name_from_event(event)
@@ -422,6 +426,7 @@ def evaluate_contracts(current: list[TraceEvent], contracts: AgentContracts) -> 
             continue
         findings.extend(_validate_tool_schema(event_tool_name, event, tool_schema_raw))
 
+    # 5) Outbound network policy checks.
     network_allowlist = contracts.network.allowlist or contracts.network.allow_domains
     network_default = (contracts.network.default or "deny").strip().lower()
     network_events = [
@@ -486,6 +491,8 @@ def evaluate_contracts(current: list[TraceEvent], contracts: AgentContracts) -> 
                     )
                 )
 
+    # 6) Data-leak checks (PII first, then secret patterns) with deterministic
+    # first-match behavior to keep witness ordering stable.
     outbound_kinds = set(contracts.data_leak.outbound_kinds)
     event_kind_map = {
         "TOOL_CALL": "tool_called",

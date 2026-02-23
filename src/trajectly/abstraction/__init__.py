@@ -6,6 +6,8 @@ from trajectly.abstraction.predicates import (
     extract_numeric_values,
 )
 
+# Keep this export surface stable for downstream integrations importing
+# abstraction helpers directly from `trajectly.abstraction`.
 __all__ = [
     "AbstractTrace",
     "AbstractionConfig",

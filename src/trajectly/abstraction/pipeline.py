@@ -45,6 +45,8 @@ class AbstractTrace:
 
 
 def _token_from_event(event: TraceEvent, event_index: int, ignore_call_tools: set[str]) -> Token | None:
+    # Event-to-token mapping is intentionally conservative: only stable,
+    # contract-relevant event types feed TRT abstraction.
     payload = dict(event.payload)
     if event.event_type == "tool_called":
         tool_name = str(payload.get("tool_name", "unknown"))
@@ -84,6 +86,7 @@ def build_abstract_trace(
         if token is not None:
             tokens.append(token)
 
+    # Predicate bag shape is fixed for deterministic report payloads.
     predicates: dict[str, Any] = {
         "tool_calls_total": sum(1 for token in tokens if token.kind == "CALL"),
         "tool_calls_by_name": {},

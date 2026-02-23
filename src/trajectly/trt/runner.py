@@ -66,6 +66,8 @@ def _event_index_from_finding(
     operations: list[tuple[int, str]],
     fallback_index: int,
 ) -> int:
+    # Map contract finding paths back to concrete trace indices so witness
+    # resolution remains actionable for repro workflows.
     if not path:
         return fallback_index
 
@@ -229,6 +231,8 @@ def evaluate_trt(
     repro_command: str | None = None,
     counterexample_paths: dict[str, str] | None = None,
 ) -> TRTResult:
+    # TRT pipeline order is fixed: abstraction -> contracts -> refinement ->
+    # witness resolution -> report serialization.
     abstraction_cfg = AbstractionConfig(ignore_call_tools=spec.refinement.ignore_call_tools)
     baseline_abs = build_abstract_trace(baseline_events, config=abstraction_cfg)
     current_abs = build_abstract_trace(current_events, config=abstraction_cfg)

@@ -25,6 +25,7 @@ trajectly enable --template openai
 
 Docs-first onboarding:
 
+- `HANDOFF.md` (new engineer entrypoint with DONE/TODO/PENDING/NEEDS_FIX status)
 - `ONBOARDING_10_MIN.md` (timed setup and first regression workflow)
 - `CONTRACTS_VERSION_POLICY.md` (stable contracts version policy and migration rules)
 - `docs/legacy_compat_policy.md` (what remains as shim in v0.3.x and v0.4 removal target)
