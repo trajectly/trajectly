@@ -23,6 +23,11 @@ Starter template option:
 trajectly enable --template openai
 ```
 
+Docs-first onboarding:
+
+- `ONBOARDING_10_MIN.md` (timed setup and first regression workflow)
+- `CONTRACTS_VERSION_POLICY.md` (stable contracts version policy and migration rules)
+
 ### Pip Editable Install (Supported)
 
 ```bash
@@ -60,10 +65,11 @@ For CI comment output:
 trajectly report --pr-comment
 ```
 
-## Contracts Schema (v1 Draft)
+## Contracts Schema (v1)
 
 ```yaml
 contracts:
+  version: v1
   tools:
     allow: []
     deny: []
@@ -84,6 +90,8 @@ Contract checks in replay emit stable codes in tool errors/findings, including:
 - `CONTRACT_TOOL_NOT_ALLOWED`
 - `CONTRACT_MAX_CALLS_TOTAL_EXCEEDED`
 - `CONTRACT_WRITE_TOOL_DENIED`
+
+`contracts.version` currently supports only `v1`. See `CONTRACTS_VERSION_POLICY.md` for compatibility and upgrade rules.
 
 ## Example Diff Output
 

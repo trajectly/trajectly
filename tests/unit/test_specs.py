@@ -30,6 +30,7 @@ budget_thresholds:
   max_tool_calls: 3
   max_tokens: 42
 contracts:
+  version: v1
   tools:
     allow: [add, search]
     deny: [delete]
@@ -66,6 +67,7 @@ contracts:
     assert spec.contracts.sequence.forbid == ["tool:delete"]
     assert spec.contracts.side_effects.deny_write_tools is True
     assert spec.contracts.network.allowlist == ["api.example.com"]
+    assert spec.contracts.version == "v1"
     assert spec.resolved_workdir() == spec_path.parent.resolve()
 
 
@@ -92,6 +94,7 @@ command: python script.py
     assert spec.contracts.sequence.forbid == []
     assert spec.contracts.side_effects.deny_write_tools is False
     assert spec.contracts.network.allowlist == []
+    assert spec.contracts.version == "v1"
     assert spec.resolved_workdir() == tmp_path.resolve()
 
 
@@ -119,6 +122,14 @@ command: python script.py
         (
             "command: python a.py\ncontracts: nope",
             "contracts must be a mapping",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  version: 1",
+            "contracts.version must be a string",
+        ),
+        (
+            "command: python a.py\ncontracts:\n  version: v2",
+            "Unsupported contracts.version: v2. Supported: v1",
         ),
         (
             "command: python a.py\ncontracts:\n  tools: nope",

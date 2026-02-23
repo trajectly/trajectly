@@ -43,6 +43,7 @@ class NetworkContracts:
 
 @dataclass(slots=True)
 class AgentContracts:
+    version: str = "v1"
     tools: ToolContracts = field(default_factory=ToolContracts)
     sequence: SequenceContracts = field(default_factory=SequenceContracts)
     side_effects: SideEffectContracts = field(default_factory=SideEffectContracts)
@@ -109,6 +110,13 @@ def _parse_contracts(raw: Any) -> AgentContracts:
     if not isinstance(raw, dict):
         raise ValueError("contracts must be a mapping")
 
+    version_raw = raw.get("version", "v1")
+    if not isinstance(version_raw, str):
+        raise ValueError("contracts.version must be a string")
+    version = version_raw.strip()
+    if version != "v1":
+        raise ValueError(f"Unsupported contracts.version: {version}. Supported: v1")
+
     tools_raw = raw.get("tools") or {}
     if not isinstance(tools_raw, dict):
         raise ValueError("contracts.tools must be a mapping")
@@ -148,6 +156,7 @@ def _parse_contracts(raw: Any) -> AgentContracts:
         raise ValueError("contracts.side_effects.deny_write_tools must be a boolean")
 
     return AgentContracts(
+        version=version,
         tools=ToolContracts(
             allow=tools_allow,
             deny=tools_deny,

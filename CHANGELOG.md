@@ -14,6 +14,7 @@ All notable changes to this project are documented in this file.
 - `record --auto` for deterministic spec auto-discovery.
 - `baseline update` command for explicit baseline refresh workflow.
 - `.agent.yaml` contracts schema parsing/validation for tools, sequence, side effects, and network sections.
+- `.agent.yaml` contracts now support explicit `contracts.version` with fail-fast validation (currently `v1` only).
 - Replay-time contract enforcement engine with stable tool error codes.
 - Replay network allowlist support via `contracts.network.allowlist`.
 - First-divergence summary in diff outputs and reports.
@@ -21,6 +22,7 @@ All notable changes to this project are documented in this file.
 - Basic trace minimization in repro artifacts (`*.baseline.min.jsonl`, `*.current.min.jsonl`).
 - PR-comment-ready markdown output via `trajectly report --pr-comment`.
 - `trajectly enable --template {openai,langchain,autogen}` starter template scaffolds.
+- `ONBOARDING_10_MIN.md` docs-first walkthrough and `CONTRACTS_VERSION_POLICY.md` compatibility policy.
 
 ### Changed
 
