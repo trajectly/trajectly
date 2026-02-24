@@ -2,8 +2,6 @@
 
 Trajectly provides deterministic regression testing for LLM agents using trace-based contracts and behavioral refinement.
 
-Note: `trajectly-action` is currently archived while the project focuses on a PyPI-first core package workflow.
-
 ## New here?
 
 Start with [`start_here.md`](./start_here.md). It walks through a real example in about 10 minutes.
