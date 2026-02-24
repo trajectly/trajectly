@@ -44,5 +44,5 @@ trajectly baseline update --auto
 
 - `trajectly` uses SemVer and starts at `v0.x`.
 - Do not break public CLI flags, trace schema, or plugin interfaces in patch releases.
-- Follow the release checklist and changelog policy in `RELEASING.md`.
+- Follow the release workflow in `.github/workflows/release.yml`.
 - Update `CHANGELOG.md` for every behavior or contract change.

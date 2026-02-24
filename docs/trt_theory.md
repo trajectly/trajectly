@@ -1,202 +1,355 @@
-# TRT Theory: A Practical, Formal Model
+# TRT Theory: Practical and Formal
 
-This page explains Trajectory Refinement Testing (TRT) in a way that is both **formal** and **easy to apply**. It includes
-examples, expected outcomes, and diagrams so the value is clear without reading the code.
+Trajectory Refinement Testing (TRT) is Trajectly's core verification model for agent CI. This page is intentionally
+dual-purpose:
+
+- **tutorial-first** for developers who need to ship quickly
+- **formal enough** for teams that need deterministic, defensible guarantees
 
 ---
 
-## 1) What TRT proves (in one paragraph)
+## 1) What TRT Proves
 
-TRT checks whether a new run of an agent is **behaviorally consistent** with a recorded baseline and **safe under explicit
-contracts**. If behavior regresses, TRT returns a deterministic witness event index, a primary violation code, and a
-reproducible counterexample trace. The result is not a probabilistic score; it is a trace-backed, replayable decision.
+TRT compares a new run against a recorded baseline and evaluates explicit contracts. If behavior regresses, TRT returns
+a deterministic witness index, violation details, and replay artifacts.
+
+In plain language:
+
+- baseline run behaves as intended
+- new run is checked for safety and behavioral consistency
+- failure is reported at the earliest violating event
+
+TRT does not produce a heuristic score. It produces a deterministic decision tied to concrete events.
 
 ---
 
 ## 2) Core Objects and Notation
 
-We reason about **traces** of an agent execution.
+We reason about finite traces:
 
-- `T_b`: baseline trace (recorded when behavior is “good”)
-- `T_n`: new trace (candidate run)
-- `alpha`: deterministic abstraction function
-- `Phi`: contract monitor (tool, sequence, arguments, data-leak, network rules)
-- `S(T)`: call skeleton extracted from `alpha(T)`
-
-A trace is a finite ordered sequence:
-
-```
+```text
 T = <e0, e1, ..., en>
 ```
 
-Each event `e_i` is typed (tool_called, tool_returned, llm_called, llm_returned, agent_step, run_started, run_finished)
-and has a payload.
+Where:
+
+- `T_b`: baseline trace
+- `T_n`: new trace
+- `alpha`: deterministic abstraction from concrete events to semantic tokens/predicates
+- `Phi`: contract monitor
+- `S(T)`: tool-call skeleton extracted from `alpha(T)`
+
+Key checks:
+
+```text
+V_c = Phi(T_n)
+V_r = refine(S(T_b), S(T_n))
+```
+
+Verdict:
+
+```text
+PASS iff (V_c union V_r) is empty
+FAIL otherwise
+```
 
 ---
 
-## 3) TRT Pipeline (Diagram)
+## 3) TRT Pipeline (High-Level Diagram)
 
 ```mermaid
 flowchart TD
-    A[Record Baseline T_b] --> B[Run Candidate T_n]
-    B --> C[Abstraction alpha(T_b), alpha(T_n)]
-    C --> D[Contracts Phi(T_n)]
-    C --> E[Refinement on S(T_b), S(T_n)]
-    D --> F[Violations V_c]
-    E --> G[Violations V_r]
-    F --> H[Witness Resolution]
-    G --> H
-    H --> I[TRT PASS/FAIL + Repro Artifacts]
+    recordBaseline["Record baseline trace T_b"] --> runCandidate["Run candidate trace T_n"]
+    runCandidate --> abstraction["Compute alpha(T_b) and alpha(T_n)"]
+    abstraction --> contracts["Evaluate contracts Phi on T_n"]
+    abstraction --> refinement["Check refinement S(T_b) <= S(T_n)"]
+    contracts --> violationUnion["Union violations V_c and V_r"]
+    refinement --> violationUnion
+    violationUnion --> witness["Resolve earliest witness"]
+    witness --> output["PASS or FAIL + repro artifacts"]
 ```
 
-TRT is deterministic by construction: the same traces and spec always produce the same verdict.
+TRT is deterministic by construction: same inputs, same verdict.
 
 ---
 
-## 4) Trace Model (What we record)
+## 4) TRT Pipeline (Data and Artifacts)
 
-Each run produces a JSONL trace. Example event (simplified):
+```mermaid
+flowchart LR
+    baselineTrace["Input: baseline trace T_b"]
+    candidateTrace["Input: candidate trace T_n"]
+    specPolicy["Input: spec with contracts and refinement policy"]
+
+    baselineTrace --> normalizeBaseline["Normalize baseline events"]
+    candidateTrace --> normalizeCandidate["Normalize candidate events"]
+
+    normalizeBaseline --> abstractBaseline["alpha(T_b)"]
+    normalizeCandidate --> abstractCandidate["alpha(T_n)"]
+
+    abstractCandidate --> contractChecks["Contract monitor Phi(T_n)"]
+    specPolicy --> contractChecks
+
+    abstractBaseline --> refinementCheck["Refinement checker on skeletons"]
+    abstractCandidate --> refinementCheck
+    specPolicy --> refinementCheck
+
+    contractChecks --> violationSet["Violation set V"]
+    refinementCheck --> violationSet
+
+    violationSet --> reportArtifacts["latest.json, latest.md, counterexample prefix, repro command"]
+```
+
+---
+
+## 5) Running Example Used in This Document (Example C)
+
+This page uses **Code Review Bot** as the medium-complexity walkthrough.
+
+Baseline spec (`PASS` intent):
+
+```yaml
+name: trt-code-review-bot
+command: python -m examples.code_review_bot.main
+contracts:
+  tools:
+    allow: [fetch_pr, lint_code, post_review]
+    deny: [unsafe_export]
+```
+
+Regression spec (`FAIL` intent):
+
+```yaml
+name: trt-code-review-bot
+command: python -m examples.code_review_bot.main_regression
+contracts:
+  tools:
+    allow: [fetch_pr, lint_code, post_review]
+    deny: [unsafe_export]
+```
+
+Behavioral difference:
+
+- baseline calls `post_review`
+- regression calls `unsafe_export`
+
+This creates both a contract signal and a refinement signal.
+
+---
+
+## 6) Trace Model and Event Anatomy
+
+TRT records JSONL events (one event per line). Typical event kinds:
+
+- `run_started`
+- `agent_step`
+- `tool_called` / `tool_returned`
+- `llm_called` / `llm_returned`
+- `run_finished`
+
+Trace anatomy for the **baseline** code-review run:
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Trace
+    Agent->>Trace: run_started
+    Agent->>Trace: tool_called fetch_pr
+    Agent->>Trace: tool_returned fetch_pr
+    Agent->>Trace: tool_called lint_code
+    Agent->>Trace: tool_returned lint_code
+    Agent->>Trace: llm_called gemini-2.5-flash
+    Agent->>Trace: llm_returned gemini-2.5-flash
+    Agent->>Trace: tool_called post_review
+    Agent->>Trace: tool_returned post_review
+    Agent->>Trace: run_finished
+```
+
+Simplified event sample:
 
 ```json
 {
   "event_type": "tool_called",
-  "seq": 12,
+  "seq": 6,
   "payload": {
-    "tool_name": "store_triage",
-    "input": { "args": ["..."], "kwargs": {} }
+    "tool_name": "post_review",
+    "input": {
+      "args": ["PR-2026", "Looks good overall. Replace magic number 1.2 with named constant."],
+      "kwargs": {}
+    }
   }
 }
 ```
 
-**Why this matters:** TRT does not care how the agent is implemented (OpenAI, Gemini, LangGraph, LlamaIndex).
-It only needs the sequence of observable events.
+---
+
+## 7) Abstraction `alpha`: From Events to Semantics
+
+`alpha` is deterministic and pure. It converts concrete trace events into:
+
+1. token stream
+2. derived predicates
+3. skeleton `S(T)` for refinement
+
+```mermaid
+flowchart LR
+    rawEvents["Raw JSONL events"] --> canonical["Canonical normalization"]
+    canonical --> tokenStream["Token stream CALL/RETURN/LLM"]
+    canonical --> predicates["Derived predicates and metrics"]
+    tokenStream --> skeleton["Call skeleton S(T)"]
+    predicates --> policyMetrics["Policy metrics (counts, bounds, domains)"]
+```
+
+Example (Code Review Bot baseline):
+
+- tool-call skeleton: `[fetch_pr, lint_code, post_review]`
+- derived counts: `tool_calls_total=3`
+- denied-tool count: `unsafe_export=0`
+
+Example (Code Review Bot regression):
+
+- tool-call skeleton: `[fetch_pr, lint_code, unsafe_export]`
+- denied-tool count: `unsafe_export=1`
 
 ---
 
-## 5) Abstraction `alpha` (From raw events to semantics)
+## 8) Contracts `Phi`: Explicit Safety and Protocol Rules
 
-`alpha` converts a trace into:
+Contracts are checked on `T_n` and produce violation set `V_c`.
 
-1. A **token stream** (call/return/LLM tokens)
-2. A **predicate bag** (tool counts, domains, numeric bounds, etc.)
-
-**Example (simplified):**
-
+```mermaid
+flowchart TD
+    candidateEvents["Candidate events from T_n"] --> toolsCheck["Tools allow/deny checks"]
+    candidateEvents --> sequenceCheck["Sequence checks"]
+    candidateEvents --> argsCheck["Argument checks"]
+    candidateEvents --> networkCheck["Network policy checks"]
+    candidateEvents --> dataLeakCheck["Data leak checks"]
+    toolsCheck --> contractViolations["Contract violations V_c"]
+    sequenceCheck --> contractViolations
+    argsCheck --> contractViolations
+    networkCheck --> contractViolations
+    dataLeakCheck --> contractViolations
 ```
-tool_called: fetch_ticket
-tool_returned: fetch_ticket
-llm_called: openai:gpt-4o-mini
-llm_returned: openai:gpt-4o-mini
-tool_called: store_triage
-tool_returned: store_triage
-```
 
-This yields:
+In Example C regression, contract evaluation emits:
 
-- call skeleton: `[fetch_ticket, store_triage]`
-- predicates: `tool_calls_total=2`, `tool_calls_by_name={"fetch_ticket":1,"store_triage":1}`
+- `contract_tool_denied` at the `unsafe_export` call index
+
+Because `unsafe_export` is explicitly denied in the spec.
 
 ---
 
-## 6) Contracts `Phi` (What is allowed or forbidden)
+## 9) Skeleton Refinement: Behavioral Consistency
 
-Contracts encode explicit safety rules. They are evaluated **only on the new trace** `T_n`.
+Refinement checks whether required baseline tool behavior still exists in order.
 
-Common contract classes:
-
-- **Tool policy**: allow/deny specific tools
-- **Sequence policy**: require or forbid call order
-- **Argument constraints**: numeric bounds, enums, regex on tool args
-- **Network rules**: allowlist domains (deny by default)
-- **Data leak**: block PII or secret patterns in outbound payloads
-- **Write safety**: disallow write-like tools in CI or sensitive runs
-
-**Example contract:**
-
-```yaml
-contracts:
-  tools:
-    allow: [fetch_ticket, store_triage]
-    deny: [unsafe_export]
-  sequence:
-    require: [fetch_ticket, store_triage]
-  data_leak:
-    deny_pii_outbound: true
-    outbound_kinds: [TOOL_CALL, LLM_REQUEST]
-```
-
-If any rule is violated, a deterministic violation code is emitted.
-
----
-
-## 7) Skeleton Refinement (Behavioral consistency)
-
-Skeleton refinement checks whether the baseline call skeleton is a **subsequence** of the new call skeleton.
-
-Formally:
-
-```
+```text
 S(T_b) <= S(T_n)
 ```
 
-**Example: PASS**
+For Example C:
 
-- Baseline skeleton: `[fetch_ticket, store_triage]`
-- Current skeleton: `[fetch_ticket, store_triage, log_event]`
-- PASS if `log_event` is allowed as an extra tool
+- baseline: `[fetch_pr, lint_code, post_review]`
+- regression: `[fetch_pr, lint_code, unsafe_export]`
 
-**Example: FAIL**
+`post_review` is missing, so refinement fails.
 
-- Baseline skeleton: `[fetch_ticket, store_triage]`
-- Current skeleton: `[fetch_ticket]`
-- FAIL: `store_triage` missing (baseline call missing)
-
-Refinement ensures you do not silently drop required steps, even if the model response is “reasonable”.
-
----
-
-## 8) Decision Procedure (Formal)
-
-TRT computes:
-
-1. `A_b = alpha(T_b)`
-2. `A_n = alpha(T_n)`
-3. `V_c = Phi(T_n)` (contract violations)
-4. `V_r = refine(S(T_b), S(T_n))` (refinement violations)
-
-If `V_c ∪ V_r` is empty → **PASS**. Otherwise **FAIL**.
-
-Witness index:
-
-```
-k = min(v.event_index for v in (V_c ∪ V_r))
+```mermaid
+flowchart LR
+    b1["Baseline: fetch_pr"] --> b2["Baseline: lint_code"] --> b3["Baseline: post_review"]
+    c1["Candidate: fetch_pr"] --> c2["Candidate: lint_code"] --> c3["Candidate: unsafe_export"]
+    b3 --> relation["Missing required baseline call plus forbidden extra call"]
+    c3 --> relation
 ```
 
-Primary violation is selected deterministically among all violations at `k`.
+---
+
+## 10) Decision Procedure (Formal)
+
+Given `T_b`, `T_n`, and spec `sigma`:
+
+```text
+A_b = alpha(T_b)
+A_n = alpha(T_n)
+V_c = Phi(T_n, sigma)
+V_r = refine(S(T_b), S(T_n), sigma)
+V   = V_c union V_r
+```
+
+Then:
+
+```text
+if V is empty: PASS
+else: FAIL with witness index k = min(v.event_index for v in V)
+```
+
+Primary violation is selected deterministically among violations at `k`.
 
 ---
 
-## 9) Determinism and Soundness (Plain language)
+## 11) Soundness and Determinism (Proof Sketches)
 
-**Determinism:** For the same traces and spec, TRT will always produce the same verdict and witness.
+### Soundness (Checker-Relative)
 
-**Soundness (relative to configured checks):** If TRT says PASS, then:
+Claim:
 
-1. All contracts in `Phi` are satisfied on `T_n`
-2. `S(T_b)` is a subsequence of `S(T_n)` under the refinement policy
+```text
+PASS => (all configured contracts are satisfied on T_n) and (S(T_b) <= S(T_n))
+```
 
-This is a concrete, reproducible guarantee, not a heuristic score.
+Sketch:
+
+1. `PASS` is returned only when `V` is empty.
+2. `V` is the union of contract violations `V_c` and refinement violations `V_r`.
+3. If `V` is empty, both `V_c` and `V_r` are empty.
+4. Therefore all enabled checks in `Phi` pass, and refinement condition holds.
+
+Limit:
+
+- This is sound relative to configured checks, not a universal proof over all possible executions.
+
+### Determinism
+
+Claim: identical inputs produce identical outputs.
+
+Sketch:
+
+1. trace normalization and abstraction are deterministic functions
+2. contract and refinement check order is fixed
+3. witness is selected via deterministic ordering:
+   - smallest event index
+   - class precedence
+   - lexical code order
+4. therefore verdict, witness index, and primary violation are stable
 
 ---
 
-## 10) Counterexample and Repro Artifacts
+## 12) Witness Resolution
 
-When TRT fails it generates:
+```mermaid
+flowchart TD
+    allViolations["All violations V_c union V_r"] --> byIndex["Group violations by event index"]
+    byIndex --> minIndex["Choose minimum index k"]
+    minIndex --> classTieBreak["Apply class precedence"]
+    classTieBreak --> codeTieBreak["Apply lexical code order"]
+    codeTieBreak --> witnessOutput["Deterministic witness: k and primary_violation"]
+```
 
-- `latest.json` / `latest.md` summary
-- per-spec report JSON with `trt_status`, `witness_index`, `primary_violation`
-- counterexample prefix trace: `.trajectly/repros/<spec>.counterexample.prefix.jsonl`
-- deterministic repro command: `trajectly repro --latest`
+Why this matters:
+
+- two developers running the same artifacts get the same failure location
+- CI and local debugging stay aligned
+
+---
+
+## 13) Counterexample and Repro Artifacts
+
+On failure, Trajectly writes artifacts such as:
+
+- `.trajectly/reports/latest.json`
+- `.trajectly/reports/latest.md`
+- `.trajectly/repros/<spec>.counterexample.prefix.jsonl`
+- deterministic repro command output (`trajectly repro --latest`)
 
 Optional minimization:
 
@@ -204,49 +357,11 @@ Optional minimization:
 trajectly shrink --latest
 ```
 
-This produces a smaller trace that still triggers the same violation.
+This attempts to produce a smaller failing trace while preserving the failure class.
 
 ---
 
-## 11) Example Walkthrough (Support Triage)
-
-**Baseline flow (PASS):**
-
-- `fetch_ticket`
-- `LLM classify + respond`
-- `store_triage`
-
-**Regression flow (FAIL):**
-
-- same as baseline but calls `unsafe_export`
-
-**Result:**
-
-- TRT FAIL
-- witness index points to `unsafe_export`
-- primary violation: `contract_tool_denied`
-- repro command printed in report
-
----
-
-## 12) 8 Real Scenarios (Simple -> Complex)
-
-| ID | Scenario | Provider | Tools | Expected Regression |
-|---|---|---|---|---|
-| A | Ticket classifier | OpenAI | `fetch_ticket`, `store_triage` | `unsafe_export` |
-| B | Web search agent | OpenAI | `search_web`, `extract_content`, `summarize` | `unsafe_export` |
-| C | Code review bot | Gemini | `fetch_pr`, `lint_code`, `post_review` | `unsafe_export` |
-| D | Travel planner | Gemini | `search_flights`, `search_hotels`, `book_itinerary` | `unsafe_export` |
-| E | RAG pipeline | LlamaIndex | `query_index`, `rerank`, `format_answer` | `unsafe_export` |
-| F | Document QA | LlamaIndex | `ingest_doc`, `query_index`, `cite_sources`, `summarize` | `unsafe_export` |
-| G | Multi-step workflow | LangGraph | `classify`, `route`, `execute_action`, `notify` | `unsafe_export` |
-| H | Support escalation | LangGraph | `check_history`, `classify_intent`, `escalate`, `log_outcome` | `unsafe_export` |
-
-These are real LLM calls and real tool runs with deterministic replay and repro artifacts.
-
----
-
-## 13) Sequence Diagram (Record → Run → Repro)
+## 14) End-to-End Walkthrough: Code Review Bot in CI
 
 ```mermaid
 sequenceDiagram
@@ -256,44 +371,48 @@ sequenceDiagram
     participant LLM
     participant TRT
 
-    Dev->>CLI: trajectly record spec
-    CLI->>Agent: run baseline
-    Agent->>LLM: prompt
-    Agent->>TRT: emit trace events
+    Dev->>CLI: trajectly record specs/trt-code-review-bot-baseline.agent.yaml
+    CLI->>Agent: run baseline command
+    Agent->>LLM: generate review response
+    Agent->>TRT: emit baseline trace events
     TRT-->>CLI: baseline stored
 
-    Dev->>CLI: trajectly run spec
-    CLI->>Agent: run candidate
-    Agent->>LLM: prompt
-    Agent->>TRT: emit trace events
-    TRT-->>Dev: PASS/FAIL + witness + repro
+    Dev->>CLI: trajectly run specs/trt-code-review-bot-regression.agent.yaml
+    CLI->>Agent: run regression command
+    Agent->>LLM: generate review response
+    Agent->>TRT: emit candidate trace events
+    TRT-->>CLI: FAIL with witness_index and primary_violation
+
+    Dev->>CLI: TRAJECTLY_CI=1 trajectly repro --latest
+    CLI->>TRT: replay from fixtures only
+    TRT-->>Dev: deterministic reproduced failure
 ```
+
+Interpretation:
+
+- regression introduces denied tool `unsafe_export`
+- TRT fails at the earliest violating index
+- report points directly to where the behavior changed
+- repro command reproduces failure offline
 
 ---
 
-## 14) Implementation Map (Core)
+## 15) Implementation Map (Core Modules)
 
-Key modules:
-
-- `trajectly/events.py` — trace events
-- `trajectly/abstraction/pipeline.py` — `alpha`
-- `trajectly/contracts.py` — contract evaluation
-- `trajectly/refinement/skeleton.py` — skeleton extraction
-- `trajectly/refinement/checker.py` — refinement checks
-- `trajectly/trt/witness.py` — witness resolution
-- `trajectly/trt/runner.py` — TRT decision procedure
+- `src/trajectly/events.py` - event model and emission
+- `src/trajectly/abstraction/pipeline.py` - deterministic abstraction `alpha`
+- `src/trajectly/contracts.py` - contract evaluation
+- `src/trajectly/refinement/skeleton.py` - skeleton extraction
+- `src/trajectly/refinement/checker.py` - refinement checks
+- `src/trajectly/trt/witness.py` - witness resolution
+- `src/trajectly/trt/runner.py` - TRT orchestration and verdicts
 
 ---
 
-## 15) Validation Commands
+## 16) Where to Go Next
 
-```bash
-cd trajectly
-uv run pytest -q
-```
-
-```bash
-cd trajectly-examples
-trajectly run specs/trt-support-triage-regression.agent.yaml
-TRAJECTLY_CI=1 trajectly repro --latest
-```
+- Start quickly: [`start_here.md`](start_here.md)
+- Value in CI terms: [`how_trt_provides_value.md`](how_trt_provides_value.md)
+- Formal guarantees: [`trt/guarantees.md`](trt/guarantees.md)
+- Policy details: [`trt/contracts-reference.md`](trt/contracts-reference.md)
+- Abstraction details: [`trt/abstraction-reference.md`](trt/abstraction-reference.md)

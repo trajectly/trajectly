@@ -1,63 +1,123 @@
 # How TRT Provides Value
 
-Trajectory Refinement Testing (TRT) gives you **deterministic agent contract checks** and **one-command offline repro** when a run regresses. This is how it adds value in practice.
+Trajectory Refinement Testing (TRT) makes agent changes testable in CI with deterministic verdicts, witness-first
+failures, and one-command offline repro.
 
 ## Value in one sentence
 
-**Same code + same config + same fixtures ⇒ same verdict.** If something changes (prompt, tool order, model behavior, or contract), TRT fails with a concrete witness and a single repro command—no “works on my machine” or manual trace diffing.
+**Same code + same spec + same fixtures => same verdict.**
 
-## Where it helps
+That one property removes most of the ambiguity teams face when shipping LLM agents.
 
-1. **CI** – Block merges when a trace regresses (extra call, wrong order, contract violation).
-2. **Offline debugging** – `trajectly repro --latest` replays the failing trace without re-running the agent or hitting live APIs.
-3. **Baseline discipline** – You explicitly record “good” behavior; any drift is a failure with a clear report.
-4. **Multi-framework** – One workflow (record → run → repro) across OpenAI, Gemini, LangGraph, and LlamaIndex.
+---
 
-## Simulated CI flow (one example)
+## Before Trajectly vs After Trajectly
 
-A minimal “simulated CI” using the examples repo:
+| Workflow step | Without TRT | With TRT |
+| --- | --- | --- |
+| Regression detection | Mostly heuristic, often prompt/output diffing | Deterministic contract and refinement checks |
+| Failure location | Manual trace reading | Earliest `witness_index` from checker |
+| Reproducibility | "Works on my machine" loops | `TRAJECTLY_CI=1 trajectly repro --latest` |
+| CI signal quality | Flaky and hard to trust | Stable `PASS`/`FAIL` with canonical violation code |
+| Team handoff | Hard to share exact failure state | Counterexample artifacts are shareable and replayable |
 
-1. **Record baselines** (once, or when you intend to change them):
+---
 
-   ```bash
-   cd trajectly-examples
-   trajectly init
-   trajectly record specs/trt-support-triage-baseline.agent.yaml specs/trt-search-buy-baseline.agent.yaml
-   ```
+## Where TRT fits in CI
 
-2. **Run TRT in CI** (e.g. on every push):
+```mermaid
+flowchart LR
+    prOpened["Pull request opened"] --> unitTests["Unit and integration tests"]
+    unitTests --> trajectlyRun["Trajectly run on baseline and candidate specs"]
+    trajectlyRun --> verdict{"TRT PASS?"}
+    verdict -->|Yes| mergeReady["Ready to merge"]
+    verdict -->|No| failArtifacts["Publish witness and repro artifacts"]
+    failArtifacts --> developerDebug["Developer runs trajectly repro --latest"]
+    developerDebug --> fixAndPush["Fix and push update"]
+    fixAndPush --> trajectlyRun
+```
 
-   ```bash
-   trajectly run specs/trt-support-triage-baseline.agent.yaml specs/trt-search-buy-baseline.agent.yaml
-   ```
+This is where TRT adds leverage: it catches behavioral regressions that unit tests and type checks do not encode.
 
-   - If traces match the recorded baselines → **exit 0**.
-   - If not (e.g. regression script or changed behavior) → **exit 1** and a report with witness index, primary violation, and counterexample.
+---
 
-3. **Reproduce the failure offline** (no live LLM/tools):
+## Code Review Bot CI Scenario (Example C)
 
-   ```bash
-   TRAJECTLY_CI=1 trajectly repro --latest
-   ```
+This is a medium-complexity scenario that demonstrates real product value.
 
-   This replays the failing trace and writes artifacts (counterexample prefix, repro spec) so anyone can debug without re-running the agent.
+### Baseline behavior (expected PASS)
 
-4. **(Optional) Shrink** the counterexample to a minimal trace:
+Tool flow:
 
-   ```bash
-   trajectly shrink --latest
-   ```
+1. `fetch_pr`
+2. `lint_code`
+3. `post_review`
 
-## What you get on failure
+Contract policy:
 
-- **Earliest witness** – Event index where the trace first diverges or violates a contract.
-- **Primary violation** – Refinement mismatch, contract denial, sequence error, etc.
-- **One-command repro** – `trajectly repro --latest` (or the printed command) for offline replay.
-- **Optional shrink** – Shorter trace that still fails, for faster debugging.
+- allow: `fetch_pr`, `lint_code`, `post_review`
+- deny: `unsafe_export`
 
-## Links
+### Regression behavior (expected FAIL)
 
-- [TRT theory](trt_theory.md) – Semantics and refinement relation.
-- [Platform adapters](platform_adapters.md) – Supported stacks and example specs.
-- [trajectly-examples](https://github.com/trajectly/trajectly-examples) – Runnable specs and `.github/workflows/regression-demo.yml` for a full CI example.
-- [CLI reference](cli_reference.md) – `init`, `record`, `run`, `repro`, `shrink`.
+A code change introduces:
+
+- `unsafe_export` instead of `post_review`
+
+TRT result:
+
+- `trt_status: FAIL`
+- `primary_violation: contract_tool_denied`
+- witness points to the violating event
+
+### Why this matters in production
+
+- CI catches policy violations before merge
+- witness points directly to the problematic event
+- repro command lets any engineer replay offline from fixtures
+
+No one needs to re-run live provider calls to understand the failure.
+
+---
+
+## What Trajectly gives your team on every failure
+
+- deterministic verdict (`PASS`/`FAIL`)
+- deterministic witness index
+- canonical primary violation code
+- machine-readable and human-readable reports
+- replayable counterexample artifacts
+
+This gives product, infra, and application engineers a shared debugging interface.
+
+---
+
+## Cost of not using TRT
+
+Without deterministic trace checks, teams usually pay in one or more of these ways:
+
+1. **Silent regressions:** an agent appears "mostly fine" while violating safety/policy edges.
+2. **Untraceable failures:** no canonical witness means slow, subjective debugging.
+3. **Non-reproducible incidents:** production issue cannot be replayed exactly.
+4. **Merge friction:** reviewers cannot distinguish intentional behavior changes from accidental drift.
+
+TRT turns these into explicit, testable states in CI.
+
+---
+
+## Practical adoption path
+
+1. Start with one simple spec (Ticket Classifier, Example A).
+2. Add one medium spec (Code Review Bot, Example C).
+3. Gate PRs on `trajectly run`.
+4. Use `repro --latest` for every failure before triage meetings.
+5. Expand contracts and refinement rules as your product surface grows.
+
+---
+
+## Related docs
+
+- Formal model and walkthrough: [`trt_theory.md`](trt_theory.md)
+- Guarantees: [`trt/guarantees.md`](trt/guarantees.md)
+- CLI reference: [`cli_reference.md`](cli_reference.md)
+- Adapter coverage: [`platform_adapters.md`](platform_adapters.md)
