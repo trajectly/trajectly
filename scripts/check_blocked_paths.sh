@@ -2,7 +2,6 @@
 set -euo pipefail
 
 blocked_paths=(
-  "docs/"
   "first_prompt.txt"
   "first_prompt.md"
   "dev_prompt.txt"
