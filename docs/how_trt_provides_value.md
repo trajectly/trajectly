@@ -17,7 +17,7 @@ That one property removes most of the ambiguity teams face when shipping LLM age
 | --- | --- | --- |
 | Regression detection | Mostly heuristic, often prompt/output diffing | Deterministic contract and refinement checks |
 | Failure location | Manual trace reading | Earliest `witness_index` from checker |
-| Reproducibility | "Works on my machine" loops | `TRAJECTLY_CI=1 trajectly repro --latest` |
+| Reproducibility | "Works on my machine" loops | `trajectly repro` |
 | CI signal quality | Flaky and hard to trust | Stable `PASS`/`FAIL` with canonical violation code |
 | Team handoff | Hard to share exact failure state | Counterexample artifacts are shareable and replayable |
 
@@ -32,7 +32,7 @@ flowchart LR
     trajectlyRun --> verdict{"TRT PASS?"}
     verdict -->|Yes| mergeReady["Ready to merge"]
     verdict -->|No| failArtifacts["Publish witness and repro artifacts"]
-    failArtifacts --> developerDebug["Developer runs trajectly repro --latest"]
+    failArtifacts --> developerDebug["Developer runs trajectly repro"]
     developerDebug --> fixAndPush["Fix and push update"]
     fixAndPush --> trajectlyRun
 ```
@@ -110,7 +110,7 @@ TRT turns these into explicit, testable states in CI.
 1. Start with one simple spec (Ticket Classifier, Example A).
 2. Add one medium spec (Code Review Bot, Example C).
 3. Gate PRs on `trajectly run`.
-4. Use `repro --latest` for every failure before triage meetings.
+4. Use `repro` for every failure before triage meetings.
 5. Expand contracts and refinement rules as your product surface grows.
 
 ---

@@ -1,0 +1,10 @@
+schema_version: "0.3"
+name: "trt-sql-agent"
+command: "python -m examples.sql_agent.main"
+workdir: ..
+fixture_policy: by_hash
+strict: true
+contracts:
+  tools:
+    allow: [ingest_doc, query_index, cite_sources, summarize, format_answer]
+    deny: [unsafe_export]

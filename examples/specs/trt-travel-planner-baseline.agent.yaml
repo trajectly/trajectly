@@ -1,0 +1,10 @@
+schema_version: "0.3"
+name: "trt-travel-planner"
+command: "python -m examples.travel_planner.main"
+workdir: ..
+fixture_policy: by_hash
+strict: true
+contracts:
+  tools:
+    allow: [search_flights, search_hotels, book_itinerary]
+    deny: [unsafe_export]

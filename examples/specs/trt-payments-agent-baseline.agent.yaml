@@ -1,0 +1,10 @@
+schema_version: "0.3"
+name: "trt-payments-agent"
+command: "python -m examples.payments_agent.main"
+workdir: ..
+fixture_policy: by_hash
+strict: true
+contracts:
+  tools:
+    allow: [classify, route, execute_action, notify]
+    deny: [unsafe_export]

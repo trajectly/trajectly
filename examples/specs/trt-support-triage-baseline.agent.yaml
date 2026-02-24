@@ -1,0 +1,10 @@
+schema_version: "0.3"
+name: "trt-support-triage"
+command: "python -m examples.support_triage.main"
+workdir: ..
+fixture_policy: by_hash
+strict: true
+contracts:
+  tools:
+    allow: [fetch_ticket, store_triage]
+    deny: [unsafe_export]

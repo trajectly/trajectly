@@ -1,0 +1,10 @@
+schema_version: "0.3"
+name: "trt-search-buy"
+command: "python -m examples.search_buy.main_regression"
+workdir: ..
+fixture_policy: by_hash
+strict: true
+contracts:
+  tools:
+    allow: [search_web, extract_content, summarize]
+    deny: [unsafe_export]

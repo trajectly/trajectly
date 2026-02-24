@@ -70,7 +70,7 @@ All eight are baseline/regression pairs with deterministic repro output.
 ## Run the Full 8-Example Matrix
 
 ```bash
-cd ../trajectly-examples
+cd examples
 trajectly init
 ```
 
@@ -119,7 +119,7 @@ trajectly run \
 Reproduce latest failure:
 
 ```bash
-TRAJECTLY_CI=1 trajectly repro --latest
+trajectly repro
 ```
 
 ---

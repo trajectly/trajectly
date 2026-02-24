@@ -63,7 +63,7 @@ Examples:
 ```bash
 trajectly record specs/trt-support-triage-baseline.agent.yaml
 trajectly record --auto
-TRAJECTLY_CI=1 trajectly record specs/trt-support-triage-baseline.agent.yaml --allow-ci-write
+trajectly record specs/trt-support-triage-baseline.agent.yaml --allow-ci-write
 ```
 
 ---
@@ -95,7 +95,7 @@ Examples:
 
 ```bash
 trajectly repro --print-only
-TRAJECTLY_CI=1 trajectly repro --latest
+trajectly repro
 trajectly repro trt-code-review-bot
 ```
 
@@ -184,7 +184,7 @@ trajectly run specs/*.agent.yaml
 
 ```bash
 trajectly report
-TRAJECTLY_CI=1 trajectly repro --latest
+trajectly repro
 trajectly shrink --latest
 ```
 

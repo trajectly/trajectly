@@ -1,0 +1,10 @@
+schema_version: "0.3"
+name: "trt-support-agent"
+command: "python -m examples.support_agent.main_regression"
+workdir: ..
+fixture_policy: by_hash
+strict: true
+contracts:
+  tools:
+    allow: [check_history, classify_intent, escalate, resolve, log_outcome]
+    deny: [unsafe_export]

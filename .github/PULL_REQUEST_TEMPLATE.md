@@ -10,9 +10,9 @@
 
 ## Test Plan
 
-- [ ] `uv run ruff check .`
-- [ ] `uv run mypy src`
-- [ ] `uv run pytest`
+- [ ] `ruff check .`
+- [ ] `mypy src`
+- [ ] `pytest`
 - [ ] Any relevant manual verification is described below
 
 Manual verification notes:

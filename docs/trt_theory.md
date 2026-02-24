@@ -349,7 +349,7 @@ On failure, Trajectly writes artifacts such as:
 - `.trajectly/reports/latest.json`
 - `.trajectly/reports/latest.md`
 - `.trajectly/repros/<spec>.counterexample.prefix.jsonl`
-- deterministic repro command output (`trajectly repro --latest`)
+- deterministic repro command output (`trajectly repro`)
 
 Optional minimization:
 
@@ -383,7 +383,7 @@ sequenceDiagram
     Agent->>TRT: emit candidate trace events
     TRT-->>CLI: FAIL with witness_index and primary_violation
 
-    Dev->>CLI: TRAJECTLY_CI=1 trajectly repro --latest
+    Dev->>CLI: trajectly repro
     CLI->>TRT: replay from fixtures only
     TRT-->>Dev: deterministic reproduced failure
 ```

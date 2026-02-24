@@ -3,9 +3,9 @@
 ## 1) Install
 
 ```bash
-uv venv
+python -m venv .venv
 source .venv/bin/activate
-uv sync --extra dev
+pip install -e ".[dev]"
 ```
 
 ## 2) Enable Workspace
@@ -39,7 +39,7 @@ Exit codes:
 ## 5) Reproduce Offline
 
 ```bash
-TRAJECTLY_CI=1 trajectly repro --latest
+trajectly repro
 ```
 
 ## 6) Optional: Shrink Counterexample

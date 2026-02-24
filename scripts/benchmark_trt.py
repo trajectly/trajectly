@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 TRT performance benchmark harness (QA-T007). CLI entrypoint.
-Run: uv run python scripts/benchmark_trt.py [--iterations N] [--output out.json] [--md out.md]
+Run: python scripts/benchmark_trt.py [--iterations N] [--output out.json] [--md out.md]
 """
 
 from __future__ import annotations

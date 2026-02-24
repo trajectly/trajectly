@@ -16,29 +16,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
       - name: Install
         run: |
-          uv sync --extra dev
-      - name: Pip Editable Install Compatibility
-        run: |
-          uv pip install -e .
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
       - name: Private File Policy
         run: ./scripts/check_blocked_paths.sh
       - name: Lint
-        run: uv run ruff check .
+        run: ruff check .
       - name: Typecheck
-        run: uv run mypy src
+        run: mypy src
       - name: Test
-        run: uv run pytest -q
+        run: pytest -q
       - name: Determinism Replay Tests
-        run: uv run pytest -q tests/integration/test_determinism_replay.py
+        run: pytest -q tests/integration/test_determinism_replay.py
       - name: Coverage
-        run: uv run pytest --cov=src/trajectly --cov-report=term-missing -q
+        run: pytest --cov=src/trajectly --cov-report=term-missing -q
       - name: Smoke
         run: |
-          uv run trajectly init
-          uv run trajectly record tests/*.agent.yaml
-          uv run trajectly run tests/*.agent.yaml
+          trajectly init
+          trajectly record tests/*.agent.yaml
+          trajectly run tests/*.agent.yaml

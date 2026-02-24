@@ -1,0 +1,13 @@
+name: example-real-openai
+command: python examples/real_llm_ci/runner.py
+workdir: ..
+fixture_policy: by_hash
+strict: true
+env:
+  REAL_PROVIDER: openai
+  REAL_MODE: baseline
+  REAL_MODEL: gpt-4o-mini
+contracts:
+  tools:
+    allow: [fetch_ticket, store_triage]
+    deny: [publish_raw_pii]

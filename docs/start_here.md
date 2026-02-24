@@ -16,7 +16,7 @@ By the end of this quickstart, you will know how to:
 ## Prerequisites
 
 - `trajectly` installed and available in your shell
-- access to `trajectly-examples`
+- access to `examples` (in this repo)
 - provider API key for the selected example (`OPENAI_API_KEY` for Ticket Classifier)
 
 ---
@@ -24,7 +24,7 @@ By the end of this quickstart, you will know how to:
 ## Step 1) Initialize Trajectly state
 
 ```bash
-cd ../trajectly-examples
+cd examples
 trajectly init
 ```
 
@@ -94,7 +94,7 @@ Running spec: trt-support-triage
 TRT status: FAIL
 witness_index: <event_index>
 primary_violation: contract_tool_denied
-repro_command: TRAJECTLY_CI=1 trajectly repro --latest
+repro_command: trajectly repro
 exit code: 1
 ```
 
@@ -109,7 +109,7 @@ What happened:
 ## Step 5) Reproduce failure offline
 
 ```bash
-TRAJECTLY_CI=1 trajectly repro --latest
+trajectly repro
 ```
 
 Expected output (representative):

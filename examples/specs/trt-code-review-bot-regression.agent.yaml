@@ -1,0 +1,10 @@
+schema_version: "0.3"
+name: "trt-code-review-bot"
+command: "python -m examples.code_review_bot.main_regression"
+workdir: ..
+fixture_policy: by_hash
+strict: true
+contracts:
+  tools:
+    allow: [fetch_pr, lint_code, post_review]
+    deny: [unsafe_export]
