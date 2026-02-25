@@ -1,8 +1,6 @@
 # Trajectly
 
-Regression testing for AI agents.
-
-Record a known-good agent run, then catch regressions when you change prompts, tools, or models. Get a deterministic `PASS` or `FAIL` with the exact step where behavior diverged.
+Deterministic regression testing for AI agents. Record a baseline, enforce contracts, catch regressions before they ship.
 
 ## Install
 
@@ -12,30 +10,51 @@ pip install trajectly
 
 ## 30-Second Example
 
+Trajectly works in three steps: **record** a known-good baseline, **run** against it later, and **get a verdict**.
+
 ```bash
+# Clone the repo and install dev dependencies
+git clone https://github.com/trajectly/trajectly.git
+cd trajectly
+pip install -e ".[dev]"
+
+# Set your OpenAI key (the example calls gpt-4o-mini)
+export OPENAI_API_KEY="sk-..."
+
+# 1. Record the baseline
 cd examples
-trajectly init
 trajectly record specs/trt-support-triage-baseline.agent.yaml
-trajectly run specs/trt-support-triage-regression.agent.yaml   # FAIL -- regression detected
-trajectly repro                                                 # Reproduce offline
+
+# 2. Run the regression variant against it
+trajectly run specs/trt-support-triage-regression.agent.yaml
+
+# 3. See what broke
+trajectly report
 ```
 
-## What You Get
+The report shows exactly **which step** failed, **why** (the regression calls `unsafe_export`, which is denied by policy), and gives you a **deterministic repro command**.
 
-- **PASS or FAIL** -- deterministic, not flaky
-- **Failure step** -- the exact event where behavior diverged
-- **One-command repro** -- `trajectly repro` replays from saved fixtures, no live API calls
-- **CI-ready** -- `trajectly run specs/*.agent.yaml` as a pipeline gate
+## How It Works
+
+1. **Record** -- run your agent normally. Trajectly captures every tool call and LLM response as a trace.
+2. **Replay** -- re-run the agent. Trajectly replays recorded LLM responses from fixtures so results are deterministic.
+3. **Compare** -- Trajectly checks the new trace against the baseline:
+   - **Contracts**: are only allowed tools called? Are denied tools blocked?
+   - **Refinement**: does the new call sequence preserve the baseline sequence?
+4. **Verdict** -- PASS or FAIL with the exact failure step (witness index), violation code, and a copy-paste repro command.
+
+## Examples
+
+| Example | Provider | Tools | What it tests |
+|---------|----------|-------|---------------|
+| [Ticket Classifier](docs/tutorial-support-triage.md) | OpenAI | `fetch_ticket`, `store_triage` | Simple 2-tool agent with contract enforcement |
+| [Code Review Bot](docs/tutorial-code-review-bot.md) | Gemini | `fetch_pr`, `lint_code`, `post_review` | Multi-tool sequence with policy guardrails |
 
 ## Documentation
 
-- [Full docs](docs/trajectly.md) -- quickstart, concepts, CLI reference, spec reference, SDK reference
-- [Tutorial: Support Triage (OpenAI)](docs/tutorial-support-triage.md) -- simple single-tool example
-- [Tutorial: Payments Agent (LangGraph)](docs/tutorial-payments-agent.md) -- multi-step workflow example
-
-## Supported Frameworks
-
-OpenAI, Anthropic, Gemini, LangChain, LangGraph, LlamaIndex, AutoGen, CrewAI, DSPy.
+- [Full documentation](docs/trajectly.md) -- concepts, CLI reference, spec format, SDK reference
+- [Tutorial: Ticket Classifier](docs/tutorial-support-triage.md) -- step-by-step simple example
+- [Tutorial: Code Review Bot](docs/tutorial-code-review-bot.md) -- step-by-step medium example
 
 ## License
 

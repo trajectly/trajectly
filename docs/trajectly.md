@@ -290,7 +290,7 @@ trajectly init ./my-project
 
 ### `trajectly enable [project_root] [--template TEMPLATE]`
 
-Set up Trajectly in an existing project. Optionally apply a starter template (`openai`, `langchain`, `autogen`).
+Set up Trajectly in an existing project. Optionally apply a starter template (`openai`).
 
 ```bash
 trajectly enable
@@ -590,12 +590,7 @@ Available adapters:
 | Adapter | Function |
 |---|---|
 | OpenAI | `openai_chat_completion(client, model, messages, ...)` |
-| Anthropic | `anthropic_messages_create(client, model, messages, ...)` |
-| LangChain | `langchain_invoke(runnable, input_value, ...)` |
-| LlamaIndex | `llamaindex_query(query_engine, query, ...)` |
-| AutoGen | `autogen_chat_run(chat_runner, messages, ...)` |
-| CrewAI | `crewai_run_task(task, inputs, ...)` |
-| DSPy | `dspy_call(program, input_value, ...)` |
+| Gemini | Use `invoke_llm_call("gemini", model, call_fn, ...)` (see low-level helpers) |
 
 ### Low-level helpers
 
@@ -614,16 +609,12 @@ result = invoke_llm_call("openai", "gpt-4o", my_llm_function, prompt)
 agent_step("processing_input", details={"key": "value"})
 ```
 
-### Platform adapter examples
+### Examples
 
-The following example pairs demonstrate each supported adapter:
-
-| Adapter | Examples |
+| Adapter | Example |
 |---|---|
-| OpenAI | support-triage, search-buy |
-| Gemini | code-review-bot, travel-planner |
-| LlamaIndex | rag-agent, sql-agent |
-| LangGraph | payments-agent, support-agent |
+| OpenAI | [Ticket Classifier](tutorial-support-triage.md) |
+| Gemini | [Code Review Bot](tutorial-code-review-bot.md) |
 
 ---
 

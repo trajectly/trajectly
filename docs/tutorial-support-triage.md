@@ -1,23 +1,39 @@
-# Tutorial: Support Triage (OpenAI)
+# Tutorial: Ticket Classifier (Simple)
 
-A simple ticket triage agent tested with Trajectly. Start here if you're new.
+A simple OpenAI-powered agent that classifies support tickets. This tutorial walks through every file and command.
 
-## What the agent does
+## What this agent does
 
-The agent reads an incoming support ticket, classifies its priority, and stores the triage result. It uses OpenAI as the LLM provider.
+The agent uses two tools:
 
-**Goal:** Ensure the agent always stores triage results through approved tools and never calls `unsafe_export`.
+1. **`fetch_ticket`** -- retrieves a support ticket by ID
+2. **`store_triage`** -- stores the classification result
+
+The baseline flow is: fetch ticket -> call LLM to classify -> store result.
+
+The regression intentionally calls **`unsafe_export`** instead of `store_triage`, which violates the tool contract.
 
 ## Files
 
-| File | Purpose |
-|---|---|
-| `examples/specs/trt-support-triage-baseline.agent.yaml` | Spec for the correct behavior |
-| `examples/specs/trt-support-triage-regression.agent.yaml` | Spec with an intentional regression |
-| `examples/examples/support_triage/main.py` | Baseline agent code |
-| `examples/examples/support_triage/main_regression.py` | Regression agent code |
+### Agent code: `examples/examples/support_triage/main.py`
 
-## The spec
+```python
+from examples.real_llm_ci.runner import run_example
+
+def main() -> None:
+    run_example(
+        scenario="ticket_classifier",
+        provider="openai",
+        mode="baseline",
+        model="gpt-4o-mini",
+    )
+```
+
+This is a thin entrypoint that calls the shared runner with the `ticket_classifier` scenario in `baseline` mode.
+
+The regression variant (`main_regression.py`) is identical except `mode="regression"`, which causes the agent to call `unsafe_export` instead of `store_triage`.
+
+### Spec file: `examples/specs/trt-support-triage-baseline.agent.yaml`
 
 ```yaml
 schema_version: "0.3"
@@ -32,60 +48,81 @@ contracts:
     deny: [unsafe_export]
 ```
 
-This says: the agent can call `fetch_ticket` and `store_triage`, but calling `unsafe_export` is a failure.
+Field by field:
 
-## What the baseline does
+| Field | Meaning |
+|-------|---------|
+| `schema_version` | Spec format version (always `"0.3"`) |
+| `name` | Unique spec identifier |
+| `command` | Shell command to run the agent |
+| `workdir` | Working directory (relative to the spec file) |
+| `fixture_policy` | How to match LLM responses during replay (`by_hash` = deterministic matching) |
+| `strict` | Fail on any unmatched fixture |
+| `contracts.tools.allow` | Only these tools may be called |
+| `contracts.tools.deny` | These tools must never be called |
 
-1. `fetch_ticket` -- loads the support ticket
-2. LLM call -- classifies the ticket
-3. `store_triage` -- saves the classification
+The regression spec is the same except the command points to `main_regression` instead of `main`.
 
-Result: **PASS**
+## Running it
 
-## What the regression changes
+### Prerequisites
 
-The regression replaces `store_triage` with `unsafe_export`. This triggers two failures:
+```bash
+pip install trajectly openai
+export OPENAI_API_KEY="sk-..."
+```
 
-1. `unsafe_export` is on the deny list (contract violation)
-2. `store_triage` is missing from the call sequence (behavioral inconsistency)
-
-Result: **FAIL** with `contract_tool_denied` at the step where `unsafe_export` was called.
-
-## Run it
+### Step 1: Record the baseline
 
 ```bash
 cd examples
-trajectly init
 trajectly record specs/trt-support-triage-baseline.agent.yaml
-trajectly run specs/trt-support-triage-baseline.agent.yaml     # PASS
-trajectly run specs/trt-support-triage-regression.agent.yaml   # FAIL
-trajectly repro                                                 # Reproduce offline
 ```
 
-## Reading the failure output
+This runs the agent, captures its trace, and saves fixtures to `.trajectly/baselines/` and `.trajectly/fixtures/`.
 
-When the regression fails, look for:
+### Step 2: Run the regression
 
-- **Status:** `FAIL`
-- **Failure step:** The event index where the violation happened
-- **Failure type:** `contract_tool_denied`
-- **Repro command:** Copy-paste to reproduce the exact failure
-
-## Flow diagram
-
-```mermaid
-flowchart TD
-    start["Load specs"] --> baseline["Run baseline"]
-    baseline --> baselinePath["fetch_ticket -> LLM -> store_triage"]
-    baselinePath --> pass["PASS"]
-    start --> regression["Run regression"]
-    regression --> regressionPath["fetch_ticket -> LLM -> unsafe_export"]
-    regressionPath --> denied["contract_tool_denied"]
-    denied --> fail["FAIL"]
-    fail --> repro["trajectly repro"]
+```bash
+trajectly run specs/trt-support-triage-regression.agent.yaml
 ```
 
-## Prerequisites
+Trajectly replays the recorded LLM responses and compares the new trace against the baseline.
 
-- `pip install trajectly` (or `pip install -e ".[dev]"` for local dev)
-- `OPENAI_API_KEY` set in your environment
+### Step 3: Check the report
+
+```bash
+trajectly report
+```
+
+Expected output:
+
+```
+### Trajectly Regression Report
+
+- Specs processed: **1**
+- Regressions: **1**
+
+| Spec | Status | Repro |
+|---|---|---|
+| trt-support-triage | regression | trajectly repro --latest |
+```
+
+### Step 4: Reproduce the failure
+
+```bash
+trajectly repro --latest
+```
+
+This re-runs the exact failing trace deterministically.
+
+## What Trajectly detected
+
+The regression calls `unsafe_export`, which is in the `deny` list. Trajectly reports:
+
+- **Failure step**: the event index where `unsafe_export` was called
+- **Violation code**: `CONTRACT_TOOL_DENIED`
+- **Message**: `unsafe_export denied by policy`
+- **Repro command**: `trajectly repro --latest`
+
+The baseline called `fetch_ticket` then `store_triage` (both in the `allow` list), so it passes.
