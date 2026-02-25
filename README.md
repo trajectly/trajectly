@@ -62,18 +62,26 @@ The report shows exactly **which step** failed, **why** (the regression calls `u
 
 Under the hood, TRT works in four stages:
 
-```
-Trace_baseline ──► Normalize ──► Skeleton_b ──┐
-                                               ├──► Refinement check ──► Witness ──► Verdict
-Trace_current  ──► Normalize ──► Skeleton_n ──┘
-                                    │
-                                    └──► Contract check ──────────────►
+```mermaid
+flowchart LR
+    Tb["Baseline trace"] --> Nb["Normalize"]
+    Tn["Current trace"] --> Nn["Normalize"]
+    Nb --> Sb["Skeleton_b"]
+    Nn --> Sn["Skeleton_n"]
+    Sb --> R["Refinement check"]
+    Sn --> R
+    Nn --> C["Contract check"]
+    R --> W["Witness resolution"]
+    C --> W
+    W --> V["PASS / FAIL + artifacts"]
 ```
 
 1. **Trace normalization** (`alpha`): both traces are abstracted into a canonical form that strips timing data and normalizes payloads.
 2. **Skeleton extraction** (`S`): the ordered list of tool-call names is extracted from each normalized trace.
 3. **Refinement check**: TRT verifies that `Skeleton_b` is a subsequence of `Skeleton_n` -- meaning the new run still performs every baseline action in the correct order (possibly with additional calls interleaved).
 4. **Contract evaluation** (`Phi`): every event in the current trace is checked against the spec's contracts (tool allow/deny, sequence, budget, network, data leak).
+
+Both the refinement check and contract evaluation feed into **witness resolution**, which picks the earliest failing event and produces the final verdict.
 
 If any check fails, TRT reports the **witness index** (the earliest failing event), the **violation code**, and generates a **counterexample prefix** (the trace up to and including the witness) for deterministic reproduction.
 
