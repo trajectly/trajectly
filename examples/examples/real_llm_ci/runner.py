@@ -97,13 +97,21 @@ def _gemini_response(model: str, prompt: str) -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
     def _call(endpoint: str, body: dict[str, object]) -> dict[str, object]:
+        import ssl
+
+        try:
+            import certifi
+
+            ctx = ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            ctx = ssl.create_default_context()
         request = urllib.request.Request(
             endpoint,
             data=json.dumps(body).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310
+        with urllib.request.urlopen(request, timeout=30, context=ctx) as response:  # nosec B310
             return json.loads(response.read().decode("utf-8"))
 
     raw = invoke_llm_call("gemini", model, _call, url, payload)

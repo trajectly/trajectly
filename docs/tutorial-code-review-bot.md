@@ -57,7 +57,9 @@ The `allow` list enforces that the agent can only use `fetch_pr`, `lint_code`, a
 ### Prerequisites
 
 ```bash
-pip install trajectly
+git clone https://github.com/trajectly/trajectly.git
+cd trajectly
+pip install -e ".[examples]"
 export GEMINI_API_KEY="your-gemini-key"
 ```
 
@@ -65,6 +67,7 @@ export GEMINI_API_KEY="your-gemini-key"
 
 ```bash
 cd examples
+trajectly init
 trajectly record specs/trt-code-review-bot-baseline.agent.yaml
 ```
 

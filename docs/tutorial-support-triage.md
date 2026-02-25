@@ -68,7 +68,9 @@ The regression spec is the same except the command points to `main_regression` i
 ### Prerequisites
 
 ```bash
-pip install trajectly openai
+git clone https://github.com/trajectly/trajectly.git
+cd trajectly
+pip install -e ".[examples]"
 export OPENAI_API_KEY="sk-..."
 ```
 
@@ -76,6 +78,7 @@ export OPENAI_API_KEY="sk-..."
 
 ```bash
 cd examples
+trajectly init
 trajectly record specs/trt-support-triage-baseline.agent.yaml
 ```
 

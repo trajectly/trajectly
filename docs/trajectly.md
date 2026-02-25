@@ -22,15 +22,14 @@ Trajectly records a known-good agent run as a baseline, then replays your agent 
 
 Get a working regression test in under 5 minutes.
 
-### Install
+### Install and run
 
 ```bash
-pip install trajectly
-```
+git clone https://github.com/trajectly/trajectly.git
+cd trajectly
+pip install -e ".[examples]"
+export OPENAI_API_KEY="sk-..."
 
-### Set up and run
-
-```bash
 cd examples
 trajectly init
 trajectly record specs/trt-support-triage-baseline.agent.yaml
