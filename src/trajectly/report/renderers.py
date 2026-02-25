@@ -28,7 +28,7 @@ def render_markdown(spec_name: str, result: DiffResult) -> str:
     baseline = summary.get("baseline", {})
     current = summary.get("current", {})
     lines.append("")
-    lines.append("### Budgets")
+    lines.append("### Resource Usage")
     lines.append("")
     lines.append("| Metric | Baseline | Current |")
     lines.append("|---|---:|---:|")
@@ -68,7 +68,7 @@ def render_pr_comment(latest_report: dict[str, Any]) -> str:
     reports = latest_report.get("reports", [])
 
     lines: list[str] = []
-    lines.append("### Trajectly PR Report")
+    lines.append("### Trajectly Regression Report")
     lines.append("")
     lines.append(f"- Specs processed: **{processed_specs}**")
     lines.append(f"- Regressions: **{regressions}**")

@@ -24,7 +24,7 @@ from trajectly.engine import (
 from trajectly.report import render_pr_comment
 from trajectly.specs.migrate import migrate_spec_file
 
-app = typer.Typer(add_completion=False, help="Deterministic regression testing for AI agent trajectories")
+app = typer.Typer(add_completion=False, help="Regression testing for AI agents")
 baseline_app = typer.Typer(add_completion=False, help="Manage baseline update workflows")
 migrate_app = typer.Typer(add_completion=False, help="Migration helpers")
 app.add_typer(baseline_app, name="baseline")
@@ -85,12 +85,12 @@ def enable(
         help="Starter template: openai | langchain | autogen",
     ),
 ) -> None:
-    """Enable Trajectly with starter workspace scaffolding and auto-discovery hints."""
+    """Set up Trajectly in an existing project with scaffolding and auto-discovery."""
     _enable(project_root=project_root, template=template)
 
 
 def _enable(project_root: Path, template: str | None) -> None:
-    """Enable Trajectly with starter workspace scaffolding and auto-discovery hints."""
+    """Set up Trajectly in an existing project with scaffolding and auto-discovery."""
     try:
         discovered = enable_workspace(project_root.resolve())
         created_template_files: list[Path] = []
@@ -131,7 +131,7 @@ def record(
         help="Allow baseline writes when TRAJECTLY_CI=1 (explicit override).",
     ),
 ) -> None:
-    """Record deterministic baseline trajectories and fixtures."""
+    """Record baseline agent runs and fixtures for replay."""
     try:
         resolved_targets = _resolve_targets_for_command(project_root=project_root, targets=targets, auto=auto)
     except ValueError as exc:
@@ -156,7 +156,7 @@ def run(
     fixtures_dir: Path | None = typer.Option(None, "--fixtures-dir", help="Custom fixture directory"),
     strict: bool | None = typer.Option(None, "--strict/--no-strict", help="Override strict mode"),
 ) -> None:
-    """Replay against fixtures, diff baseline vs current, and emit reports."""
+    """Run agent specs against recorded baselines and report regressions."""
     outcome = run_specs(
         targets=targets,
         project_root=project_root.resolve(),
@@ -213,7 +213,7 @@ def shrink(
     max_seconds: float = typer.Option(10.0, "--max-seconds", min=0.1, help="Maximum shrink time budget"),
     max_iterations: int = typer.Option(200, "--max-iterations", min=1, help="Maximum ddmin iterations"),
 ) -> None:
-    """Shrink failing counterexample trace while preserving TRT failure class."""
+    """Minimize a failing trace to the smallest reproducing example."""
     resolved_selector = None if selector == "latest" else selector
     outcome = shrink_repro(
         project_root=project_root.resolve(),
@@ -297,7 +297,7 @@ def migrate_spec_command(
     output: Path | None = typer.Option(None, "--output", help="Output file path for converted v0.3 spec"),
     in_place: bool = typer.Option(False, "--in-place", help="Rewrite the input file in place"),
 ) -> None:
-    """Convert a legacy Trajectly spec to v0.3 TRT format."""
+    """Convert a legacy Trajectly spec to v0.3 format."""
     try:
         destination = migrate_spec_file(
             spec_path=spec_path.resolve(),
