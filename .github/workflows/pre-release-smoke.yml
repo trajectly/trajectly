@@ -26,6 +26,7 @@ jobs:
 
   examples-smoke:
     runs-on: ubuntu-latest
+    if: ${{ vars.HAS_LLM_KEYS == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,8 +36,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+          pip install openai google-generativeai
       - name: Examples smoke sequence
         working-directory: examples
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           trajectly init
           trajectly record specs/trt-support-triage-baseline.agent.yaml specs/trt-code-review-bot-baseline.agent.yaml
