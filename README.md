@@ -108,24 +108,7 @@ Example scenarios are bundled in:
 
 ## Documentation
 
-### Start Here
-
-- `docs/start_here.md`
-- `docs/trt/quickstart.md`
-
-### Theory and Guarantees
-
-- `docs/trt_theory.md`
-- `docs/trt/guarantees.md`
-- `docs/how_trt_provides_value.md`
-
-### References
-
-- `docs/cli_reference.md`
-- `docs/agent_spec_reference.md`
-- `docs/trace_schema_reference.md`
-- `docs/platform_adapters.md`
-- `docs/trt/troubleshooting.md`
+Full documentation: `docs/trajectly.md`
 
 ## License
 
