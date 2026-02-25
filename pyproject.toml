@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
-  { name = "Trajectly" }
+  {name = "Ahmed Ashmawy", email = "awashmawy@proton.me"}
 ]
 keywords = ["agents", "testing", "regression", "llm", "ci"]
 classifiers = [
