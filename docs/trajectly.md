@@ -1,20 +1,21 @@
 # Trajectly
 
-Regression testing for AI agents.
+Deterministic regression testing for AI agents, powered by **Trajectory Refinement Testing (TRT)**.
 
-Trajectly records a known-good agent run as a baseline, then replays your agent against the same inputs when you make changes. If the agent's behavior regresses -- calling a denied tool, skipping required steps, or violating your rules -- Trajectly reports exactly where the failure happened and gives you a one-command repro.
+Trajectly records a known-good agent run as a baseline, then replays your agent against the same inputs when you make changes. The TRT algorithm normalizes traces, extracts call skeletons, enforces contracts, and checks behavioral refinement. If the agent's behavior regresses -- calling a denied tool, skipping required steps, or violating your rules -- Trajectly reports exactly where the failure happened and gives you a one-command repro.
 
 ## Table of Contents
 
 - [1) Quickstart](#1-quickstart)
 - [2) Core Concepts](#2-core-concepts)
-- [3) How-To Guides](#3-how-to-guides)
-- [4) CLI Reference](#4-cli-reference)
-- [5) Spec Reference](#5-spec-reference)
-- [6) SDK Reference](#6-sdk-reference)
-- [7) Trace Schema Reference](#7-trace-schema-reference)
-- [8) Contracts Reference](#8-contracts-reference)
-- [9) Troubleshooting](#9-troubleshooting)
+- [3) The TRT Algorithm](#3-the-trt-algorithm)
+- [4) How-To Guides](#4-how-to-guides)
+- [5) CLI Reference](#5-cli-reference)
+- [6) Spec Reference](#6-spec-reference)
+- [7) SDK Reference](#7-sdk-reference)
+- [8) Trace Schema Reference](#8-trace-schema-reference)
+- [9) Contracts Reference](#9-contracts-reference)
+- [10) Troubleshooting](#10-troubleshooting)
 
 ---
 
@@ -101,23 +102,23 @@ Contracts define what your agent is and isn't allowed to do:
 
 A trace is the ordered sequence of events from a single agent run: `run_started`, `tool_called`, `tool_returned`, `llm_called`, `llm_returned`, `run_finished`. Trajectly compares the baseline trace against the new trace to find regressions.
 
-### Behavior comparison
+### Behavior comparison (TRT)
 
-When you run a spec, Trajectly checks two things:
+When you run a spec, the TRT algorithm checks two things:
 
 1. **Contract compliance** -- does the new run follow all the rules in your spec?
-2. **Behavioral consistency** -- does the new run still perform the same core tool calls in the same order as the baseline?
+2. **Skeleton refinement** -- does the new run's call skeleton preserve the baseline skeleton as a subsequence?
 
-If either check fails, you get a `FAIL` with the exact step where things went wrong.
+If either check fails, TRT identifies the **witness index** -- the earliest event where a violation occurred -- and reports it.
 
 ### Verdicts
 
 Every run produces a deterministic verdict:
 
-- **PASS** -- the agent's behavior is consistent with the baseline and all contracts are satisfied.
-- **FAIL** -- something changed. Trajectly reports the failure step (the earliest event where a violation occurred), the failure type, and a repro command.
+- **PASS** -- the agent's behavior refines the baseline and all contracts are satisfied.
+- **FAIL** -- something changed. Trajectly reports the failure step (witness index), the violation code, and a repro command.
 
-Same code + same spec + same fixtures = same verdict. Always.
+Same code + same spec + same fixtures = same verdict. Always. This is TRT's determinism guarantee.
 
 ### Before vs After Trajectly
 
@@ -144,7 +145,182 @@ flowchart LR
 
 ---
 
-## 3) How-To Guides
+## 3) The TRT Algorithm
+
+**Trajectory Refinement Testing (TRT)** is the verification algorithm at the core of Trajectly. It turns agent regression testing from "did the output change?" into "did the agent's behavior violate its specification?" -- with formal guarantees.
+
+### Why a new algorithm?
+
+Traditional regression testing for LLM agents is fragile:
+
+- **Output-diff testing** breaks because LLM responses are non-deterministic. The same prompt can produce different wording every time.
+- **Snapshot testing** requires exact match, which is too strict for agents that legitimately vary in how they express results.
+- **Manual trace inspection** doesn't scale. A single agent run can produce hundreds of events.
+
+TRT solves this by testing *behavior* (what tools were called, in what order, with what policies) rather than *output* (the exact text the LLM produced). This makes tests stable, deterministic, and meaningful.
+
+### The four stages
+
+TRT processes every run through four stages:
+
+```mermaid
+flowchart LR
+    T_b["Baseline trace T_b"] --> N1["Normalize"]
+    T_n["Current trace T_n"] --> N2["Normalize"]
+    N1 --> S1["Skeleton S_b"]
+    N2 --> S2["Skeleton S_n"]
+    S1 --> R["Refinement check"]
+    S2 --> R
+    S2 --> C["Contract check"]
+    R --> W["Witness resolution"]
+    C --> W
+    W --> V["PASS / FAIL + artifacts"]
+```
+
+#### Stage 1: Trace normalization
+
+Both the baseline trace (`T_b`) and current trace (`T_n`) are run through a normalization function `alpha` that:
+
+- Strips non-deterministic fields (timestamps, run IDs, response latencies)
+- Canonicalizes payload formats (sorted keys, stable serialization)
+- Computes deterministic event IDs (content hashes)
+
+This produces `alpha(T_b)` and `alpha(T_n)` -- canonical representations that can be compared stably across runs.
+
+**Why this matters:** Two runs of the same agent with the same inputs may produce traces that differ in timestamps, ordering of concurrent events, or formatting. Normalization ensures these irrelevant differences don't cause false failures.
+
+#### Stage 2: Skeleton extraction
+
+From each normalized trace, TRT extracts the **call skeleton** -- the ordered list of tool-call names:
+
+```
+Trace: [run_started, llm_called, llm_returned, tool_called:fetch_ticket,
+        tool_returned:fetch_ticket, tool_called:store_triage,
+        tool_returned:store_triage, run_finished]
+
+Skeleton: [fetch_ticket, store_triage]
+```
+
+The skeleton captures *what the agent did* without the noise of *how the LLM reasoned about it*.
+
+#### Stage 3: Refinement check
+
+TRT checks whether the baseline skeleton `S(T_b)` is a **subsequence** of the current skeleton `S(T_n)`.
+
+**Subsequence** means every element of `S(T_b)` appears in `S(T_n)` in the same relative order, but `S(T_n)` may have additional calls interleaved.
+
+```
+Baseline skeleton:  [fetch_ticket, store_triage]
+Current skeleton:   [fetch_ticket, log_event, store_triage]    ← PASS (extra call is ok)
+Current skeleton:   [fetch_ticket, unsafe_export]               ← FAIL (store_triage missing)
+Current skeleton:   [store_triage, fetch_ticket]                ← FAIL (wrong order)
+```
+
+This is the core behavioral check. It answers: "Does the new agent still do everything the baseline did, in the right order?"
+
+The refinement check is configurable via the `refinement` section of the spec:
+
+| Setting | Effect |
+|---------|--------|
+| `allow_extra_tools: [log_event]` | Extra calls to `log_event` are ignored |
+| `allow_new_tool_names: true` | New tool names not in the baseline are allowed |
+| `ignore_call_tools: [debug]` | Calls to `debug` are stripped before comparison |
+
+#### Stage 4: Contract evaluation
+
+Independently from refinement, TRT evaluates every event in the current trace against the spec's **contracts**:
+
+| Contract class | What it checks |
+|----------------|----------------|
+| **Tool allow/deny** | Is each tool call in the allow list? Is it not in the deny list? |
+| **Sequence** | Are required tool sequences present? Are forbidden sequences absent? |
+| **Budget** | Are tool call counts, token counts, and latency within limits? |
+| **Network** | Are outbound requests to allowed domains only? |
+| **Data leak** | Does any outbound payload contain PII or secrets? |
+| **Arguments** | Do tool call arguments match required schemas and patterns? |
+
+Each contract violation produces a violation record with:
+- **Code** (e.g., `CONTRACT_TOOL_DENIED`, `REFINEMENT_BASELINE_CALL_MISSING`)
+- **Event index** where it occurred
+- **Message** describing what went wrong
+- **Hint** suggesting how to fix it
+
+### Witness resolution
+
+When one or more violations are found, TRT identifies the **witness index** -- the smallest event index `k` such that there exists a violation at `k`. This is the earliest point in the trace where the agent's behavior diverges from what's allowed.
+
+The witness is important because it gives you a precise debugging target: "Look at event `k` in the trace. That's where the problem starts."
+
+```
+Events:  [0: run_started, 1: llm_called, 2: llm_returned,
+          3: tool_called:fetch_ticket, 4: tool_returned:fetch_ticket,
+          5: tool_called:unsafe_export ← WITNESS (denied tool),
+          6: tool_returned:unsafe_export, 7: run_finished]
+
+Witness index: 5
+Primary violation: CONTRACT_TOOL_DENIED (unsafe_export)
+```
+
+### Counterexample generation
+
+Given a witness at index `k`, TRT produces a **counterexample prefix** -- the trace events `[0..k]`. This is the minimal trace that demonstrates the failure. Combined with saved fixtures, this prefix is sufficient to reproduce the failure deterministically:
+
+```bash
+trajectly repro
+```
+
+TRT can also **shrink** the trace further, iteratively removing events and re-checking whether the failure still reproduces, to find the absolute minimal failing trace:
+
+```bash
+trajectly shrink
+# "Shrink reduced 42 events → 12 events, same witness"
+```
+
+### Formal properties
+
+TRT provides the following guarantees:
+
+**Determinism:** For any spec `P`, trace pair `(T_b, T_n)`, and fixture set `F`:
+
+```
+TRT(P, T_b, T_n, F) at time t₁ = TRT(P, T_b, T_n, F) at time t₂
+```
+
+The same inputs always produce the same verdict. This is achieved through trace normalization and offline replay (no live network calls during comparison).
+
+**Witness minimality:** If TRT reports a witness at index `k`, there is no index `j < k` with a violation. The witness is always the earliest failing point.
+
+**Refinement soundness:** If TRT reports `PASS` for refinement, then `S(T_b)` is provably a subsequence of `S(T_n)`. If it reports `FAIL`, TRT identifies the specific baseline call that is missing and where the subsequence embedding breaks.
+
+**Contract completeness:** Every event in the current trace is checked against every active contract. No events are skipped unless explicitly configured in `ignore_call_tools`.
+
+### Putting it together: a concrete example
+
+Suppose you have a support triage agent with this spec:
+
+```yaml
+contracts:
+  tools:
+    allow: [fetch_ticket, store_triage]
+    deny: [unsafe_export]
+```
+
+**Baseline run** produces skeleton: `[fetch_ticket, store_triage]`
+
+**Regression run** produces skeleton: `[fetch_ticket, unsafe_export]`
+
+TRT processes this as follows:
+
+1. **Normalize** both traces → strips timestamps, computes event hashes.
+2. **Extract skeletons** → `S_b = [fetch_ticket, store_triage]`, `S_n = [fetch_ticket, unsafe_export]`.
+3. **Refinement check** → is `[fetch_ticket, store_triage]` a subsequence of `[fetch_ticket, unsafe_export]`? **No** -- `store_triage` is missing. Violation: `REFINEMENT_BASELINE_CALL_MISSING`.
+4. **Contract check** → is `unsafe_export` in the deny list? **Yes**. Violation: `CONTRACT_TOOL_DENIED`.
+5. **Witness resolution** → both violations occur at the event where `unsafe_export` is called (index 5 in the full trace). Witness = 5.
+6. **Verdict** → `FAIL`, witness=5, primary violation=`CONTRACT_TOOL_DENIED`, repro command=`trajectly repro`.
+
+---
+
+## 4) How-To Guides
 
 ### Add Trajectly to an existing agent
 
@@ -262,7 +438,7 @@ flowchart TD
 
 ---
 
-## 4) CLI Reference
+## 5) CLI Reference
 
 ### Command overview
 
@@ -414,7 +590,7 @@ trajectly run specs/my-agent-baseline.agent.yaml
 
 ---
 
-## 5) Spec Reference (`.agent.yaml`, v0.3)
+## 6) Spec Reference (`.agent.yaml`, v0.3)
 
 ### Minimal spec
 
@@ -543,7 +719,7 @@ artifacts:
 
 ---
 
-## 6) SDK Reference
+## 7) SDK Reference
 
 The SDK instruments your agent code so Trajectly can record and replay traces.
 
@@ -617,7 +793,7 @@ agent_step("processing_input", details={"key": "value"})
 
 ---
 
-## 7) Trace Schema Reference
+## 8) Trace Schema Reference
 
 Traces are stored as JSONL files (one JSON event per line).
 
@@ -681,7 +857,7 @@ Every event has these fields:
 
 ---
 
-## 8) Contracts Reference
+## 9) Contracts Reference
 
 Contracts define the rules your agent must follow. They are specified in the `contracts` section of your spec.
 
@@ -768,7 +944,7 @@ When a contract is violated, Trajectly reports a failure code like `contract_too
 
 ---
 
-## 9) Troubleshooting
+## 10) Troubleshooting
 
 ### "FIXTURE_EXHAUSTED" error
 

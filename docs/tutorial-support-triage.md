@@ -129,3 +129,45 @@ The regression calls `unsafe_export`, which is in the `deny` list. Trajectly rep
 - **Repro command**: `trajectly repro --latest`
 
 The baseline called `fetch_ticket` then `store_triage` (both in the `allow` list), so it passes.
+
+## How TRT works under the hood
+
+Here's what the TRT algorithm does when you run the regression:
+
+**1. Normalize** -- both the baseline trace and the regression trace are stripped of timestamps, run IDs, and other non-deterministic fields, producing canonical traces.
+
+**2. Extract skeletons** -- TRT pulls out the ordered tool-call names from each trace:
+
+```
+Baseline skeleton:   [fetch_ticket, store_triage]
+Regression skeleton: [fetch_ticket, unsafe_export]
+```
+
+**3. Refinement check** -- TRT asks: is `[fetch_ticket, store_triage]` a subsequence of `[fetch_ticket, unsafe_export]`?
+
+```
+fetch_ticket ✓  (found at position 0)
+store_triage ✗  (not found -- unsafe_export is there instead)
+```
+
+Result: **REFINEMENT_BASELINE_CALL_MISSING** -- `store_triage` is missing from the current run.
+
+**4. Contract check** -- TRT checks every event against the spec's contracts. It finds `unsafe_export` in the `deny` list:
+
+Result: **CONTRACT_TOOL_DENIED** -- `unsafe_export` is explicitly blocked.
+
+**5. Witness resolution** -- both violations point to the same event (the `tool_called:unsafe_export` event at index 5 in the full trace). TRT picks the earliest violation index as the witness.
+
+**6. Verdict** -- `FAIL` at witness index 5, with two violations and a deterministic repro command.
+
+```mermaid
+flowchart LR
+    T_b["Baseline: fetch_ticket, store_triage"] --> R["Refinement"]
+    T_n["Regression: fetch_ticket, unsafe_export"] --> R
+    T_n --> C["Contracts"]
+    R -->|"store_triage missing"| W["Witness = 5"]
+    C -->|"unsafe_export denied"| W
+    W --> F["FAIL + repro"]
+```
+
+This is the power of TRT: two independent checks (refinement + contracts) converge on the same witness, giving you high confidence in the diagnosis.

@@ -109,6 +109,47 @@ Trajectly reports:
 - **Violation code**: `CONTRACT_TOOL_DENIED`
 - **Repro command**: `trajectly repro --latest`
 
+## How TRT works under the hood
+
+Here's what the TRT algorithm does step by step:
+
+**1. Normalize** -- both traces are canonicalized (stripped of timestamps, run IDs, response latencies).
+
+**2. Extract skeletons:**
+
+```
+Baseline skeleton:   [fetch_pr, lint_code, post_review]
+Regression skeleton: [fetch_pr, lint_code, unsafe_export]
+```
+
+**3. Refinement check** -- TRT checks if `[fetch_pr, lint_code, post_review]` is a subsequence of `[fetch_pr, lint_code, unsafe_export]`:
+
+```
+fetch_pr    ✓  (matched)
+lint_code   ✓  (matched)
+post_review ✗  (not found -- unsafe_export is there instead)
+```
+
+Result: **REFINEMENT_BASELINE_CALL_MISSING** -- `post_review` is missing.
+
+**4. Contract check** -- TRT finds `unsafe_export` in the deny list.
+
+Result: **CONTRACT_TOOL_DENIED** -- `unsafe_export` is explicitly blocked.
+
+**5. Witness** -- the `tool_called:unsafe_export` event is the earliest violation. TRT reports it as the witness index.
+
+```mermaid
+flowchart LR
+    B["Baseline: fetch_pr, lint_code, post_review"] --> R["Refinement"]
+    N["Regression: fetch_pr, lint_code, unsafe_export"] --> R
+    N --> C["Contracts"]
+    R -->|"post_review missing"| W["Witness"]
+    C -->|"unsafe_export denied"| W
+    W --> F["FAIL + repro"]
+```
+
+Notice how TRT catches this from two angles simultaneously: the **refinement** check sees that a required step (`post_review`) was replaced, and the **contract** check sees that a forbidden tool (`unsafe_export`) was called. Both point to the same event, giving you a precise and trustworthy diagnosis.
+
 ## Why this matters
 
 In production, a code review bot calling `unsafe_export` could leak proprietary code, credentials, or customer data. Trajectly catches this regression deterministically -- no flaky tests, no "it works on my machine." The exact failing trace is reproducible with a single command.
