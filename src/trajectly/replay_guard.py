@@ -223,9 +223,9 @@ def activate() -> None:
 
     socket.create_connection = _guard_create_connection
     socket.getaddrinfo = _guard_getaddrinfo
-    socket.socket.connect = _guard_socket_connect  # type: ignore[method-assign]
-    socket.socket.connect_ex = _guard_socket_connect_ex  # type: ignore[method-assign]
-    socket.socket.sendto = _guard_socket_sendto  # type: ignore[method-assign]
+    socket.socket.connect = _guard_socket_connect  # type: ignore[assignment]
+    socket.socket.connect_ex = _guard_socket_connect_ex  # type: ignore[assignment]
+    socket.socket.sendto = _guard_socket_sendto  # type: ignore[assignment]
     urllib.request.urlopen = _guard_urlopen
     subprocess_module: Any = subprocess
     subprocess_module.run = _guard_subprocess_run
