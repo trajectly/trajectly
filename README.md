@@ -13,16 +13,19 @@ pip install trajectly
 Trajectly works in three steps: **record** a known-good baseline, **run** against it later, and **get a verdict**.
 
 ```bash
-# Clone the repo and install dev dependencies
+# Clone the repo to get the examples
 git clone https://github.com/trajectly/trajectly.git
 cd trajectly
-pip install -e ".[dev]"
+
+# Install trajectly with example dependencies (openai, gemini)
+pip install -e ".[examples]"
 
 # Set your OpenAI key (the example calls gpt-4o-mini)
 export OPENAI_API_KEY="sk-..."
 
 # 1. Record the baseline
 cd examples
+trajectly init
 trajectly record specs/trt-support-triage-baseline.agent.yaml
 
 # 2. Run the regression variant against it
