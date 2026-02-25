@@ -60,6 +60,6 @@ def test_render_pr_comment_outputs_markdown_table() -> None:
         }
     )
 
-    assert "Trajectly PR Report" in markdown
+    assert "Trajectly Regression Report" in markdown
     assert "| `a` | `clean` |" in markdown
     assert "| `b` | `regression` |" in markdown

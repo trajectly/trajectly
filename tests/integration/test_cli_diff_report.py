@@ -65,7 +65,7 @@ def test_cli_report_pr_comment_output(tmp_path: Path) -> None:
 
     result = runner.invoke(app, ["report", "--project-root", str(tmp_path), "--pr-comment"])
     assert result.exit_code == 0
-    assert "Trajectly PR Report" in result.stdout
+    assert "Trajectly Regression Report" in result.stdout
     assert "`demo`" in result.stdout
 
 
