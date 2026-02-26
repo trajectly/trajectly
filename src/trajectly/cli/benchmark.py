@@ -12,8 +12,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from trajectly.constants import EXIT_SUCCESS
 from trajectly.cli.engine import initialize_workspace, record_specs, run_specs
+from trajectly.constants import EXIT_SUCCESS
 
 
 def _write(path: Path, body: str) -> None:

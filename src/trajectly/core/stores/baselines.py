@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from trajectly.core.trace.io import read_trace_meta, write_trace_meta
+from trajectly.core.trace.io import write_trace_meta
 from trajectly.core.trace.models import TraceMetaV03
 
 
@@ -26,7 +26,7 @@ class BaselineStore(Protocol):
 
 class BaselinePaths:
     """Resolved file paths for a baseline."""
-    __slots__ = ("trace_path", "meta_path", "fixture_path")
+    __slots__ = ("fixture_path", "meta_path", "trace_path")
 
     def __init__(self, trace_path: Path, meta_path: Path, fixture_path: Path) -> None:
         self.trace_path = trace_path
@@ -103,4 +103,4 @@ class LocalBaselineStore:
         )
 
 
-__all__ = ["BaselineStore", "BaselinePaths", "LocalBaselineStore"]
+__all__ = ["BaselinePaths", "BaselineStore", "LocalBaselineStore"]

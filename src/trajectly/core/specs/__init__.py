@@ -16,7 +16,6 @@ from trajectly.core.specs.compat_v02 import (
 )
 from trajectly.core.specs.v03 import AgentSpec, parse_spec_with_compat
 
-
 _MAX_EXTENDS_DEPTH = 10
 
 

@@ -1,2 +1,2 @@
 # Compatibility shim — real code lives in trajectly.core.shrink.ddmin
-from trajectly.core.shrink.ddmin import *  # noqa: F401,F403
+from trajectly.core.shrink.ddmin import *  # noqa: F403

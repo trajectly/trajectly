@@ -1,2 +1,2 @@
 # Compatibility shim — real code lives in trajectly.core.errors
-from trajectly.core.errors import *  # noqa: F401,F403
+from trajectly.core.errors import *  # noqa: F403
