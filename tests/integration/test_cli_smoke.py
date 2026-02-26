@@ -109,3 +109,30 @@ class TestCliSmoke:
 
         run = runner.invoke(app, ["run", str(spec), "--project-root", str(tmp_path)])
         assert run.exit_code == 0
+
+    def test_version_flag(self) -> None:
+        from trajectly import __version__
+
+        result = runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+        assert __version__ in result.output
+        assert result.output.strip().startswith("trajectly ")
+
+    def test_spec_discovery_ordering_deterministic(self, tmp_path: Path) -> None:
+        """discover_spec_files returns sorted paths regardless of creation order."""
+        from trajectly.cli.engine import discover_spec_files
+
+        specs_dir = tmp_path / "specs"
+        specs_dir.mkdir()
+        for name in ["zebra.agent.yaml", "alpha.agent.yaml", "middle.agent.yaml"]:
+            _write_file(
+                specs_dir / name,
+                'schema_version: "0.3"\nname: ' + name.replace(".agent.yaml", "") + "\ncommand: echo ok",
+            )
+
+        result = discover_spec_files(tmp_path)
+        paths_as_str = [str(p) for p in result]
+        assert paths_as_str == sorted(paths_as_str), f"Discovery order not deterministic: {paths_as_str}"
+
+        result2 = discover_spec_files(tmp_path)
+        assert result == result2, "Repeated discovery gave different order"
