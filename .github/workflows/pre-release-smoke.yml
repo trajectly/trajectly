@@ -44,12 +44,12 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           trajectly init
-          trajectly record specs/trt-support-triage-baseline.agent.yaml specs/trt-code-review-bot-baseline.agent.yaml
-          trajectly run specs/trt-support-triage-baseline.agent.yaml specs/trt-code-review-bot-baseline.agent.yaml
+          trajectly record specs/trt-support-triage-baseline.agent.yaml specs/trt-code-review-agent-baseline.agent.yaml
+          trajectly run specs/trt-support-triage-baseline.agent.yaml specs/trt-code-review-agent-baseline.agent.yaml
           set +e
           trajectly run specs/trt-support-triage-regression.agent.yaml
           code_one=$?
-          trajectly run specs/trt-code-review-bot-regression.agent.yaml
+          trajectly run specs/trt-code-review-agent-regression.agent.yaml
           code_two=$?
           set -e
           if [ "$code_one" -ne 1 ] || [ "$code_two" -ne 1 ]; then

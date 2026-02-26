@@ -5,7 +5,7 @@
   },
   "mode": "record",
   "normalizer_version": "1",
-  "run_id": "trt-code-review-bot-58a4ec39",
+  "run_id": "trt-code-review-agent-b154e3cf",
   "schema_version": "0.3",
-  "spec_name": "trt-code-review-bot"
+  "spec_name": "trt-code-review-agent"
 }

@@ -526,36 +526,6 @@ contracts:
     assert trt["shrink_stats"]["reduced_len"] <= trt["shrink_stats"]["original_len"]
 
 
-def test_migrate_spec_command_creates_v03_file(tmp_path: Path) -> None:
-    legacy_spec = tmp_path / "legacy.agent.yaml"
-    _write_spec(
-        legacy_spec,
-        """
-name: migrate-demo
-command: python agent.py
-strict: true
-contracts:
-  tools:
-    deny: [danger]
-""".strip(),
-    )
-
-    result = runner.invoke(
-        app,
-        ["migrate", "spec", str(legacy_spec)],
-    )
-    assert result.exit_code == 0
-    assert "Migrated spec written to:" in result.stdout
-
-    migrated_spec = tmp_path / "legacy.agent.v03.yaml"
-    assert migrated_spec.exists()
-    payload = yaml.safe_load(migrated_spec.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == "0.3"
-    assert payload["name"] == "migrate-demo"
-    assert "replay" in payload
-    assert "refinement" in payload
-
-
 def test_repeated_runs_have_stable_trt_verdict_and_witness(tmp_path: Path) -> None:
     script = tmp_path / "agent.py"
     _write_script(

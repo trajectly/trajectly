@@ -99,7 +99,7 @@ See [docs/trajectly.md](docs/trajectly.md) for the full specification.
 | Example | Provider | Tools | What it tests |
 |---------|----------|-------|---------------|
 | [Ticket Classifier](docs/tutorial-support-triage.md) | OpenAI | `fetch_ticket`, `store_triage` | Tool allow/deny contracts, budget thresholds |
-| [Code Review Bot](docs/tutorial-code-review-bot.md) | Gemini | `fetch_pr`, `lint_code`, `post_review` | Sequence contracts, budget thresholds, behavioral refinement |
+| [Code Review Agent](docs/tutorial-code-review-agent.md) | Gemini | `fetch_pr`, `lint_code`, `post_review` | Sequence contracts, budget thresholds, behavioral refinement |
 
 See [examples/README.md](examples/README.md) for the full regression loop walkthrough (record, run, repro, shrink, baseline update).
 
@@ -206,7 +206,7 @@ The production dashboard is live at [trajectly.dev](https://trajectly.dev).
 - [Architecture](docs/architecture_phase1.md) -- internal package boundaries, store interfaces
 - [CI: GitHub Actions](docs/ci_github_actions.md) -- workflow examples, inputs, artifacts
 - [Tutorial: Ticket Classifier](docs/tutorial-support-triage.md) -- step-by-step simple example
-- [Tutorial: Code Review Bot](docs/tutorial-code-review-bot.md) -- step-by-step medium example
+- [Tutorial: Code Review Agent](docs/tutorial-code-review-agent.md) -- step-by-step medium example
 
 ## Contributing
 
@@ -228,4 +228,4 @@ Tests do not require API keys (agents use mock LLM fixtures during replay).
 
 ## License
 
-MIT
+Apache 2.0 -- see [LICENSE](LICENSE).

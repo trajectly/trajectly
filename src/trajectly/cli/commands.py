@@ -22,7 +22,6 @@ from trajectly.engine import (
     shrink_repro,
 )
 from trajectly.report import render_pr_comment
-from trajectly.specs.migrate import migrate_spec_file
 
 
 def _version_callback(value: bool) -> None:
@@ -44,9 +43,7 @@ def _main(
 ) -> None:
     pass
 baseline_app = typer.Typer(add_completion=False, help="Manage baseline update workflows")
-migrate_app = typer.Typer(add_completion=False, help="Migration helpers")
 app.add_typer(baseline_app, name="baseline")
-app.add_typer(migrate_app, name="migrate")
 
 
 def _emit_outcome(outcome: CommandOutcome) -> None:
@@ -312,22 +309,3 @@ def report(
     raise typer.Exit(EXIT_SUCCESS)
 
 
-@migrate_app.command("spec")
-def migrate_spec_command(
-    spec_path: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, help="Spec file to convert"),
-    output: Path | None = typer.Option(None, "--output", help="Output file path for converted v0.3 spec"),
-    in_place: bool = typer.Option(False, "--in-place", help="Rewrite the input file in place"),
-) -> None:
-    """Convert a legacy Trajectly spec to v0.3 format."""
-    try:
-        destination = migrate_spec_file(
-            spec_path=spec_path.resolve(),
-            output_path=output.resolve() if output is not None else None,
-            in_place=in_place,
-        )
-    except Exception as exc:
-        typer.echo(f"ERROR: {exc}", err=True)
-        raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
-
-    typer.echo(f"Migrated spec written to: {destination}")
-    raise typer.Exit(EXIT_SUCCESS)

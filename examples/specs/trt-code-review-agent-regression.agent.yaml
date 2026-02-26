@@ -1,6 +1,6 @@
 schema_version: "0.3"
-name: "trt-code-review-bot"
-command: "python -m examples.code_review_bot.main"
+name: "trt-code-review-agent"
+command: "python -m examples.code_review_agent.main_regression"
 workdir: ..
 fixture_policy: by_hash
 strict: true

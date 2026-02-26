@@ -80,6 +80,19 @@ def _looks_like_write_tool(tool_name: str) -> bool:
     return any(token in normalized for token in _WRITE_TOOL_HINTS)
 
 
+def _resolve_operation(name: str, operations: list[str], start: int = 0) -> int:
+    """Find *name* in *operations* starting at *start*.
+
+    Spec authors write bare tool names (``fetch_pr``) while operation
+    signatures are prefixed (``tool:fetch_pr``).  Try the literal first,
+    then fall back to the ``tool:`` prefix so both conventions work.
+    """
+    try:
+        return operations.index(name, start)
+    except ValueError:
+        return operations.index(f"tool:{name}", start)
+
+
 def _find_required_sequence_missing(requirements: list[str], operations: list[str]) -> list[str]:
     if not requirements:
         return []
@@ -87,7 +100,7 @@ def _find_required_sequence_missing(requirements: list[str], operations: list[st
     cursor = 0
     for required in requirements:
         try:
-            index = operations.index(required, cursor)
+            index = _resolve_operation(required, operations, cursor)
         except ValueError:
             missing.append(required)
             continue
@@ -97,7 +110,7 @@ def _find_required_sequence_missing(requirements: list[str], operations: list[st
 
 def _safe_find_operation_index(operations: list[str], target: str) -> int | None:
     try:
-        return operations.index(target)
+        return _resolve_operation(target, operations)
     except ValueError:
         return None
 

@@ -48,9 +48,9 @@ Even if fixtures were present, the first visible command was an API key export, 
 
 **Both examples now work from a fresh clone:**
 - Ticket Classifier (OpenAI): `trajectly run specs/trt-support-triage-regression.agent.yaml` produces `FAIL` at witness=2 with `REFINEMENT_BASELINE_CALL_MISSING`
-- Code Review Bot (Gemini): `trajectly run specs/trt-code-review-bot-regression.agent.yaml` produces `FAIL` at witness=4 with `REFINEMENT_BASELINE_CALL_MISSING`
+- Code Review Agent (Gemini): `trajectly run specs/trt-code-review-agent-regression.agent.yaml` produces `FAIL` at witness=4 with `REFINEMENT_BASELINE_CALL_MISSING`
 
-**Fixed: `require_before` YAML syntax error in Code Review Bot specs.** The specs used array syntax `[lint_code, post_review]` instead of the required mapping syntax `{before: lint_code, after: post_review}`, causing a parse error.
+**Fixed: `require_before` YAML syntax error in Code Review Agent specs.** The specs used array syntax `[lint_code, post_review]` instead of the required mapping syntax `{before: lint_code, after: post_review}`, causing a parse error.
 
 **Verified full loop for both examples:**
 1. `trajectly run` -- regression detected (exit code 1)
@@ -87,7 +87,7 @@ Even if fixtures were present, the first visible command was an API key export, 
 
 3. **No documentation on when to use UI vs CLI.** **Fixed:** Added "Dashboard (optional)" section to core README, plus a comparison table in the web UI README.
 
-4. **Old example slugs in test files.** `theory.test.ts` and `parsers.test.ts` used `trt-search-buy` slug. **Fixed:** Updated to `trt-code-review-bot`.
+4. **Old example slugs in test files.** `theory.test.ts` and `parsers.test.ts` used `trt-search-buy` slug. **Fixed:** Updated to `trt-code-review-agent`.
 
 ## Part 6: CI Integration
 
@@ -111,14 +111,14 @@ Even if fixtures were present, the first visible command was an API key export, 
 5. 30-second quickstart code block
 6. CI integration snippet
 7. Comparison table (output diff testing vs Trajectly)
-8. Open source positioning (MIT, minimal deps, extensible)
+8. Open source positioning (Apache 2.0, minimal deps, extensible)
 
 **Routing updated:** `/` is landing page, `/dashboard` is the data dashboard. TopBar shows contextual navigation.
 
 ## Part 8: Terminology Audit
 
 **Stale references found and fixed:**
-- Old example slugs in web UI tests (`trt-search-buy` → `trt-code-review-bot`)
+- Old example slugs in web UI tests (`trt-search-buy` → `trt-code-review-agent`)
 - App test routing (`/` → `/dashboard` for dashboard tests, `/theory` → `/nonexistent` for redirect test)
 
 **No issues found for:**

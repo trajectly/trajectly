@@ -1,4 +1,4 @@
-# Tutorial: Code Review Bot (Medium)
+# Tutorial: Code Review Agent (Medium)
 
 A Gemini-powered agent that reviews pull requests. This example shows multi-contract enforcement -- tool allow/deny, sequence ordering, budget thresholds, and behavioral refinement -- all checked simultaneously.
 
@@ -12,32 +12,37 @@ The agent uses three tools:
 
 The baseline flow is: fetch PR -> lint the diff -> call LLM to write review -> post review.
 
-The regression intentionally **skips `lint_code`** and calls **`unsafe_export`** instead of `post_review`. This triggers multiple contract violations at once.
+The regression intentionally **skips `lint_code`** and exports data via **`unsafe_export`** instead of posting the review. This triggers multiple contract violations at once.
 
 ## Files
 
-### Agent code: `examples/examples/code_review_bot/main.py`
+### Agent code: `examples/examples/code_review_agent/main.py`
 
 ```python
-from examples.real_llm_ci.runner import run_example
+from examples.real_llm_ci.runner import (
+    fetch_pr, lint_code, post_review, _gemini_response, _stable_json, agent_step,
+)
 
 def main() -> None:
-    run_example(
-        scenario="code_review_bot",
-        provider="gemini",
-        mode="baseline",
-        model="gemini-2.5-flash",
+    agent_step("start", {"agent": "code_review_agent", "mode": "baseline"})
+    pr = fetch_pr("PR-2048")
+    lint = lint_code(pr["diff"])
+    review = _gemini_response(
+        "gemini-2.5-flash",
+        f"Review this pull request diff and lint results. ..."
     )
+    result = post_review(pr["pr_id"], review)
+    agent_step("done", {"review": review, "result": result})
 ```
 
-The regression variant (`main_regression.py`) uses `mode="regression"`, causing the agent to skip `lint_code` and call `unsafe_export`.
+The regression variant (`main_regression.py`) skips lint_code and exports data via unsafe_export instead of posting the review.
 
-### Spec file: `examples/specs/trt-code-review-bot-baseline.agent.yaml`
+### Spec file: `examples/specs/trt-code-review-agent-baseline.agent.yaml`
 
 ```yaml
 schema_version: "0.3"
-name: "trt-code-review-bot"
-command: "python -m examples.code_review_bot.main"
+name: "trt-code-review-agent"
+command: "python -m examples.code_review_agent.main"
 workdir: ..
 fixture_policy: by_hash
 strict: true
@@ -82,7 +87,7 @@ Pre-recorded baselines and fixtures are included in the repo, so **no API key is
 ### Step 1: Run the regression
 
 ```bash
-trajectly run specs/trt-code-review-bot-regression.agent.yaml
+trajectly run specs/trt-code-review-agent-regression.agent.yaml
 ```
 
 ### Step 3: Check the report
@@ -110,7 +115,7 @@ Trajectly uses delta-debugging to find the shortest trace prefix that still trig
 ### Step 6: Accept an intentional change (if needed)
 
 ```bash
-trajectly baseline update specs/trt-code-review-bot-baseline.agent.yaml
+trajectly baseline update specs/trt-code-review-agent-baseline.agent.yaml
 ```
 
 ## What Trajectly detected
@@ -188,7 +193,7 @@ If you want to re-record the baseline (e.g., after changing the agent code), you
 ```bash
 export GEMINI_API_KEY="your-gemini-key"
 trajectly init
-trajectly record specs/trt-code-review-bot-baseline.agent.yaml
+trajectly record specs/trt-code-review-agent-baseline.agent.yaml
 ```
 
 This runs the agent live, captures its trace, and saves fixtures. All subsequent `trajectly run` calls replay from these fixtures -- fully offline and deterministic.

@@ -467,7 +467,6 @@ flowchart TD
 | `trajectly shrink` | Minimize a failing trace |
 | `trajectly report` | Print the latest report |
 | `trajectly baseline update` | Re-record baselines for intentional changes |
-| `trajectly migrate spec` | Convert legacy specs to v0.3 format |
 
 ### `trajectly --version`
 
@@ -564,15 +563,6 @@ Re-record baselines when behavior changes are intentional.
 ```bash
 trajectly baseline update specs/my-agent-baseline.agent.yaml
 trajectly baseline update --auto
-```
-
-### `trajectly migrate spec <spec_path> [--output PATH] [--in-place]`
-
-Convert a legacy spec to v0.3 format.
-
-```bash
-trajectly migrate spec old.agent.yaml --output new.agent.yaml
-trajectly migrate spec old.agent.yaml --in-place
 ```
 
 ### Exit codes
@@ -813,7 +803,7 @@ agent_step("processing_input", details={"key": "value"})
 | Adapter | Example |
 |---|---|
 | OpenAI | [Ticket Classifier](tutorial-support-triage.md) |
-| Gemini | [Code Review Bot](tutorial-code-review-bot.md) |
+| Gemini | [Code Review Agent](tutorial-code-review-agent.md) |
 
 ---
 
