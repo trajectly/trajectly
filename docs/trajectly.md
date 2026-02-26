@@ -444,6 +444,7 @@ flowchart TD
 
 | Command | What it does |
 |---|---|
+| `trajectly --version` | Print version and exit |
 | `trajectly init` | Create `.trajectly/` workspace |
 | `trajectly enable` | Set up with scaffolding and auto-discovery |
 | `trajectly record` | Record baseline traces and fixtures |
@@ -453,6 +454,15 @@ flowchart TD
 | `trajectly report` | Print the latest report |
 | `trajectly baseline update` | Re-record baselines for intentional changes |
 | `trajectly migrate spec` | Convert legacy specs to v0.3 format |
+
+### `trajectly --version`
+
+Print the installed version and exit.
+
+```bash
+trajectly --version
+# trajectly 0.3.0rc3
+```
 
 ### `trajectly init [project_root]`
 

@@ -160,9 +160,28 @@ Dicts merge recursively, lists and scalars override.
 ## Documentation
 
 - [Full documentation](docs/trajectly.md) -- concepts, CLI reference, spec format, SDK reference
-- [Architecture](docs/architecture_phase1.md) -- internal package boundaries, store interfaces, migration plan
+- [Architecture](docs/architecture_phase1.md) -- internal package boundaries, store interfaces
+- [CI: GitHub Actions](docs/ci_github_actions.md) -- workflow examples, inputs, artifacts
 - [Tutorial: Ticket Classifier](docs/tutorial-support-triage.md) -- step-by-step simple example
 - [Tutorial: Code Review Bot](docs/tutorial-code-review-bot.md) -- step-by-step medium example
+
+## Contributing
+
+```bash
+git clone https://github.com/trajectly/trajectly.git
+cd trajectly
+pip install -e ".[dev]"
+```
+
+Run the test suite:
+
+```bash
+pytest tests/
+ruff check .
+mypy src/trajectly/__main__.py src/sitecustomize.py --ignore-missing-imports
+```
+
+Tests do not require API keys (agents use mock LLM fixtures during replay).
 
 ## License
 
