@@ -1,5 +1,5 @@
 from __future__ import annotations
 
-from trajectly.cli import app
+from trajectly.cli.commands import app
 
 app()
