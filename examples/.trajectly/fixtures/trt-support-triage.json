@@ -1,0 +1,65 @@
+{
+  "entries": [
+    {
+      "error": null,
+      "input_hash": "309ab8fa717424ee8913fd42cd5ee92e969debc28c6497b88ff0d5d878d0e1c8",
+      "input_payload": {
+        "args": [
+          "ticket-1729"
+        ],
+        "kwargs": {}
+      },
+      "kind": "tool",
+      "name": "fetch_ticket",
+      "output_payload": {
+        "error": null,
+        "output": {
+          "content": "Customer reports duplicate billing and asks for a concise action plan.",
+          "customer_email": "customer@example.com",
+          "priority": "high",
+          "ticket_id": "ticket-1729"
+        }
+      }
+    },
+    {
+      "error": null,
+      "input_hash": "f30c641eaaeda9ffeb8851bbe7ff9bbd754cb345b5138b9cd02b80916ed1130b",
+      "input_payload": {
+        "args": [
+          "gpt-4o-mini",
+          "Classify this support ticket into one of [refund, billing, account]. Then provide one short response line.\n\nTicket: Customer reports duplicate billing and asks for a concise action plan."
+        ],
+        "kwargs": {}
+      },
+      "kind": "llm",
+      "name": "openai:gpt-4o-mini",
+      "output_payload": {
+        "error": null,
+        "response": "ChatCompletion(id='chatcmpl-DDH5Hh78SZf7AsGOScv37MknDF4sm', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='Classification: billing  \\nResponse: We will investigate the duplicate billing and provide a resolution shortly.', refusal=None, role='assistant', annotations=[], audio=None, function_call=None, tool_calls=None))], created=1772056307, model='gpt-4o-mini-2024-07-18', object='chat.completion', service_tier='default', system_fingerprint='fp_373a14eb6f', usage=CompletionUsage(completion_tokens=18, prompt_tokens=43, total_tokens=61, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=0, audio_tokens=0, reasoning_tokens=0, rejected_prediction_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0)))",
+        "result": "ChatCompletion(id='chatcmpl-DDH5Hh78SZf7AsGOScv37MknDF4sm', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='Classification: billing  \\nResponse: We will investigate the duplicate billing and provide a resolution shortly.', refusal=None, role='assistant', annotations=[], audio=None, function_call=None, tool_calls=None))], created=1772056307, model='gpt-4o-mini-2024-07-18', object='chat.completion', service_tier='default', system_fingerprint='fp_373a14eb6f', usage=CompletionUsage(completion_tokens=18, prompt_tokens=43, total_tokens=61, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=0, audio_tokens=0, reasoning_tokens=0, rejected_prediction_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0)))",
+        "usage": {}
+      }
+    },
+    {
+      "error": null,
+      "input_hash": "661af034c288be0f6222765bb6fb820646bb60fcc076acf57577db354cad4d18",
+      "input_payload": {
+        "args": [
+          "Classification: billing  \nResponse: We will investigate the duplicate billing and provide a resolution shortly.",
+          "billing"
+        ],
+        "kwargs": {}
+      },
+      "kind": "tool",
+      "name": "store_triage",
+      "output_payload": {
+        "error": null,
+        "output": {
+          "decision": "billing",
+          "status": "stored",
+          "summary": "Classification: billing  \nResponse: We will investigate the duplicate billing and provide a resolution shortly."
+        }
+      }
+    }
+  ]
+}

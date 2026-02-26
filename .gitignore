@@ -10,6 +10,13 @@ build/
 *.egg-info/
 .trajectly/
 
+# Allow pre-recorded example fixtures/baselines so fresh clones work without API keys
+!examples/.trajectly/config.yaml
+!examples/.trajectly/baselines/
+!examples/.trajectly/baselines/**
+!examples/.trajectly/fixtures/
+!examples/.trajectly/fixtures/**
+
 # Never publish local development prompts or private docs
 first_prompt.txt
 first_prompt.md
