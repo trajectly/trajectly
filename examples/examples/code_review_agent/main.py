@@ -8,12 +8,12 @@ Workflow:  fetch_pr -> lint_code -> LLM review -> post_review
 from __future__ import annotations
 
 from examples.real_llm_ci.runner import (
-    fetch_pr,
-    lint_code,
-    post_review,
     _gemini_response,
     _stable_json,
     agent_step,
+    fetch_pr,
+    lint_code,
+    post_review,
 )
 
 

@@ -8,10 +8,10 @@ Workflow:  fetch_ticket -> LLM classification -> store_triage
 from __future__ import annotations
 
 from examples.real_llm_ci.runner import (
-    fetch_ticket,
-    store_triage,
     _openai_response,
     agent_step,
+    fetch_ticket,
+    store_triage,
 )
 
 

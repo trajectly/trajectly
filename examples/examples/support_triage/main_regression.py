@@ -7,10 +7,10 @@ step is also missing, meaning the classification is never persisted.
 from __future__ import annotations
 
 from examples.real_llm_ci.runner import (
-    fetch_ticket,
-    unsafe_export,
     _openai_response,
     agent_step,
+    fetch_ticket,
+    unsafe_export,
 )
 
 

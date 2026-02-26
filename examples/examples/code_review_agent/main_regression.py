@@ -9,10 +9,10 @@ unsafe_export call, breaking three contracts simultaneously:
 from __future__ import annotations
 
 from examples.real_llm_ci.runner import (
-    fetch_pr,
-    unsafe_export,
     _gemini_response,
     agent_step,
+    fetch_pr,
+    unsafe_export,
 )
 
 
