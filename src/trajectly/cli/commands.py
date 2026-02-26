@@ -24,7 +24,25 @@ from trajectly.engine import (
 from trajectly.report import render_pr_comment
 from trajectly.specs.migrate import migrate_spec_file
 
+
+def _version_callback(value: bool) -> None:
+    if value:
+        from trajectly import __version__
+
+        typer.echo(f"trajectly {__version__}")
+        raise typer.Exit()
+
+
 app = typer.Typer(add_completion=False, help="Regression testing for AI agents")
+
+
+@app.callback(invoke_without_command=True)
+def _main(
+    version: bool = typer.Option(
+        False, "--version", callback=_version_callback, is_eager=True, help="Print version and exit."
+    ),
+) -> None:
+    pass
 baseline_app = typer.Typer(add_completion=False, help="Manage baseline update workflows")
 migrate_app = typer.Typer(add_completion=False, help="Migration helpers")
 app.add_typer(baseline_app, name="baseline")

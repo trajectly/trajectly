@@ -6,6 +6,43 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **Phase 1 architecture refactor**: `core/`, `cli/`, `sdk/` package boundaries.
+  - `src/trajectly/core/` contains all deterministic engine modules.
+  - `src/trajectly/cli/` contains Typer commands, orchestration, and report rendering.
+  - `src/trajectly/sdk/` contains instrumentation adapters (unchanged).
+  - Compatibility shims at old import paths for one release cycle.
+  - Boundary enforcement test (`test_boundary_enforcement.py`): core must not import typer/rich/click.
+- `ArtifactStore` and `BaselineStore` protocols in `core/stores/` with local filesystem implementations.
+- Spec `extends` field for file-based spec inheritance with deterministic deep-merge.
+- `github-action/action.yml`: thin composite GitHub Action wrapper (no TRT logic).
+- `--version` flag on the CLI (`trajectly --version`).
+- Deterministic witness selection tests (`test_determinism_witness.py`).
+- Canonical JSON stability tests (`test_canonical_stability.py`).
+- CLI smoke tests (`test_cli_smoke.py`): init, record, run, report, exit codes.
+- Spec extends tests (`test_spec_extends.py`): single/chained extends, cycle detection.
+- Phase 1 audit report (`docs/audit_phase1.md`).
+- CI GitHub Actions guide (`docs/ci_github_actions.md`).
+
+### Changed
+
+- Version aligned: `pyproject.toml` and `__init__.py` both `0.3.0rc3`.
+- CLI entrypoint changed from `trajectly.cli:app` to `trajectly.cli.commands:app`.
+- `cli.py` renamed to `cli/commands.py`.
+- `docs/architecture_phase1.md` rewritten to describe completed architecture.
+
+### Fixed
+
+- `_repo_src_path()` in `runtime.py` adjusted for new file depth after move to `core/`.
+- Shim for `replay_guard.py` uses `sys.modules` aliasing for monkeypatch compatibility.
+- Shim for `engine_common.py` explicitly re-exports underscore-prefixed names.
+
+### Internal
+
+- 281+ tests pass. ruff + mypy clean on CI.
+- No user-facing CLI behavior changes (all commands, flags, exit codes preserved).
+
+---
+
 - Deterministic replay hardening tests:
   - `tests/integration/test_determinism_replay.py` validates repeat-run TRT payload stability.
   - replay network-block integration assertion for CI-safe offline mode.
