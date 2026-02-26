@@ -1,4 +1,2 @@
-from trajectly.diff.engine import compare_traces
-from trajectly.diff.models import DiffResult, Finding
-
-__all__ = ["DiffResult", "Finding", "compare_traces"]
+# Compatibility shim — real code lives in trajectly.core.diff
+from trajectly.core.diff import *  # noqa: F401,F403

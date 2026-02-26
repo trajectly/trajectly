@@ -94,9 +94,73 @@ See [docs/trajectly.md](docs/trajectly.md) for the full specification.
 | [Ticket Classifier](docs/tutorial-support-triage.md) | OpenAI | `fetch_ticket`, `store_triage` | Simple 2-tool agent with contract enforcement |
 | [Code Review Bot](docs/tutorial-code-review-bot.md) | Gemini | `fetch_pr`, `lint_code`, `post_review` | Multi-tool sequence with policy guardrails |
 
+## CI Integration
+
+### GitHub Actions (recommended)
+
+```yaml
+# .github/workflows/trajectly.yml
+name: Agent Regression Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./github-action
+        with:
+          spec_glob: "specs/*.agent.yaml"
+          comment_pr: "true"
+```
+
+### Any CI (shell)
+
+```bash
+pip install trajectly
+trajectly run specs/*.agent.yaml --project-root .
+trajectly report --pr-comment > comment.md
+```
+
+The CLI is the product. The GitHub Action is a thin wrapper — no TRT logic lives there.
+
+## Architecture
+
+Trajectly is organized into three layers:
+
+| Layer | Purpose | Dependencies |
+|-------|---------|-------------|
+| `core` | Trace normalization, skeleton extraction, refinement checks, contracts, witness resolution, shrink | stdlib + yaml |
+| `cli` | Typer commands, spec orchestration, report rendering, exit codes | core + typer + rich |
+| `sdk` | Tool/LLM decorators that emit trace events from agent code | core only |
+
+`core` has **no** dependency on typer, rich, or any CLI framework. `sdk` depends only on `core`, never on `cli`.
+
+### Spec Inheritance
+
+Specs can extend a base spec with deterministic deep-merge:
+
+```yaml
+# base.agent.yaml
+schema_version: "0.3"
+name: base-agent
+command: python agent.py
+contracts:
+  tools:
+    deny: [unsafe_export]
+
+# child.agent.yaml
+extends: base.agent.yaml
+name: child-agent
+budget_thresholds:
+  max_tool_calls: 10
+```
+
+Dicts merge recursively, lists and scalars override.
+
 ## Documentation
 
 - [Full documentation](docs/trajectly.md) -- concepts, CLI reference, spec format, SDK reference
+- [Architecture](docs/architecture_phase1.md) -- internal package boundaries, store interfaces, migration plan
 - [Tutorial: Ticket Classifier](docs/tutorial-support-triage.md) -- step-by-step simple example
 - [Tutorial: Code Review Bot](docs/tutorial-code-review-bot.md) -- step-by-step medium example
 

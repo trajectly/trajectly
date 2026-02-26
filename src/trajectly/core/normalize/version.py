@@ -1,0 +1,5 @@
+from trajectly.core.constants import TRT_NORMALIZER_VERSION
+
+NORMALIZER_VERSION = TRT_NORMALIZER_VERSION
+
+__all__ = ["NORMALIZER_VERSION"]

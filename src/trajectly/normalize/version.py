@@ -1,5 +1,2 @@
-from trajectly.constants import TRT_NORMALIZER_VERSION
-
-NORMALIZER_VERSION = TRT_NORMALIZER_VERSION
-
-__all__ = ["NORMALIZER_VERSION"]
+# Compatibility shim — real code lives in trajectly.core.normalize.version
+from trajectly.core.normalize.version import *  # noqa: F401,F403

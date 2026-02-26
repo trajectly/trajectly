@@ -1,20 +1,2 @@
-from trajectly.abstraction.pipeline import AbstractionConfig, AbstractTrace, Token, build_abstract_trace
-from trajectly.abstraction.predicates import (
-    contains_email,
-    contains_phone,
-    extract_domains,
-    extract_numeric_values,
-)
-
-# Keep this export surface stable for downstream integrations importing
-# abstraction helpers directly from `trajectly.abstraction`.
-__all__ = [
-    "AbstractTrace",
-    "AbstractionConfig",
-    "Token",
-    "build_abstract_trace",
-    "contains_email",
-    "contains_phone",
-    "extract_domains",
-    "extract_numeric_values",
-]
+# Compatibility shim — real code lives in trajectly.core.abstraction
+from trajectly.core.abstraction import *  # noqa: F401,F403

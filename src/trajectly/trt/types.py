@@ -1,18 +1,2 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Any
-
-
-@dataclass(slots=True)
-class TRTViolation:
-    code: str
-    message: str
-    failure_class: str
-    event_index: int
-    expected: Any | None = None
-    observed: Any | None = None
-    hint: str | None = None
-
-
-__all__ = ["TRTViolation"]
+# Compatibility shim — real code lives in trajectly.core.trt.types
+from trajectly.core.trt.types import *  # noqa: F401,F403

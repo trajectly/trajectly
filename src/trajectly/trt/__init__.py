@@ -1,8 +1,2 @@
-from trajectly.trt.types import TRTViolation
-from trajectly.trt.witness import WitnessResolution, resolve_witness
-
-__all__ = [
-    "TRTViolation",
-    "WitnessResolution",
-    "resolve_witness",
-]
+# Compatibility shim — real code lives in trajectly.core.trt
+from trajectly.core.trt import *  # noqa: F401,F403
