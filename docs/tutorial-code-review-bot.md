@@ -1,6 +1,6 @@
 # Tutorial: Code Review Bot (Medium)
 
-A Gemini-powered agent that reviews pull requests. This example shows multi-tool sequence enforcement and how Trajectly catches unauthorized tool usage in a more complex flow.
+A Gemini-powered agent that reviews pull requests. This example shows multi-contract enforcement -- tool allow/deny, sequence ordering, budget thresholds, and behavioral refinement -- all checked simultaneously.
 
 ## What this agent does
 
@@ -12,7 +12,7 @@ The agent uses three tools:
 
 The baseline flow is: fetch PR -> lint the diff -> call LLM to write review -> post review.
 
-The regression intentionally calls **`unsafe_export`** instead of `post_review`, which violates the tool contract.
+The regression intentionally **skips `lint_code`** and calls **`unsafe_export`** instead of `post_review`. This triggers multiple contract violations at once.
 
 ## Files
 
@@ -30,7 +30,7 @@ def main() -> None:
     )
 ```
 
-The regression variant (`main_regression.py`) uses `mode="regression"`, causing the agent to call `unsafe_export` instead of `post_review`.
+The regression variant (`main_regression.py`) uses `mode="regression"`, causing the agent to skip `lint_code` and call `unsafe_export`.
 
 ### Spec file: `examples/specs/trt-code-review-bot-baseline.agent.yaml`
 
@@ -41,16 +41,29 @@ command: "python -m examples.code_review_bot.main"
 workdir: ..
 fixture_policy: by_hash
 strict: true
+budget_thresholds:
+  max_tool_calls: 5
+  max_tokens: 500
 contracts:
   tools:
     allow: [fetch_pr, lint_code, post_review]
     deny: [unsafe_export]
+  sequence:
+    require: [fetch_pr, lint_code, post_review]
+    require_before:
+      - [lint_code, post_review]
 ```
 
-The `allow` list enforces that the agent can only use `fetch_pr`, `lint_code`, and `post_review`. The `deny` list explicitly blocks `unsafe_export`. This means Trajectly enforces both:
+This spec adds two new contract types beyond simple allow/deny:
 
-- **What tools can be used** (allow list)
-- **What tools must never be used** (deny list)
+| Contract | What it enforces |
+|----------|------------------|
+| `contracts.tools.allow` | Only these tools may be called |
+| `contracts.tools.deny` | These tools must never be called |
+| `contracts.sequence.require` | All of these tools must be called during the run |
+| `contracts.sequence.require_before` | `lint_code` must be called before `post_review` |
+| `budget_thresholds.max_tool_calls` | Agent may not exceed 5 tool calls |
+| `budget_thresholds.max_tokens` | Agent may not exceed 500 tokens |
 
 ## Running it
 
@@ -83,15 +96,31 @@ trajectly run specs/trt-code-review-bot-regression.agent.yaml
 trajectly report
 ```
 
-### Step 4: Reproduce
+### Step 4: Reproduce the failure
 
 ```bash
-trajectly repro --latest
+trajectly repro
+```
+
+This re-runs the exact failing trace from fixtures. Deterministic -- same output every time.
+
+### Step 5: Minimize the trace
+
+```bash
+trajectly shrink
+```
+
+Trajectly uses delta-debugging to find the shortest trace prefix that still triggers the same failure. This is your minimal repro case.
+
+### Step 6: Accept an intentional change (if needed)
+
+```bash
+trajectly baseline update specs/trt-code-review-bot-baseline.agent.yaml
 ```
 
 ## What Trajectly detected
 
-The regression calls `unsafe_export` after `lint_code`, which violates the tool contract:
+The regression triggers **three** independent violations:
 
 **Baseline call sequence:**
 ```
@@ -100,56 +129,59 @@ fetch_pr -> lint_code -> [LLM call] -> post_review
 
 **Regression call sequence:**
 ```
-fetch_pr -> lint_code -> [LLM call] -> unsafe_export  <-- DENIED
+fetch_pr -> [LLM call] -> unsafe_export  <-- multiple violations
 ```
 
-Trajectly reports:
+Violations found:
 
-- **Failure step**: the event index where `unsafe_export` was called
-- **Violation code**: `CONTRACT_TOOL_DENIED`
-- **Repro command**: `trajectly repro --latest`
+| Violation | Code | Why |
+|-----------|------|-----|
+| Tool denied | `CONTRACT_TOOL_DENIED` | `unsafe_export` is on the deny list |
+| Missing required call | `REFINEMENT_BASELINE_CALL_MISSING` | Baseline called `lint_code` and `post_review`, but regression skipped both |
+| Sequence broken | `SEQUENCE_REQUIRE_BEFORE` | `lint_code` was required before `post_review`, but `lint_code` never ran |
+
+TRT picks the **earliest** failing event as the witness, giving you the precise step where the agent first diverged.
 
 ## How TRT works under the hood
 
-Here's what the TRT algorithm does step by step:
-
-**1. Normalize** -- both traces are canonicalized (stripped of timestamps, run IDs, response latencies).
+**1. Normalize** -- both traces are canonicalized (timestamps, run IDs, latencies stripped).
 
 **2. Extract skeletons:**
 
 ```
 Baseline skeleton:   [fetch_pr, lint_code, post_review]
-Regression skeleton: [fetch_pr, lint_code, unsafe_export]
+Regression skeleton: [fetch_pr, unsafe_export]
 ```
 
-**3. Refinement check** -- TRT checks if `[fetch_pr, lint_code, post_review]` is a subsequence of `[fetch_pr, lint_code, unsafe_export]`:
+**3. Refinement check** -- is `[fetch_pr, lint_code, post_review]` a subsequence of `[fetch_pr, unsafe_export]`?
 
 ```
-fetch_pr    ✓  (matched)
-lint_code   ✓  (matched)
-post_review ✗  (not found -- unsafe_export is there instead)
+fetch_pr    matched
+lint_code   MISSING
+post_review MISSING
 ```
 
-Result: **REFINEMENT_BASELINE_CALL_MISSING** -- `post_review` is missing.
+Result: **REFINEMENT_BASELINE_CALL_MISSING** -- two baseline calls are absent.
 
-**4. Contract check** -- TRT finds `unsafe_export` in the deny list.
+**4. Contract check** -- TRT checks every event against all contracts:
+- `unsafe_export` is in the deny list -> `CONTRACT_TOOL_DENIED`
+- `lint_code` never ran but is in `sequence.require` -> sequence violation
+- `lint_code` was required before `post_review` -> `SEQUENCE_REQUIRE_BEFORE`
 
-Result: **CONTRACT_TOOL_DENIED** -- `unsafe_export` is explicitly blocked.
-
-**5. Witness** -- the `tool_called:unsafe_export` event is the earliest violation. TRT reports it as the witness index.
+**5. Witness resolution** -- all violations point to the event where `unsafe_export` was called. TRT reports it as the witness index.
 
 ```mermaid
 flowchart LR
     B["Baseline: fetch_pr, lint_code, post_review"] --> R["Refinement"]
-    N["Regression: fetch_pr, lint_code, unsafe_export"] --> R
+    N["Regression: fetch_pr, unsafe_export"] --> R
     N --> C["Contracts"]
-    R -->|"post_review missing"| W["Witness"]
+    R -->|"lint_code + post_review missing"| W["Witness"]
     C -->|"unsafe_export denied"| W
-    W --> F["FAIL + repro"]
+    W --> F["FAIL + 3 violations"]
 ```
 
-Notice how TRT catches this from two angles simultaneously: the **refinement** check sees that a required step (`post_review`) was replaced, and the **contract** check sees that a forbidden tool (`unsafe_export`) was called. Both point to the same event, giving you a precise and trustworthy diagnosis.
+TRT catches this from multiple angles simultaneously -- refinement, tool policy, and sequence ordering all converge on the same event. This gives you high confidence that the regression is real.
 
 ## Why this matters
 
-In production, a code review bot calling `unsafe_export` could leak proprietary code, credentials, or customer data. Trajectly catches this regression deterministically -- no flaky tests, no "it works on my machine." The exact failing trace is reproducible with a single command.
+In production, skipping the linting step means unreviewed code gets approved. Calling `unsafe_export` could leak source code or credentials. Trajectly catches both regressions deterministically -- no flaky tests, full repro from fixtures.

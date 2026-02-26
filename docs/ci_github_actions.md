@@ -93,3 +93,7 @@ The `.trajectly/` directory contains baselines, fixtures, and reports. You can c
 | 0 | All specs passed |
 | 1 | At least one regression detected |
 | 2 | Configuration or tooling error |
+
+## Example Workflow
+
+See [examples/.github/workflows/agent-tests.yml](../examples/.github/workflows/agent-tests.yml) for a complete example that runs agent regression tests on push and PR, using pre-recorded fixtures (no API keys needed in CI).

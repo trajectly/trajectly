@@ -4,7 +4,14 @@ command: "python -m examples.code_review_bot.main_regression"
 workdir: ..
 fixture_policy: by_hash
 strict: true
+budget_thresholds:
+  max_tool_calls: 5
+  max_tokens: 500
 contracts:
   tools:
     allow: [fetch_pr, lint_code, post_review]
     deny: [unsafe_export]
+  sequence:
+    require: [fetch_pr, lint_code, post_review]
+    require_before:
+      - [lint_code, post_review]

@@ -42,6 +42,9 @@ command: "python -m examples.support_triage.main"
 workdir: ..
 fixture_policy: by_hash
 strict: true
+budget_thresholds:
+  max_tool_calls: 4
+  max_tokens: 200
 contracts:
   tools:
     allow: [fetch_ticket, store_triage]
@@ -58,6 +61,7 @@ Field by field:
 | `workdir` | Working directory (relative to the spec file) |
 | `fixture_policy` | How to match LLM responses during replay (`by_hash` = deterministic matching) |
 | `strict` | Fail on any unmatched fixture |
+| `budget_thresholds` | Limits on tool calls and tokens per run |
 | `contracts.tools.allow` | Only these tools may be called |
 | `contracts.tools.deny` | These tools must never be called |
 
@@ -114,10 +118,28 @@ Expected output:
 ### Step 4: Reproduce the failure
 
 ```bash
-trajectly repro --latest
+trajectly repro
 ```
 
-This re-runs the exact failing trace deterministically.
+This re-runs the exact failing trace deterministically from saved fixtures.
+
+### Step 5: Minimize the trace
+
+```bash
+trajectly shrink
+```
+
+Trajectly uses delta-debugging to reduce the failing trace to the shortest prefix that still reproduces the same witness and violation. This gives you the minimal repro case.
+
+### Step 6: Accept an intentional change (if needed)
+
+If the behavior change was intentional, update the baseline:
+
+```bash
+trajectly baseline update specs/trt-support-triage-baseline.agent.yaml
+```
+
+Then re-run to confirm the new baseline passes.
 
 ## What Trajectly detected
 

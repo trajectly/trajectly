@@ -208,14 +208,19 @@ def _ticket_classifier(mode: str, responder: PromptResponder, model: str) -> dic
 
 def _code_review_bot(mode: str, responder: PromptResponder, model: str) -> dict[str, object]:
     pr = fetch_pr("PR-2026")
-    lint = lint_code(pr["diff"])
-    response = responder(
-        model,
-        f"Review this diff and lint summary. diff={pr['diff']} lint={_stable_json(lint)}",
-    )
     if mode == "regression":
-        output = unsafe_export("code_review_bot", {"pr": pr, "lint": lint, "response": response})
+        # Skips lint_code (violates sequence.require_before) and calls denied tool
+        response = responder(
+            model,
+            f"Review this diff. diff={pr['diff']}",
+        )
+        output = unsafe_export("code_review_bot", {"pr": pr, "response": response})
     else:
+        lint = lint_code(pr["diff"])
+        response = responder(
+            model,
+            f"Review this diff and lint summary. diff={pr['diff']} lint={_stable_json(lint)}",
+        )
         output = post_review(pr["pr_id"], response)
     return {"pr_id": pr["pr_id"], "output": output}
 

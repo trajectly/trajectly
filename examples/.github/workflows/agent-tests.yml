@@ -1,0 +1,42 @@
+# Example CI workflow: run Trajectly agent regression tests on every push and PR.
+#
+# Prerequisites:
+#   1. Record baselines locally first (requires API keys):
+#        cd examples && trajectly init
+#        trajectly record specs/trt-support-triage-baseline.agent.yaml
+#        trajectly record specs/trt-code-review-bot-baseline.agent.yaml
+#   2. Commit the .trajectly/ directory with fixtures and baselines.
+#
+# After recording, `trajectly run` replays from fixtures -- no API keys needed in CI.
+
+name: Agent Regression Tests
+on: [push, pull_request]
+
+jobs:
+  agent-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Trajectly
+        run: pip install trajectly
+
+      - name: Run agent specs
+        working-directory: examples
+        run: trajectly run specs/*.agent.yaml --project-root .
+
+      - name: Generate report
+        if: always()
+        working-directory: examples
+        run: trajectly report --pr-comment > trajectly_pr_comment.md
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trajectly-reports
+          path: examples/.trajectly/**

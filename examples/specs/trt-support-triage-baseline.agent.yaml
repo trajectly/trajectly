@@ -4,6 +4,9 @@ command: "python -m examples.support_triage.main"
 workdir: ..
 fixture_policy: by_hash
 strict: true
+budget_thresholds:
+  max_tool_calls: 4
+  max_tokens: 200
 contracts:
   tools:
     allow: [fetch_ticket, store_triage]
