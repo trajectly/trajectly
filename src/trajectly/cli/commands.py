@@ -5,7 +5,7 @@ from pathlib import Path
 
 import typer
 
-from trajectly.constants import EXIT_INTERNAL_ERROR, EXIT_SUCCESS
+from trajectly.constants import EXIT_INTERNAL_ERROR, EXIT_REGRESSION, EXIT_SUCCESS
 from trajectly.engine import (
     SUPPORTED_ENABLE_TEMPLATES,
     CommandOutcome,
@@ -56,6 +56,9 @@ def _emit_outcome(outcome: CommandOutcome) -> None:
 
     if outcome.latest_report_md and outcome.latest_report_md.exists():
         typer.echo(f"Latest report: {outcome.latest_report_md}")
+
+    if outcome.exit_code == EXIT_REGRESSION:
+        typer.echo("Tip: run `trajectly repro` to reproduce, or `trajectly shrink` to minimize.", err=True)
 
     raise typer.Exit(outcome.exit_code)
 
@@ -287,7 +290,7 @@ def report(
         try:
             raw_json = read_latest_report(project_root.resolve(), as_json=True)
         except FileNotFoundError as exc:
-            typer.echo(str(exc), err=True)
+            typer.echo(f"ERROR: {exc}. Run `trajectly run` first to generate a report.", err=True)
             raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
         parsed = json.loads(raw_json)
         typer.echo(render_pr_comment(parsed))
@@ -296,7 +299,7 @@ def report(
         try:
             content = read_latest_report(project_root.resolve(), as_json=as_json)
         except FileNotFoundError as exc:
-            typer.echo(str(exc), err=True)
+            typer.echo(f"ERROR: {exc}. Run `trajectly run` first to generate a report.", err=True)
             raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
 
         if as_json:

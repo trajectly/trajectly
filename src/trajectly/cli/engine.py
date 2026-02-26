@@ -510,7 +510,7 @@ def _write_minimized_repro_traces(
 def _read_latest_report_dict(project_root: Path) -> dict[str, Any]:
     report_path = latest_report_path(project_root, as_json=True)
     if not report_path.exists():
-        raise FileNotFoundError(f"Latest report not found: {report_path}")
+        raise FileNotFoundError(f"Latest report not found: {report_path}. Run `trajectly run` first")
     data = json.loads(report_path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"Latest report must be JSON object: {report_path}")
@@ -653,7 +653,10 @@ def run_specs(
         fixture_path = fixtures_root / f"{slug}.json"
 
         if not baseline_path.exists():
-            errors.append(f"{spec.name}: missing baseline trace at {baseline_path}")
+            errors.append(
+                f"{spec.name}: missing baseline trace at {baseline_path}. "
+                "Run `trajectly record` first to capture a baseline."
+            )
             continue
         if spec.schema_version == TRT_SPEC_SCHEMA_VERSION:
             baseline_meta_path = _baseline_meta_path(baseline_path)
@@ -677,7 +680,10 @@ def run_specs(
                 )
                 continue
         if not fixture_path.exists():
-            errors.append(f"{spec.name}: missing fixtures at {fixture_path}")
+            errors.append(
+                f"{spec.name}: missing fixtures at {fixture_path}. "
+                "Run `trajectly record` first to capture fixtures."
+            )
             continue
 
         strict = strict_override if strict_override is not None else spec.strict
