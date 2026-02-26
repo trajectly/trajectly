@@ -105,7 +105,19 @@ See [examples/README.md](examples/README.md) for the full regression loop walkth
 
 ## CI Integration
 
-### GitHub Actions (recommended)
+### Any CI (recommended)
+
+Trajectly works in any CI system with a single `pip install`:
+
+```bash
+pip install trajectly
+trajectly run specs/*.agent.yaml --project-root .
+trajectly report --pr-comment > comment.md
+```
+
+### GitHub Actions
+
+A thin composite action wrapper is included (no TRT logic lives there):
 
 ```yaml
 # .github/workflows/trajectly.yml
@@ -116,23 +128,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ./github-action
+      - uses: ./github-action          # from within the Trajectly repo
         with:
           spec_glob: "specs/*.agent.yaml"
           comment_pr: "true"
 ```
 
-### Any CI (shell)
+For external repos, use the shell approach above or reference the action directly:
 
-```bash
-pip install trajectly
-trajectly run specs/*.agent.yaml --project-root .
-trajectly report --pr-comment > comment.md
+```yaml
+      - uses: trajectly/trajectly/github-action@main
 ```
 
-The CLI is the product. The GitHub Action is a thin wrapper -- no TRT logic lives there.
+Caching `.trajectly/` across runs speeds up CI:
 
-See [examples/.github/workflows/agent-tests.yml](examples/.github/workflows/agent-tests.yml) for a complete example workflow.
+```yaml
+      - uses: actions/cache@v4
+        with:
+          path: .trajectly
+          key: trajectly-${{ hashFiles('specs/**') }}
+          restore-keys: trajectly-
+```
+
+See [examples/.github/workflows/agent-tests.yml](examples/.github/workflows/agent-tests.yml) for a complete example and [docs/ci_github_actions.md](docs/ci_github_actions.md) for full reference.
 
 ## Architecture
 
@@ -167,6 +185,20 @@ budget_thresholds:
 ```
 
 Dicts merge recursively, lists and scalars override.
+
+## Dashboard (optional)
+
+Trajectly includes an optional local dashboard for visual trace inspection. It reads the same `.trajectly/reports/` data the CLI generates -- no cloud services required.
+
+```bash
+cd trajectly-cloud-web
+npm install && npm run dev
+# Opens at http://localhost:5173
+```
+
+Use the **CLI** for running tests, CI integration, and quick pass/fail checks. Use the **dashboard** when you want to visually inspect agent flow graphs, trace timelines, or compare baseline vs current metrics.
+
+The production dashboard is live at [trajectly.dev](https://trajectly.dev).
 
 ## Documentation
 
