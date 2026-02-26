@@ -12,34 +12,39 @@ pip install trajectly
 
 ## 30-Second Example
 
-Trajectly works in three steps: **record** a known-good baseline, **run** against it later, and **get a verdict**.
+Pre-recorded fixtures are included in the repo, so you can try Trajectly immediately -- **no API keys needed**.
 
 ```bash
-git clone https://github.com/trajectly/trajectly.git
-cd trajectly
+git clone https://github.com/trajectly/trajectly.git && cd trajectly
 pip install -e ".[examples]"
-export OPENAI_API_KEY="sk-..."
-
 cd examples
-trajectly init
 
-# 1. Record the baseline (captures trace + fixtures)
-trajectly record specs/trt-support-triage-baseline.agent.yaml
-
-# 2. Run the regression variant (replays from fixtures -- deterministic)
+# Run the regression test (replays from pre-recorded fixtures)
 trajectly run specs/trt-support-triage-regression.agent.yaml
 
-# 3. See what broke
+# See what broke
 trajectly report
 
-# 4. Reproduce the exact failure
+# Reproduce the exact failure
 trajectly repro
 
-# 5. Minimize to shortest failing trace
+# Minimize to shortest failing trace
 trajectly shrink
 ```
 
 The report shows exactly **which step** failed, **why** (the regression calls `unsafe_export`, which is denied by policy), and gives you a **deterministic repro command**.
+
+### Recording your own baselines
+
+When testing your own agents, you record a baseline first (this requires a live LLM provider):
+
+```bash
+export OPENAI_API_KEY="sk-..."   # only needed for recording
+trajectly init
+trajectly record my-agent.agent.yaml
+```
+
+After recording, all future `trajectly run` calls replay from the captured fixtures -- fully offline and deterministic.
 
 ## How It Works
 

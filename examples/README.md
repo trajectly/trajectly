@@ -13,51 +13,55 @@ Each example has a **baseline** (correct behavior) and a **regression** (intenti
 
 ## Quick Start
 
+Pre-recorded baselines and fixtures are included -- **no API keys needed**.
+
 ```bash
 # From the repo root
 pip install -e ".[examples]"
-export OPENAI_API_KEY="sk-..."   # for ticket classifier
-export GEMINI_API_KEY="..."       # for code review bot
-
 cd examples
-trajectly init
 ```
 
-### Full regression loop (Ticket Classifier)
+### Try it now (Ticket Classifier)
 
 ```bash
-# 1. Record the baseline (needs API key)
-trajectly record specs/trt-support-triage-baseline.agent.yaml
-
-# 2. Run the regression variant (replays from fixtures -- no API key needed)
+# Run the regression variant (replays from pre-recorded fixtures)
 trajectly run specs/trt-support-triage-regression.agent.yaml
 # Exit code 1: regression detected
 
-# 3. See what broke
+# See what broke
 trajectly report
-# Shows: FAIL at witness index, CONTRACT_TOOL_DENIED (unsafe_export)
+# Shows: FAIL at witness index, REFINEMENT_BASELINE_CALL_MISSING
 
-# 4. Reproduce the failure
+# Reproduce the failure
 trajectly repro
 
-# 5. Minimize to shortest failing trace
+# Minimize to shortest failing trace
 trajectly shrink
 
-# 6. If the change was intentional, update the baseline
+# If the change was intentional, update the baseline
 trajectly baseline update specs/trt-support-triage-baseline.agent.yaml
 ```
 
 ### Code Review Bot (multi-contract)
 
 ```bash
-# 1. Record baseline
-trajectly record specs/trt-code-review-bot-baseline.agent.yaml
-
-# 2. Run regression (skips lint_code, calls unsafe_export)
+# Run regression (skips lint_code, calls unsafe_export)
 trajectly run specs/trt-code-review-bot-regression.agent.yaml
 
-# 3. See multiple violations: sequence + tool deny + refinement
+# See multiple violations: sequence + tool deny + refinement
 trajectly report
+```
+
+### Recording your own baselines
+
+To re-record baselines from scratch (requires live LLM provider):
+
+```bash
+export OPENAI_API_KEY="sk-..."   # for ticket classifier
+export GEMINI_API_KEY="..."       # for code review bot
+trajectly init
+trajectly record specs/trt-support-triage-baseline.agent.yaml
+trajectly record specs/trt-code-review-bot-baseline.agent.yaml
 ```
 
 ## What each regression demonstrates

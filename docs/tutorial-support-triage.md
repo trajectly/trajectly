@@ -75,20 +75,12 @@ The regression spec is the same except the command points to `main_regression` i
 git clone https://github.com/trajectly/trajectly.git
 cd trajectly
 pip install -e ".[examples]"
-export OPENAI_API_KEY="sk-..."
-```
-
-### Step 1: Record the baseline
-
-```bash
 cd examples
-trajectly init
-trajectly record specs/trt-support-triage-baseline.agent.yaml
 ```
 
-This runs the agent, captures its trace, and saves fixtures to `.trajectly/baselines/` and `.trajectly/fixtures/`.
+Pre-recorded baselines and fixtures are included in the repo, so **no API key is needed** to run through this tutorial.
 
-### Step 2: Run the regression
+### Step 1: Run the regression
 
 ```bash
 trajectly run specs/trt-support-triage-regression.agent.yaml
@@ -193,3 +185,15 @@ flowchart LR
 ```
 
 This is the power of TRT: two independent checks (refinement + contracts) converge on the same witness, giving you high confidence in the diagnosis.
+
+## Recording from scratch
+
+If you want to re-record the baseline (e.g., after changing the agent code), you need a live LLM provider:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+trajectly init
+trajectly record specs/trt-support-triage-baseline.agent.yaml
+```
+
+This runs the agent live, captures its trace, and saves fixtures to `.trajectly/baselines/` and `.trajectly/fixtures/`. All subsequent `trajectly run` calls replay from these fixtures -- fully offline and deterministic.

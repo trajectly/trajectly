@@ -25,25 +25,39 @@ Get a working regression test in under 5 minutes.
 
 ### Install and run
 
+Pre-recorded baselines and fixtures are included, so **no API key is needed**.
+
 ```bash
 git clone https://github.com/trajectly/trajectly.git
 cd trajectly
 pip install -e ".[examples]"
-export OPENAI_API_KEY="sk-..."
 
 cd examples
-trajectly init
-trajectly record specs/trt-support-triage-baseline.agent.yaml
-trajectly run specs/trt-support-triage-baseline.agent.yaml
 trajectly run specs/trt-support-triage-regression.agent.yaml
+trajectly report
+trajectly repro
+trajectly shrink
 ```
 
 ### What just happened
 
-1. `trajectly init` created a `.trajectly/` directory for state and artifacts.
-2. `trajectly record` ran the agent and saved the trace + fixtures as the known-good baseline.
-3. `trajectly run` on the baseline spec replayed it and confirmed it still passes.
-4. `trajectly run` on the regression spec detected that the agent called a denied tool (`unsafe_export`) and reported `FAIL`.
+1. `trajectly run` replayed the agent from pre-recorded fixtures and compared it against the baseline.
+2. The regression agent called a denied tool (`unsafe_export`) -- Trajectly reported `FAIL` with the exact witness step.
+3. `trajectly report` showed a human-readable summary.
+4. `trajectly repro` re-ran the exact failure deterministically.
+5. `trajectly shrink` minimized the trace to the shortest reproducing prefix.
+
+### Recording your own baselines
+
+When testing your own agents, you record a baseline first (requires a live LLM provider):
+
+```bash
+export OPENAI_API_KEY="sk-..."
+trajectly init
+trajectly record my-agent.agent.yaml
+```
+
+After recording, all future `run` calls replay from the captured fixtures -- fully offline and deterministic.
 
 ### Expected output
 

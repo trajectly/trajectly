@@ -51,7 +51,8 @@ contracts:
   sequence:
     require: [fetch_pr, lint_code, post_review]
     require_before:
-      - [lint_code, post_review]
+      - before: lint_code
+        after: post_review
 ```
 
 This spec adds two new contract types beyond simple allow/deny:
@@ -73,18 +74,12 @@ This spec adds two new contract types beyond simple allow/deny:
 git clone https://github.com/trajectly/trajectly.git
 cd trajectly
 pip install -e ".[examples]"
-export GEMINI_API_KEY="your-gemini-key"
-```
-
-### Step 1: Record the baseline
-
-```bash
 cd examples
-trajectly init
-trajectly record specs/trt-code-review-bot-baseline.agent.yaml
 ```
 
-### Step 2: Run the regression
+Pre-recorded baselines and fixtures are included in the repo, so **no API key is needed** to run through this tutorial.
+
+### Step 1: Run the regression
 
 ```bash
 trajectly run specs/trt-code-review-bot-regression.agent.yaml
@@ -185,3 +180,15 @@ TRT catches this from multiple angles simultaneously -- refinement, tool policy,
 ## Why this matters
 
 In production, skipping the linting step means unreviewed code gets approved. Calling `unsafe_export` could leak source code or credentials. Trajectly catches both regressions deterministically -- no flaky tests, full repro from fixtures.
+
+## Recording from scratch
+
+If you want to re-record the baseline (e.g., after changing the agent code), you need a live LLM provider:
+
+```bash
+export GEMINI_API_KEY="your-gemini-key"
+trajectly init
+trajectly record specs/trt-code-review-bot-baseline.agent.yaml
+```
+
+This runs the agent live, captures its trace, and saves fixtures. All subsequent `trajectly run` calls replay from these fixtures -- fully offline and deterministic.
