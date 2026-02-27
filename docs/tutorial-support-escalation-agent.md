@@ -39,13 +39,13 @@ contracts:
 ```bash
 git clone https://github.com/trajectly/trajectly.git
 cd trajectly
-pip install -e ".[examples]"
+python -m pip install -e ".[examples]"
 cd examples
 
-trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
-trajectly report
-trajectly repro
-trajectly shrink
+python -m trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
+python -m trajectly report
+python -m trajectly repro
+python -m trajectly shrink
 ```
 
 Expected result: `FAIL` with violations including `CONTRACT_TOOL_DENIED` (`unsafe_auto_close`) and missing baseline sequence calls.
@@ -53,13 +53,13 @@ Expected result: `FAIL` with violations including `CONTRACT_TOOL_DENIED` (`unsaf
 ## When the Change Is Intentional
 
 ```bash
-trajectly baseline update specs/trt-support-escalation-agent-baseline.agent.yaml
+python -m trajectly baseline update specs/trt-support-escalation-agent-baseline.agent.yaml
 ```
 
 ## Re-record Baseline Fixtures
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-trajectly init
-trajectly record specs/trt-support-escalation-agent-baseline.agent.yaml
+python -m trajectly init
+python -m trajectly record specs/trt-support-escalation-agent-baseline.agent.yaml
 ```

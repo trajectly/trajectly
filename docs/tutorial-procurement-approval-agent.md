@@ -52,13 +52,13 @@ to trace policy-chain decisions in the same run graph as tool calls.
 ```bash
 git clone https://github.com/trajectly/trajectly.git
 cd trajectly
-pip install -e ".[examples]"
+python -m pip install -e ".[examples]"
 cd examples
 
-trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
-trajectly report
-trajectly repro
-trajectly shrink
+python -m trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
+python -m trajectly report
+python -m trajectly repro
+python -m trajectly shrink
 ```
 
 Expected result: `FAIL` with `CONTRACT_TOOL_DENIED` (`unsafe_direct_award`) plus sequence/refinement violations for missing approval/PO steps.
@@ -66,12 +66,12 @@ Expected result: `FAIL` with `CONTRACT_TOOL_DENIED` (`unsafe_direct_award`) plus
 ## When the Change Is Intentional
 
 ```bash
-trajectly baseline update specs/trt-procurement-approval-agent-baseline.agent.yaml
+python -m trajectly baseline update specs/trt-procurement-approval-agent-baseline.agent.yaml
 ```
 
 ## Re-record Baseline Fixtures
 
 ```bash
-trajectly init
-trajectly record specs/trt-procurement-approval-agent-baseline.agent.yaml
+python -m trajectly init
+python -m trajectly record specs/trt-procurement-approval-agent-baseline.agent.yaml
 ```

@@ -44,6 +44,14 @@ Even if fixtures were present, the first visible command was an API key export, 
 
 **Fix:** API key export removed from quickstart. New quickstart is 5 commands, zero prerequisites.
 
+**Third issue (fresh shell): `trajectly` may not be on PATH after install.**
+
+In a clean Python 3.11 environment, `pip install -e ".[examples]"` succeeded but the shell command `trajectly ...` failed with `command not found` because the script install path was not exported in PATH.
+
+**Fixes applied:**
+1. Updated tutorials and quickstart command blocks to use `python -m pip ...` and `python -m trajectly ...`
+2. Added a clear note in docs that users can always run `python -m trajectly` with the same interpreter used for install
+
 ## Part 3: Example Validation
 
 **Both examples now work from a fresh clone:**

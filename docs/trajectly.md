@@ -23,6 +23,8 @@ Trajectly records a known-good agent run as a baseline, then replays your agent 
 
 Get a working regression test in under 5 minutes.
 
+> If `trajectly` is not on your PATH, run commands as `python -m trajectly ...` with the same interpreter you used for installation.
+
 ### Install and run
 
 Pre-recorded baselines and fixtures are included, so **no API key is needed**.
@@ -30,13 +32,13 @@ Pre-recorded baselines and fixtures are included, so **no API key is needed**.
 ```bash
 git clone https://github.com/trajectly/trajectly.git
 cd trajectly
-pip install -e ".[examples]"
+python -m pip install -e ".[examples]"
 
 cd examples
-trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
-trajectly report
-trajectly repro
-trajectly shrink
+python -m trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
+python -m trajectly report
+python -m trajectly repro
+python -m trajectly shrink
 ```
 
 ### What just happened
@@ -53,8 +55,8 @@ When testing your own agents, you record a baseline first (requires a live LLM p
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-trajectly init
-trajectly record my-agent.agent.yaml
+python -m trajectly init
+python -m trajectly record my-agent.agent.yaml
 ```
 
 After recording, all future `run` calls replay from the captured fixtures -- fully offline and deterministic.

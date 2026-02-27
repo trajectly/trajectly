@@ -16,20 +16,20 @@ Pre-recorded fixtures are included in the repo, so you can try Trajectly immedia
 
 ```bash
 git clone https://github.com/trajectly/trajectly.git && cd trajectly
-pip install -e ".[examples]"
+python -m pip install -e ".[examples]"
 cd examples
 
 # Run the regression test (replays from pre-recorded fixtures)
-trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
+python -m trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
 
 # See what broke
-trajectly report
+python -m trajectly report
 
 # Reproduce the exact failure
-trajectly repro
+python -m trajectly repro
 
 # Minimize to shortest failing trace
-trajectly shrink
+python -m trajectly shrink
 ```
 
 The report shows exactly **which step** failed, **why** (the regression calls `unsafe_auto_close`, which is denied by policy), and gives you a **deterministic repro command**.
@@ -40,8 +40,8 @@ When testing your own agents, you record a baseline first (this requires a live 
 
 ```bash
 export OPENAI_API_KEY="sk-..."   # only needed for recording
-trajectly init
-trajectly record my-agent.agent.yaml
+python -m trajectly init
+python -m trajectly record my-agent.agent.yaml
 ```
 
 After recording, all future `trajectly run` calls replay from the captured fixtures -- fully offline and deterministic.

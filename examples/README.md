@@ -18,29 +18,29 @@ Pre-recorded baselines and fixtures are included -- **no API keys needed**.
 
 ```bash
 # From repo root
-pip install -e ".[examples]"
+python -m pip install -e ".[examples]"
 cd examples
 
 # Support regression (expected FAIL with witness + violations)
-trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
-trajectly report
+python -m trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
+python -m trajectly report
 
 # Procurement regression (expected FAIL with approval-sequence violations)
-trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
-trajectly report
+python -m trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
+python -m trajectly report
 
 # Reproduce and minimize latest failure
-trajectly repro
-trajectly shrink
+python -m trajectly repro
+python -m trajectly shrink
 ```
 
 ## Recording Baselines (when intentionally updating behavior)
 
 ```bash
 export OPENAI_API_KEY="sk-..."   # needed for support escalation baseline recording
-trajectly init
-trajectly record specs/trt-support-escalation-agent-baseline.agent.yaml
-trajectly record specs/trt-procurement-approval-agent-baseline.agent.yaml
+python -m trajectly init
+python -m trajectly record specs/trt-support-escalation-agent-baseline.agent.yaml
+python -m trajectly record specs/trt-procurement-approval-agent-baseline.agent.yaml
 ```
 
 ## Regression Signals Demonstrated
