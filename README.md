@@ -20,7 +20,7 @@ pip install -e ".[examples]"
 cd examples
 
 # Run the regression test (replays from pre-recorded fixtures)
-trajectly run specs/trt-support-triage-regression.agent.yaml
+trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
 
 # See what broke
 trajectly report
@@ -32,7 +32,7 @@ trajectly repro
 trajectly shrink
 ```
 
-The report shows exactly **which step** failed, **why** (the regression calls `unsafe_export`, which is denied by policy), and gives you a **deterministic repro command**.
+The report shows exactly **which step** failed, **why** (the regression calls `unsafe_auto_close`, which is denied by policy), and gives you a **deterministic repro command**.
 
 ### Recording your own baselines
 
@@ -98,8 +98,8 @@ See [docs/trajectly.md](docs/trajectly.md) for the full specification.
 
 | Example | Provider | Tools | What it tests |
 |---------|----------|-------|---------------|
-| [Ticket Classifier](docs/tutorial-support-triage.md) | OpenAI | `fetch_ticket`, `store_triage` | Tool allow/deny contracts, budget thresholds |
-| [Code Review Agent](docs/tutorial-code-review-agent.md) | Gemini | `fetch_pr`, `lint_code`, `post_review` | Sequence contracts, budget thresholds, behavioral refinement |
+| [Support Escalation Agent](docs/tutorial-support-escalation-agent.md) | OpenAI | `fetch_ticket`, `check_entitlements`, `escalate_to_human` | PR prompt-upgrade regression, sequence + tool deny contracts |
+| [Procurement Approval Agent](docs/tutorial-procurement-approval-agent.md) | LangChain adapter | `fetch_requisition`, `fetch_vendor_quotes`, `route_for_approval`, `create_purchase_order` | PR code/prompt-upgrade regression, approval-sequence enforcement |
 
 See [examples/README.md](examples/README.md) for the full regression loop walkthrough (record, run, repro, shrink, baseline update).
 
@@ -205,8 +205,8 @@ The production dashboard is live at [trajectly.dev](https://trajectly.dev).
 - [Full documentation](docs/trajectly.md) -- concepts, CLI reference, spec format, SDK reference
 - [Architecture](docs/architecture_phase1.md) -- internal package boundaries, store interfaces
 - [CI: GitHub Actions](docs/ci_github_actions.md) -- workflow examples, inputs, artifacts
-- [Tutorial: Ticket Classifier](docs/tutorial-support-triage.md) -- step-by-step simple example
-- [Tutorial: Code Review Agent](docs/tutorial-code-review-agent.md) -- step-by-step medium example
+- [Tutorial: Support Escalation Agent](docs/tutorial-support-escalation-agent.md) -- PR prompt-upgrade regression walkthrough
+- [Tutorial: Procurement Approval Agent](docs/tutorial-procurement-approval-agent.md) -- LangChain procurement control walkthrough
 
 ## Contributing
 

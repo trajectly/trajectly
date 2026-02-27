@@ -1,101 +1,75 @@
 # Trajectly Examples
 
-Two real-world examples demonstrating deterministic regression testing for AI agents.
+Two PR-upgrade regression scenarios that mirror real CI usage:
+record a baseline once, then let `trajectly run` catch behavioral drift on every change.
 
 ## Examples
 
 | Example | Provider | Tools | What it tests |
 |---------|----------|-------|---------------|
-| **Ticket Classifier** | OpenAI (gpt-4o-mini) | `fetch_ticket`, `store_triage` | Tool allow/deny contracts, budget thresholds |
-| **Code Review Agent** | Gemini (gemini-2.5-flash) | `fetch_pr`, `lint_code`, `post_review` | Sequence contracts, budget thresholds, tool deny, behavioral refinement |
+| **Support Escalation Agent** | OpenAI (`gpt-4o-mini`) | `fetch_ticket`, `check_entitlements`, `escalate_to_human` | Prompt-upgrade regression that auto-closes instead of escalating |
+| **Procurement Approval Agent** | LangChain adapter (`langchain_invoke`) | `fetch_requisition`, `fetch_vendor_quotes`, `route_for_approval`, `create_purchase_order` | Code/prompt-upgrade regression that bypasses required approval |
 
-Each example has a **baseline** (correct behavior) and a **regression** (intentionally broken).
+Each scenario includes a **baseline** (expected behavior) and a **regression** (intentionally broken PR branch behavior).
 
 ## Quick Start
 
 Pre-recorded baselines and fixtures are included -- **no API keys needed**.
 
 ```bash
-# From the repo root
+# From repo root
 pip install -e ".[examples]"
 cd examples
-```
 
-### Try it now (Ticket Classifier)
-
-```bash
-# Run the regression variant (replays from pre-recorded fixtures)
-trajectly run specs/trt-support-triage-regression.agent.yaml
-# Exit code 1: regression detected
-
-# See what broke
+# Support regression (expected FAIL with witness + violations)
+trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
 trajectly report
-# Shows: FAIL at witness index, REFINEMENT_BASELINE_CALL_MISSING
 
-# Reproduce the failure
+# Procurement regression (expected FAIL with approval-sequence violations)
+trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
+trajectly report
+
+# Reproduce and minimize latest failure
 trajectly repro
-
-# Minimize to shortest failing trace
 trajectly shrink
-
-# If the change was intentional, update the baseline
-trajectly baseline update specs/trt-support-triage-baseline.agent.yaml
 ```
 
-### Code Review Agent (multi-contract)
+## Recording Baselines (when intentionally updating behavior)
 
 ```bash
-# Run regression (skips lint_code, calls unsafe_export)
-trajectly run specs/trt-code-review-agent-regression.agent.yaml
-
-# See multiple violations: sequence + tool deny + refinement
-trajectly report
-```
-
-### Recording your own baselines
-
-To re-record baselines from scratch (requires live LLM provider):
-
-```bash
-export OPENAI_API_KEY="sk-..."   # for ticket classifier
-export GEMINI_API_KEY="..."       # for code review agent
+export OPENAI_API_KEY="sk-..."   # needed for support escalation baseline recording
 trajectly init
-trajectly record specs/trt-support-triage-baseline.agent.yaml
-trajectly record specs/trt-code-review-agent-baseline.agent.yaml
+trajectly record specs/trt-support-escalation-agent-baseline.agent.yaml
+trajectly record specs/trt-procurement-approval-agent-baseline.agent.yaml
 ```
 
-## What each regression demonstrates
+## Regression Signals Demonstrated
 
-**Ticket Classifier regression**: The agent calls `unsafe_export` instead of `store_triage`. Trajectly detects this as `CONTRACT_TOOL_DENIED` -- the tool is on the deny list.
-
-**Code Review Agent regression**: The agent skips the `lint_code` step and calls `unsafe_export`. Trajectly detects three violations:
-- `CONTRACT_TOOL_DENIED` -- `unsafe_export` is denied
-- `REFINEMENT_BASELINE_CALL_MISSING` -- the baseline called `lint_code` but the regression didn't
-- `SEQUENCE_REQUIRE_BEFORE` -- `lint_code` must run before `post_review` (but it never ran)
+- **Support Escalation regression:** calls `unsafe_auto_close` and skips `escalate_to_human`; Trajectly reports tool deny + missing required sequence.
+- **Procurement Approval regression:** calls `unsafe_direct_award` and skips approval/PO flow; Trajectly reports tool deny + sequence/refinement violations.
 
 ## Directory Structure
 
-```
+```text
 examples/
-├── specs/                          # Agent spec YAML files
-│   ├── trt-support-triage-baseline.agent.yaml
-│   ├── trt-support-triage-regression.agent.yaml
-│   ├── trt-code-review-agent-baseline.agent.yaml
-│   └── trt-code-review-agent-regression.agent.yaml
+├── specs/
+│   ├── trt-support-escalation-agent-baseline.agent.yaml
+│   ├── trt-support-escalation-agent-regression.agent.yaml
+│   ├── trt-procurement-approval-agent-baseline.agent.yaml
+│   └── trt-procurement-approval-agent-regression.agent.yaml
 ├── examples/
-│   ├── support_triage/             # Ticket classifier entrypoints
-│   │   ├── main.py                 # baseline
-│   │   └── main_regression.py      # regression
-│   ├── code_review_agent/            # Code review agent entrypoints
-│   │   ├── main.py                 # baseline
-│   │   └── main_regression.py      # regression
+│   ├── support_escalation_agent/
+│   │   ├── main.py
+│   │   └── main_regression.py
+│   ├── procurement_approval_agent/
+│   │   ├── main.py
+│   │   └── main_regression.py
 │   └── real_llm_ci/
-│       └── runner.py               # Shared scenario logic + tools
+│       └── runner.py
 └── README.md
-
 ```
 
 ## Tutorials
 
-- [Ticket Classifier tutorial](../docs/tutorial-support-triage.md) -- step-by-step walkthrough
-- [Code Review Agent tutorial](../docs/tutorial-code-review-agent.md) -- multi-tool sequence example
+- [Support Escalation Agent tutorial](../docs/tutorial-support-escalation-agent.md)
+- [Procurement Approval Agent tutorial](../docs/tutorial-procurement-approval-agent.md)

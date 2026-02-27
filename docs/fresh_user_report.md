@@ -47,10 +47,14 @@ Even if fixtures were present, the first visible command was an API key export, 
 ## Part 3: Example Validation
 
 **Both examples now work from a fresh clone:**
-- Ticket Classifier (OpenAI): `trajectly run specs/trt-support-triage-regression.agent.yaml` produces `FAIL` at witness=2 with `REFINEMENT_BASELINE_CALL_MISSING`
-- Code Review Agent (Gemini): `trajectly run specs/trt-code-review-agent-regression.agent.yaml` produces `FAIL` at witness=4 with `REFINEMENT_BASELINE_CALL_MISSING`
+- Support Escalation Agent (OpenAI): `trajectly run specs/trt-support-escalation-agent-regression.agent.yaml` produces `FAIL` with deterministic witness + contract violations
+- Procurement Approval Agent (LangChain adapter): `trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml` produces `FAIL` with deterministic witness + sequence violations
 
-**Fixed: `require_before` YAML syntax error in Code Review Agent specs.** The specs used array syntax `[lint_code, post_review]` instead of the required mapping syntax `{before: lint_code, after: post_review}`, causing a parse error.
+**Fixed: replay no longer requires provider keys.**
+
+`examples/examples/real_llm_ci/runner.py` previously validated `OPENAI_API_KEY` and `GEMINI_API_KEY` before replay fixture matching, which caused fresh-clone `trajectly run` to fail offline. The provider key checks now happen only inside the live-call path, so fixture replay remains keyless.
+
+**Fixed: `require_before` YAML syntax error in procurement sequence specs.** The spec must use mapping syntax `{before: route_for_approval, after: create_purchase_order}`.
 
 **Verified full loop for both examples:**
 1. `trajectly run` -- regression detected (exit code 1)
@@ -87,7 +91,7 @@ Even if fixtures were present, the first visible command was an API key export, 
 
 3. **No documentation on when to use UI vs CLI.** **Fixed:** Added "Dashboard (optional)" section to core README, plus a comparison table in the web UI README.
 
-4. **Old example slugs in test files.** `theory.test.ts` and `parsers.test.ts` used `trt-search-buy` slug. **Fixed:** Updated to `trt-code-review-agent`.
+4. **Old example slugs in test files.** `theory.test.ts` and `parsers.test.ts` used `trt-search-buy` slug. **Fixed:** Updated to current example slugs.
 
 ## Part 6: CI Integration
 
@@ -118,7 +122,7 @@ Even if fixtures were present, the first visible command was an API key export, 
 ## Part 8: Terminology Audit
 
 **Stale references found and fixed:**
-- Old example slugs in web UI tests (`trt-search-buy` → `trt-code-review-agent`)
+- Old example slugs in web UI tests (`trt-search-buy` → current support/procurement slugs)
 - App test routing (`/` → `/dashboard` for dashboard tests, `/theory` → `/nonexistent` for redirect test)
 
 **No issues found for:**

@@ -33,7 +33,7 @@ cd trajectly
 pip install -e ".[examples]"
 
 cd examples
-trajectly run specs/trt-support-triage-regression.agent.yaml
+trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
 trajectly report
 trajectly repro
 trajectly shrink
@@ -42,7 +42,7 @@ trajectly shrink
 ### What just happened
 
 1. `trajectly run` replayed the agent from pre-recorded fixtures and compared it against the baseline.
-2. The regression agent called a denied tool (`unsafe_export`) -- Trajectly reported `FAIL` with the exact witness step.
+2. The regression agent called a denied tool (`unsafe_auto_close`) -- Trajectly reported `FAIL` with the exact witness step.
 3. `trajectly report` showed a human-readable summary.
 4. `trajectly repro` re-ran the exact failure deterministically.
 5. `trajectly shrink` minimized the trace to the shortest reproducing prefix.
@@ -63,10 +63,10 @@ After recording, all future `run` calls replay from the captured fixtures -- ful
 
 ```text
 # Baseline replay
-trt-support-triage: PASS
+trt-support-escalation-agent: PASS
 
 # Regression replay
-trt-support-triage: FAIL
+trt-support-escalation-agent: FAIL
   failure_step: 12
   failure_type: contract_tool_denied
   repro: trajectly repro
@@ -94,12 +94,12 @@ A spec (`.agent.yaml` file) tells Trajectly how to run your agent and what rules
 
 ```yaml
 schema_version: "0.3"
-name: trt-support-triage
-command: python -m examples.support_triage.main
+name: trt-support-escalation-agent
+command: python -m examples.support_escalation_agent.main
 contracts:
   tools:
-    allow: [fetch_ticket, store_triage]
-    deny: [unsafe_export]
+    allow: [fetch_ticket, check_entitlements, escalate_to_human]
+    deny: [unsafe_auto_close]
 ```
 
 ### Contracts (rules)
@@ -310,27 +310,27 @@ The same inputs always produce the same verdict. This is achieved through trace 
 
 ### Putting it together: a concrete example
 
-Suppose you have a support triage agent with this spec:
+Suppose you have a support escalation agent with this spec:
 
 ```yaml
 contracts:
   tools:
-    allow: [fetch_ticket, store_triage]
-    deny: [unsafe_export]
+    allow: [fetch_ticket, check_entitlements, escalate_to_human]
+    deny: [unsafe_auto_close]
 ```
 
-**Baseline run** produces skeleton: `[fetch_ticket, store_triage]`
+**Baseline run** produces skeleton: `[fetch_ticket, check_entitlements, escalate_to_human]`
 
-**Regression run** produces skeleton: `[fetch_ticket, unsafe_export]`
+**Regression run** produces skeleton: `[fetch_ticket, check_entitlements, unsafe_auto_close]`
 
 TRT processes this as follows:
 
 1. **Normalize** both traces → strips timestamps, computes event hashes.
-2. **Extract skeletons** → `S_b = [fetch_ticket, store_triage]`, `S_n = [fetch_ticket, unsafe_export]`.
-3. **Refinement check** → is `[fetch_ticket, store_triage]` a subsequence of `[fetch_ticket, unsafe_export]`? **No** -- `store_triage` is missing. Violation: `REFINEMENT_BASELINE_CALL_MISSING`.
-4. **Contract check** → is `unsafe_export` in the deny list? **Yes**. Violation: `CONTRACT_TOOL_DENIED`.
-5. **Witness resolution** → both violations occur at the event where `unsafe_export` is called (index 5 in the full trace). Witness = 5.
-6. **Verdict** → `FAIL`, witness=5, primary violation=`CONTRACT_TOOL_DENIED`, repro command=`trajectly repro`.
+2. **Extract skeletons** → `S_b = [fetch_ticket, check_entitlements, escalate_to_human]`, `S_n = [fetch_ticket, check_entitlements, unsafe_auto_close]`.
+3. **Refinement check** → is `[fetch_ticket, check_entitlements, escalate_to_human]` a subsequence of `[fetch_ticket, check_entitlements, unsafe_auto_close]`? **No** -- `escalate_to_human` is missing. Violation: `REFINEMENT_BASELINE_CALL_MISSING`.
+4. **Contract check** → is `unsafe_auto_close` in the deny list? **Yes**. Violation: `CONTRACT_TOOL_DENIED`.
+5. **Witness resolution** → both violations occur at the event where `unsafe_auto_close` is called (index 7 in the full trace). Witness = 7.
+6. **Verdict** → `FAIL`, witness=7, primary violation=`CONTRACT_TOOL_DENIED`, repro command=`trajectly repro`.
 
 ---
 
@@ -779,6 +779,7 @@ Available adapters:
 | Adapter | Function |
 |---|---|
 | OpenAI | `openai_chat_completion(client, model, messages, ...)` |
+| LangChain | `langchain_invoke(runnable, input_data, model=..., provider="langchain")` |
 | Gemini | Use `invoke_llm_call("gemini", model, call_fn, ...)` (see low-level helpers) |
 
 ### Low-level helpers
@@ -802,8 +803,8 @@ agent_step("processing_input", details={"key": "value"})
 
 | Adapter | Example |
 |---|---|
-| OpenAI | [Ticket Classifier](tutorial-support-triage.md) |
-| Gemini | [Code Review Agent](tutorial-code-review-agent.md) |
+| OpenAI | [Support Escalation Agent](tutorial-support-escalation-agent.md) |
+| LangChain | [Procurement Approval Agent](tutorial-procurement-approval-agent.md) |
 
 ---
 
@@ -1010,7 +1011,7 @@ When a contract is violated, Trajectly reports a failure code like `contract_too
 
 | Mistake | Fix |
 |---|---|
-| Forgetting to `trajectly init` first | Run `trajectly init` before record/run |
+| Forgetting to `trajectly init` first | Run `trajectly init` before `trajectly record` (replay-only runs can use a pre-existing `.trajectly/`) |
 | Recording with wrong API key | Set your provider API key before `trajectly record` |
 | Running regression spec without recording baseline first | Always `trajectly record` the baseline spec before running regression specs |
 | Baseline drift after Trajectly upgrade | Re-record baselines after upgrading: `trajectly record --auto` |

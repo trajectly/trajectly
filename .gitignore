@@ -11,6 +11,8 @@ build/
 .trajectly/
 
 # Allow pre-recorded example fixtures/baselines so fresh clones work without API keys
+!examples/.trajectly/
+examples/.trajectly/*
 !examples/.trajectly/config.yaml
 !examples/.trajectly/baselines/
 !examples/.trajectly/baselines/**

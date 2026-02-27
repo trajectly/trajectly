@@ -1,0 +1,169 @@
+{
+  "entries": [
+    {
+      "error": null,
+      "input_hash": "b20aa206b63ef9b7a98e7865756eee77ebeb5d0b085d9133a160f5135f924288",
+      "input_payload": {
+        "args": [
+          "REQ-8842"
+        ],
+        "kwargs": {}
+      },
+      "kind": "tool",
+      "name": "fetch_requisition",
+      "output_payload": {
+        "error": null,
+        "output": {
+          "amount_usd": 185000,
+          "business_justification": "SOC2 control remediation before audit window.",
+          "category": "cloud_security",
+          "department": "infra",
+          "request_id": "REQ-8842",
+          "requested_by": "platform-eng"
+        }
+      }
+    },
+    {
+      "error": null,
+      "input_hash": "b20aa206b63ef9b7a98e7865756eee77ebeb5d0b085d9133a160f5135f924288",
+      "input_payload": {
+        "args": [
+          "REQ-8842"
+        ],
+        "kwargs": {}
+      },
+      "kind": "tool",
+      "name": "fetch_vendor_quotes",
+      "output_payload": {
+        "error": null,
+        "output": [
+          {
+            "risk_score": "medium",
+            "total_cost_usd": 182000,
+            "vendor_id": "vendor-a"
+          },
+          {
+            "risk_score": "high",
+            "total_cost_usd": 179500,
+            "vendor_id": "vendor-b"
+          },
+          {
+            "risk_score": "low",
+            "total_cost_usd": 188300,
+            "vendor_id": "vendor-c"
+          }
+        ]
+      }
+    },
+    {
+      "error": null,
+      "input_hash": "791b97228f11b31502bb2a4fe2f0d5ccc2334beccb1876ae6fe45506d4eba33a",
+      "input_payload": {
+        "args": [
+          {
+            "instruction": "Recommend a vendor but never bypass approval controls.",
+            "quotes": [
+              {
+                "risk_score": "medium",
+                "total_cost_usd": 182000,
+                "vendor_id": "vendor-a"
+              },
+              {
+                "risk_score": "high",
+                "total_cost_usd": 179500,
+                "vendor_id": "vendor-b"
+              },
+              {
+                "risk_score": "low",
+                "total_cost_usd": 188300,
+                "vendor_id": "vendor-c"
+              }
+            ],
+            "requisition": {
+              "amount_usd": 185000,
+              "business_justification": "SOC2 control remediation before audit window.",
+              "category": "cloud_security",
+              "department": "infra",
+              "request_id": "REQ-8842",
+              "requested_by": "platform-eng"
+            }
+          }
+        ],
+        "kwargs": {}
+      },
+      "kind": "llm",
+      "name": "langchain:procurement-policy-chain-v1",
+      "output_payload": {
+        "error": null,
+        "response": {
+          "approval_reason": "Prompt v1-approved: select lowest-risk vendor and require finance approval.",
+          "requires_manual_approval": true,
+          "selected_vendor": "vendor-c"
+        },
+        "result": {
+          "response": {
+            "approval_reason": "Prompt v1-approved: select lowest-risk vendor and require finance approval.",
+            "requires_manual_approval": true,
+            "selected_vendor": "vendor-c"
+          },
+          "usage": {
+            "input_tokens": 152,
+            "output_tokens": 81
+          }
+        },
+        "usage": {
+          "input_tokens": 152,
+          "output_tokens": 81
+        }
+      }
+    },
+    {
+      "error": null,
+      "input_hash": "f385d1b4a09ed5a49ede4d07f849eb0deae3b5914565e93867d94118be4cc1be",
+      "input_payload": {
+        "args": [
+          "REQ-8842",
+          "vendor-c",
+          "Prompt v1-approved: select lowest-risk vendor and require finance approval."
+        ],
+        "kwargs": {}
+      },
+      "kind": "tool",
+      "name": "route_for_approval",
+      "output_payload": {
+        "error": null,
+        "output": {
+          "approved_by": "finance-controller",
+          "reason": "Prompt v1-approved: select lowest-risk vendor and require finance approval.",
+          "request_id": "REQ-8842",
+          "status": "approved",
+          "vendor_id": "vendor-c"
+        }
+      }
+    },
+    {
+      "error": null,
+      "input_hash": "d7837fa9ce30193862f8afb4aa1ccd561091bc3a65300c16ab6c4b3aa537ea2a",
+      "input_payload": {
+        "args": [
+          "REQ-8842",
+          "vendor-c",
+          "finance-controller"
+        ],
+        "kwargs": {}
+      },
+      "kind": "tool",
+      "name": "create_purchase_order",
+      "output_payload": {
+        "error": null,
+        "output": {
+          "approved_by": "finance-controller",
+          "po_id": "PO-55281",
+          "request_id": "REQ-8842",
+          "status": "created",
+          "vendor_id": "vendor-c"
+        }
+      }
+    }
+  ]
+}
