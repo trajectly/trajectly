@@ -35,16 +35,19 @@ cd trajectly
 python -m pip install -e ".[examples]"
 
 cd examples
-python -m trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
+python -m trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
 python -m trajectly report
 python -m trajectly repro
 python -m trajectly shrink
 ```
 
+For a full real-world support CI walkthrough (outside this repo), see
+[trajectly/support-escalation-demo](https://github.com/trajectly/support-escalation-demo).
+
 ### What just happened
 
 1. `trajectly run` replayed the agent from pre-recorded fixtures and compared it against the baseline.
-2. The regression agent called a denied tool (`unsafe_auto_close`) -- Trajectly reported `FAIL` with the exact witness step.
+2. The regression agent called a denied tool (`unsafe_direct_award`) -- Trajectly reported `FAIL` with the exact witness step.
 3. `trajectly report` showed a human-readable summary.
 4. `trajectly repro` re-ran the exact failure deterministically.
 5. `trajectly shrink` minimized the trace to the shortest reproducing prefix.
@@ -65,11 +68,11 @@ After recording, all future `run` calls replay from the captured fixtures -- ful
 
 ```text
 # Baseline replay
-trt-support-escalation-agent: PASS
+trt-procurement-approval-agent: PASS
 
 # Regression replay
-trt-support-escalation-agent: FAIL
-  failure_step: 12
+trt-procurement-approval-agent: FAIL
+  failure_step: 8
   failure_type: contract_tool_denied
   repro: trajectly repro
 ```
@@ -96,12 +99,12 @@ A spec (`.agent.yaml` file) tells Trajectly how to run your agent and what rules
 
 ```yaml
 schema_version: "0.3"
-name: trt-support-escalation-agent
-command: python -m examples.support_escalation_agent.main
+name: trt-procurement-approval-agent
+command: python -m examples.procurement_approval_agent.main
 contracts:
   tools:
-    allow: [fetch_ticket, check_entitlements, escalate_to_human]
-    deny: [unsafe_auto_close]
+    allow: [fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]
+    deny: [unsafe_direct_award]
 ```
 
 ### Contracts (rules)
@@ -312,26 +315,26 @@ The same inputs always produce the same verdict. This is achieved through trace 
 
 ### Putting it together: a concrete example
 
-Suppose you have a support escalation agent with this spec:
+Suppose you have a procurement approval agent with this spec:
 
 ```yaml
 contracts:
   tools:
-    allow: [fetch_ticket, check_entitlements, escalate_to_human]
-    deny: [unsafe_auto_close]
+    allow: [fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]
+    deny: [unsafe_direct_award]
 ```
 
-**Baseline run** produces skeleton: `[fetch_ticket, check_entitlements, escalate_to_human]`
+**Baseline run** produces skeleton: `[fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]`
 
-**Regression run** produces skeleton: `[fetch_ticket, check_entitlements, unsafe_auto_close]`
+**Regression run** produces skeleton: `[fetch_requisition, fetch_vendor_quotes, unsafe_direct_award]`
 
 TRT processes this as follows:
 
 1. **Normalize** both traces → strips timestamps, computes event hashes.
-2. **Extract skeletons** → `S_b = [fetch_ticket, check_entitlements, escalate_to_human]`, `S_n = [fetch_ticket, check_entitlements, unsafe_auto_close]`.
-3. **Refinement check** → is `[fetch_ticket, check_entitlements, escalate_to_human]` a subsequence of `[fetch_ticket, check_entitlements, unsafe_auto_close]`? **No** -- `escalate_to_human` is missing. Violation: `REFINEMENT_BASELINE_CALL_MISSING`.
-4. **Contract check** → is `unsafe_auto_close` in the deny list? **Yes**. Violation: `CONTRACT_TOOL_DENIED`.
-5. **Witness resolution** → both violations occur at the event where `unsafe_auto_close` is called (index 7 in the full trace). Witness = 7.
+2. **Extract skeletons** → `S_b = [fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]`, `S_n = [fetch_requisition, fetch_vendor_quotes, unsafe_direct_award]`.
+3. **Refinement check** → is `[fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]` a subsequence of `[fetch_requisition, fetch_vendor_quotes, unsafe_direct_award]`? **No** -- `route_for_approval` and `create_purchase_order` are missing. Violation: `REFINEMENT_BASELINE_CALL_MISSING`.
+4. **Contract check** → is `unsafe_direct_award` in the deny list? **Yes**. Violation: `CONTRACT_TOOL_DENIED`.
+5. **Witness resolution** → both violations occur at the event where `unsafe_direct_award` is called (index 7 in the full trace). Witness = 7.
 6. **Verdict** → `FAIL`, witness=7, primary violation=`CONTRACT_TOOL_DENIED`, repro command=`trajectly repro`.
 
 ---
@@ -805,7 +808,7 @@ agent_step("processing_input", details={"key": "value"})
 
 | Adapter | Example |
 |---|---|
-| OpenAI | [Support Escalation Agent](tutorial-support-escalation-agent.md) |
+| OpenAI | [Support Escalation Demo (standalone repo)](https://github.com/trajectly/support-escalation-demo) |
 | LangChain | [Procurement Approval Agent](tutorial-procurement-approval-agent.md) |
 
 ---

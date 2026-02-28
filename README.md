@@ -20,7 +20,7 @@ python -m pip install -e ".[examples]"
 cd examples
 
 # Run the regression test (replays from pre-recorded fixtures)
-python -m trajectly run specs/trt-support-escalation-agent-regression.agent.yaml
+python -m trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
 
 # See what broke
 python -m trajectly report
@@ -32,7 +32,7 @@ python -m trajectly repro
 python -m trajectly shrink
 ```
 
-The report shows exactly **which step** failed, **why** (the regression calls `unsafe_auto_close`, which is denied by policy), and gives you a **deterministic repro command**.
+The report shows exactly **which step** failed, **why** (the regression calls `unsafe_direct_award`, which is denied by policy), and gives you a **deterministic repro command**.
 
 ### Recording your own baselines
 
@@ -98,8 +98,8 @@ See [docs/trajectly.md](docs/trajectly.md) for the full specification.
 
 | Example | Provider | Tools | What it tests |
 |---------|----------|-------|---------------|
-| [Support Escalation Agent](docs/tutorial-support-escalation-agent.md) | OpenAI | `fetch_ticket`, `check_entitlements`, `escalate_to_human` | PR prompt-upgrade regression, sequence + tool deny contracts |
-| [Procurement Approval Agent](docs/tutorial-procurement-approval-agent.md) | LangChain adapter | `fetch_requisition`, `fetch_vendor_quotes`, `route_for_approval`, `create_purchase_order` | PR code/prompt-upgrade regression, approval-sequence enforcement |
+| [Support Escalation Demo (standalone repo)](https://github.com/trajectly/support-escalation-demo) | OpenAI + deterministic replay | `fetch_ticket`, `check_entitlements`, `escalate_to_human` | Real end-to-end PR workflow with dashboard, CI gate, repro, and shrink |
+| [Procurement Approval Agent](docs/tutorial-procurement-approval-agent.md) | LangChain adapter | `fetch_requisition`, `fetch_vendor_quotes`, `route_for_approval`, `create_purchase_order` | In-repo regression example for approval-sequence enforcement |
 
 See [examples/README.md](examples/README.md) for the full regression loop walkthrough (record, run, repro, shrink, baseline update).
 
@@ -205,7 +205,7 @@ The production dashboard is live at [trajectly.dev](https://trajectly.dev).
 - [Full documentation](docs/trajectly.md) -- concepts, CLI reference, spec format, SDK reference
 - [Architecture](docs/architecture_phase1.md) -- internal package boundaries, store interfaces
 - [CI: GitHub Actions](docs/ci_github_actions.md) -- workflow examples, inputs, artifacts
-- [Tutorial: Support Escalation Agent](docs/tutorial-support-escalation-agent.md) -- PR prompt-upgrade regression walkthrough
+- [Support Escalation Demo repository](https://github.com/trajectly/support-escalation-demo) -- full real-world CI/PR regression walkthrough
 - [Tutorial: Procurement Approval Agent](docs/tutorial-procurement-approval-agent.md) -- LangChain procurement control walkthrough
 
 ## Contributing

@@ -54,9 +54,11 @@ In a clean Python 3.11 environment, `pip install -e ".[examples]"` succeeded but
 
 ## Part 3: Example Validation
 
-**Both examples now work from a fresh clone:**
-- Support Escalation Agent (OpenAI): `trajectly run specs/trt-support-escalation-agent-regression.agent.yaml` produces `FAIL` with deterministic witness + contract violations
+**In-repo regression example now works from a fresh clone:**
 - Procurement Approval Agent (LangChain adapter): `trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml` produces `FAIL` with deterministic witness + sequence violations
+
+**Support Escalation moved to dedicated real demo repo:**
+- `https://github.com/trajectly/support-escalation-demo` (full end-to-end CI/PR walkthrough)
 
 **Fixed: replay no longer requires provider keys.**
 
@@ -64,7 +66,7 @@ In a clean Python 3.11 environment, `pip install -e ".[examples]"` succeeded but
 
 **Fixed: `require_before` YAML syntax error in procurement sequence specs.** The spec must use mapping syntax `{before: route_for_approval, after: create_purchase_order}`.
 
-**Verified full loop for both examples:**
+**Verified full loop for the in-repo example:**
 1. `trajectly run` -- regression detected (exit code 1)
 2. `trajectly report` -- clear markdown output showing which spec failed and where
 3. `trajectly repro` -- reproduces the failure deterministically
