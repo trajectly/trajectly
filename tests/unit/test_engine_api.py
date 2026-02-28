@@ -24,7 +24,10 @@ from trajectly.trace.io import read_trace_meta
 
 
 def _write(path: Path, body: str) -> None:
-    path.write_text(body.strip() + "\n", encoding="utf-8")
+    rendered = body.strip()
+    if "schema_version:" not in rendered:
+        rendered = 'schema_version: "0.4"\n' + rendered
+    path.write_text(rendered + "\n", encoding="utf-8")
 
 
 def test_initialize_workspace_creates_expected_files(tmp_path: Path) -> None:
@@ -95,7 +98,7 @@ strict: true
     outcome = run_specs(targets=[str(spec)], project_root=tmp_path)
 
     assert outcome.exit_code == EXIT_INTERNAL_ERROR
-    assert any("missing baseline trace" in err for err in outcome.errors)
+    assert any("no promoted baseline version found" in err for err in outcome.errors)
     assert outcome.latest_report_json is not None
     assert outcome.latest_report_json.exists()
 
@@ -135,7 +138,7 @@ def test_run_specs_fails_fast_on_normalizer_version_mismatch(tmp_path: Path) -> 
     _write(
         spec,
         """
-schema_version: "0.3"
+schema_version: "0.4"
 name: trt-demo
 command: python agent.py
 workdir: .
@@ -146,7 +149,7 @@ strict: true
     recorded = record_specs(targets=[str(spec)], project_root=tmp_path)
     assert recorded.exit_code == 0
 
-    baseline_meta = tmp_path / ".trajectly" / "baselines" / "trt-demo.meta.json"
+    baseline_meta = tmp_path / ".trajectly" / "baselines" / "trt-demo" / "v1" / "trace.meta.json"
     assert baseline_meta.exists()
     assert read_trace_meta(baseline_meta).normalizer_version == "1"
 
@@ -215,5 +218,5 @@ def test_resolve_repro_spec_prefers_latest_regression(tmp_path: Path) -> None:
     assert spec_path == spec_b.resolve()
 
     command = build_repro_command(spec_path=spec_path, project_root=tmp_path.resolve())
-    assert "trajectly run" in command
+    assert "python -m trajectly run" in command
     assert str(spec_b.resolve()) in command

@@ -8,7 +8,10 @@ from trajectly.specs import AgentSpec, load_spec, load_specs
 
 
 def _write(path: Path, body: str) -> None:
-    path.write_text(body.strip() + "\n", encoding="utf-8")
+    rendered = body.strip()
+    if "schema_version:" not in rendered:
+        rendered = 'schema_version: "0.4"\n' + rendered
+    path.write_text(rendered + "\n", encoding="utf-8")
 
 
 def test_load_spec_parses_all_fields(tmp_path: Path) -> None:
@@ -107,7 +110,7 @@ command: python script.py
     spec = load_spec(spec_path)
 
     assert spec.name == "demo.agent"
-    assert spec.fixture_policy == "by_index"
+    assert spec.fixture_policy == "by_hash"
     assert spec.strict is False
     assert spec.env == {}
     assert spec.redact == []
@@ -134,8 +137,8 @@ command: python script.py
 @pytest.mark.parametrize(
     ("body", "message"),
     [
-        ("name: x", "missing required non-empty field: command"),
-        ("command: ''", "missing required non-empty field: command"),
+        ("name: x", "missing required field: command or entrypoint"),
+        ("command: ''", "missing required field: command or entrypoint"),
         (
             "command: python a.py\nfixture_policy: random",
             "invalid fixture_policy",
@@ -283,7 +286,7 @@ def test_load_specs_raises_when_no_matches(tmp_path: Path) -> None:
         load_specs([str(tmp_path / "*.agent.yaml")], cwd=tmp_path)
 
 
-def test_load_spec_v03_with_contracts_config_and_refinement(tmp_path: Path) -> None:
+def test_load_spec_v04_with_contracts_config_and_refinement(tmp_path: Path) -> None:
     contracts_path = tmp_path / "phi.yaml"
     _write(
         contracts_path,
@@ -297,11 +300,11 @@ sequence:
 """,
     )
 
-    spec_path = tmp_path / "v03.agent.yaml"
+    spec_path = tmp_path / "v04.agent.yaml"
     _write(
         spec_path,
         f"""
-schema_version: "0.3"
+schema_version: "0.4"
 name: support-routing
 command: python agent.py
 workdir: .
@@ -328,7 +331,7 @@ artifacts:
     )
 
     spec = load_spec(spec_path)
-    assert spec.schema_version == "0.3"
+    assert spec.schema_version == "0.4"
     assert spec.legacy_compat is False
     assert spec.contracts.tools.allow == ["search", "checkout"]
     assert spec.contracts.tools.deny == ["delete_account"]
@@ -339,7 +342,7 @@ artifacts:
     assert spec.refinement.ignore_call_tools == ["log_event"]
 
 
-def test_load_spec_v03_rejects_refinement_in_contracts_file(tmp_path: Path) -> None:
+def test_load_spec_v04_rejects_refinement_in_contracts_file(tmp_path: Path) -> None:
     contracts_path = tmp_path / "phi.yaml"
     _write(
         contracts_path,
@@ -349,11 +352,11 @@ refinement:
   mode: skeleton
 """,
     )
-    spec_path = tmp_path / "bad-v03.agent.yaml"
+    spec_path = tmp_path / "bad-v04.agent.yaml"
     _write(
         spec_path,
         f"""
-schema_version: "0.3"
+schema_version: "0.4"
 name: demo
 command: python agent.py
 contracts:
@@ -365,14 +368,14 @@ contracts:
         load_spec(spec_path)
 
 
-def test_load_spec_v03_rejects_missing_name(tmp_path: Path) -> None:
+def test_load_spec_v04_defaults_missing_name(tmp_path: Path) -> None:
     spec_path = tmp_path / "missing-name.agent.yaml"
     _write(
         spec_path,
         """
-schema_version: "0.3"
+schema_version: "0.4"
 command: python agent.py
 """,
     )
-    with pytest.raises(ValueError, match="requires non-empty `name`"):
-        load_spec(spec_path)
+    spec = load_spec(spec_path)
+    assert spec.name == "missing-name.agent"

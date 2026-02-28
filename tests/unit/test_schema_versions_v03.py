@@ -13,10 +13,10 @@ from trajectly.report.schema import TRTReportMetadataV03, TRTReportV03
 from trajectly.trace.models import TraceEventV03, TraceMetaV03
 
 
-def test_trt_v03_schema_constants_are_stable() -> None:
-    assert TRT_SPEC_SCHEMA_VERSION == "0.3"
-    assert TRT_TRACE_SCHEMA_VERSION == "0.3"
-    assert TRT_REPORT_SCHEMA_VERSION == "0.3"
+def test_trt_v04_schema_constants_are_stable() -> None:
+    assert TRT_SPEC_SCHEMA_VERSION == "0.4"
+    assert TRT_TRACE_SCHEMA_VERSION == "0.4"
+    assert TRT_REPORT_SCHEMA_VERSION == "0.4"
     assert TRT_NORMALIZER_VERSION == "1"
     assert TRT_SIDE_EFFECT_REGISTRY_VERSION == "1"
 
@@ -36,7 +36,7 @@ def test_witness_class_order_is_refinement_then_contract_then_tooling() -> None:
     assert WITNESS_FAILURE_CLASS_ORDER == ("REFINEMENT", "CONTRACT", "TOOLING")
 
 
-def test_trace_models_default_to_v03_and_normalizer_v1() -> None:
+def test_trace_models_default_to_v04_and_normalizer_v1() -> None:
     event = TraceEventV03(
         event_index=0,
         kind="TOOL_CALL",
@@ -45,18 +45,18 @@ def test_trace_models_default_to_v03_and_normalizer_v1() -> None:
     )
     meta = TraceMetaV03(spec_name="demo")
 
-    assert event.schema_version == "0.3"
-    assert meta.schema_version == "0.3"
+    assert event.schema_version == "0.4"
+    assert meta.schema_version == "0.4"
     assert meta.normalizer_version == "1"
 
 
-def test_report_schema_defaults_to_v03_with_metadata() -> None:
+def test_report_schema_defaults_to_v04_with_metadata() -> None:
     report = TRTReportV03(status="PASS")
     metadata = TRTReportMetadataV03()
     report_payload = report.to_dict()
 
-    assert metadata.report_schema_version == "0.3"
+    assert metadata.report_schema_version == "0.4"
     assert metadata.normalizer_version == "1"
     assert metadata.side_effect_registry_version == "1"
-    assert report_payload["metadata"]["report_schema_version"] == "0.3"
+    assert report_payload["metadata"]["report_schema_version"] == "0.4"
     assert report_payload["metadata"]["normalizer_version"] == "1"

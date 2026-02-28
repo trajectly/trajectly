@@ -47,6 +47,10 @@ def execute_spec(
     events_path: Path,
     fixtures_path: Path | None,
     strict: bool,
+    determinism_config: dict[str, object] | None = None,
+    clock_seed: float | None = None,
+    random_seed: int | None = None,
+    project_root: Path | None = None,
 ) -> ExecutionResult:
     events_path.parent.mkdir(parents=True, exist_ok=True)
     if events_path.exists():
@@ -91,6 +95,14 @@ def execute_spec(
 
     if mode == "replay":
         env["TRAJECTLY_REPLAY_GUARD"] = "1"
+    if determinism_config is not None:
+        env["TRAJECTLY_DETERMINISM_ACTIVE"] = "1"
+        env["TRAJECTLY_DETERMINISM_JSON"] = json.dumps(determinism_config, sort_keys=True, separators=(",", ":"))
+        env["TRAJECTLY_PROJECT_ROOT"] = str((project_root or spec.resolved_workdir()).resolve())
+        if clock_seed is not None:
+            env["TRAJECTLY_CLOCK_SEED"] = str(clock_seed)
+        if random_seed is not None:
+            env["TRAJECTLY_RANDOM_SEED"] = str(random_seed)
 
     start = time.monotonic()
     try:

@@ -10,6 +10,10 @@ from trajectly.engine import (
     SUPPORTED_ENABLE_TEMPLATES,
     CommandOutcome,
     apply_enable_template,
+    baseline_create,
+    baseline_diff,
+    baseline_list,
+    baseline_promote,
     build_repro_command,
     discover_spec_files,
     enable_workspace,
@@ -55,7 +59,10 @@ def _emit_outcome(outcome: CommandOutcome) -> None:
         typer.echo(f"Latest report: {outcome.latest_report_md}")
 
     if outcome.exit_code == EXIT_REGRESSION:
-        typer.echo("Tip: run `trajectly repro` to reproduce, or `trajectly shrink` to minimize.", err=True)
+        typer.echo(
+            "Tip: run `python -m trajectly repro` to reproduce, or `python -m trajectly shrink` to minimize.",
+            err=True,
+        )
 
     raise typer.Exit(outcome.exit_code)
 
@@ -130,7 +137,7 @@ def _enable(project_root: Path, template: str | None) -> None:
             typer.echo("Template files already existed; no files written.")
             typer.echo(f"Supported templates: {supported}")
 
-    typer.echo("Next step: trajectly record --auto")
+    typer.echo("Next step: python -m trajectly record --auto")
     if discovered:
         typer.echo("Discovered specs:")
         for spec_path in discovered:
@@ -172,6 +179,7 @@ def run(
     project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
     baseline_dir: Path | None = typer.Option(None, "--baseline-dir", help="Custom baseline trace directory"),
     fixtures_dir: Path | None = typer.Option(None, "--fixtures-dir", help="Custom fixture directory"),
+    baseline: str | None = typer.Option(None, "--baseline", help="Pinned baseline version to replay"),
     strict: bool | None = typer.Option(None, "--strict/--no-strict", help="Override strict mode"),
 ) -> None:
     """Run agent specs against recorded baselines and report regressions."""
@@ -180,6 +188,7 @@ def run(
         project_root=project_root.resolve(),
         baseline_dir=baseline_dir,
         fixtures_dir=fixtures_dir,
+        baseline_version=baseline,
         strict_override=strict,
     )
 
@@ -272,6 +281,94 @@ def baseline_update(
     _emit_outcome(outcome)
 
 
+@baseline_app.command("list")
+def baseline_list_command(
+    targets: list[str] | None = typer.Argument(None, help="Optional spec paths/slugs to filter"),
+    project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
+) -> None:
+    """List available baseline versions and promoted pointers per spec."""
+    payload = baseline_list(project_root=project_root.resolve(), targets=targets)
+    typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    raise typer.Exit(EXIT_SUCCESS)
+
+
+@baseline_app.command("create")
+def baseline_create_command(
+    targets: list[str] = typer.Argument(..., help="Spec files or glob patterns"),
+    name: str = typer.Option(..., "--name", help="Baseline version name to create, e.g. v2"),
+    project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
+    allow_ci_write: bool = typer.Option(
+        False,
+        "--allow-ci-write",
+        help="Allow baseline writes when TRAJECTLY_CI=1 (explicit override).",
+    ),
+) -> None:
+    """Create a named baseline version for selected specs."""
+    outcome = baseline_create(
+        targets=targets,
+        project_root=project_root.resolve(),
+        name=name,
+        allow_ci_write=allow_ci_write,
+    )
+    if outcome.exit_code == EXIT_SUCCESS:
+        typer.echo(f"Created baseline version `{name}` for {outcome.processed_specs} spec(s)")
+    _emit_outcome(outcome)
+
+
+@baseline_app.command("promote")
+def baseline_promote_command(
+    version: str = typer.Argument(..., help="Baseline version name to promote"),
+    targets: list[str] | None = typer.Argument(None, help="Optional spec paths/slugs to promote"),
+    project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
+) -> None:
+    """Promote a baseline version to active for selected specs."""
+    try:
+        payload, missing = baseline_promote(
+            project_root=project_root.resolve(),
+            version=version,
+            targets=targets,
+        )
+    except Exception as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
+        raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
+
+    typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    if missing:
+        raise typer.Exit(EXIT_INTERNAL_ERROR)
+    raise typer.Exit(EXIT_SUCCESS)
+
+
+@baseline_app.command("diff")
+def baseline_diff_command(
+    spec_slug: str = typer.Argument(..., help="Spec slug/name to diff"),
+    left: str = typer.Argument(..., help="Left baseline version"),
+    right: str = typer.Argument(..., help="Right baseline version"),
+    project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
+    as_json: bool = typer.Option(False, "--json", help="Print JSON output"),
+) -> None:
+    """Diff two baseline versions for one spec."""
+    try:
+        payload = baseline_diff(
+            project_root=project_root.resolve(),
+            spec_slug=spec_slug,
+            left=left,
+            right=right,
+        )
+    except Exception as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
+        raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
+
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        typer.echo(f"Spec: {payload['slug']}")
+        typer.echo(f"Left: {payload['left']}")
+        typer.echo(f"Right: {payload['right']}")
+        typer.echo(f"Regression: {payload['summary'].get('regression', False)}")
+        typer.echo(f"Findings: {payload['summary'].get('finding_count', 0)}")
+    raise typer.Exit(EXIT_SUCCESS)
+
+
 @app.command()
 def report(
     project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
@@ -287,7 +384,7 @@ def report(
         try:
             raw_json = read_latest_report(project_root.resolve(), as_json=True)
         except FileNotFoundError as exc:
-            typer.echo(f"ERROR: {exc}. Run `trajectly run` first to generate a report.", err=True)
+            typer.echo(f"ERROR: {exc}. Run `python -m trajectly run` first to generate a report.", err=True)
             raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
         parsed = json.loads(raw_json)
         typer.echo(render_pr_comment(parsed))
@@ -296,7 +393,7 @@ def report(
         try:
             content = read_latest_report(project_root.resolve(), as_json=as_json)
         except FileNotFoundError as exc:
-            typer.echo(f"ERROR: {exc}. Run `trajectly run` first to generate a report.", err=True)
+            typer.echo(f"ERROR: {exc}. Run `python -m trajectly run` first to generate a report.", err=True)
             raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
 
         if as_json:
@@ -307,5 +404,3 @@ def report(
             typer.echo(content)
             typer.echo(f"Source: {latest_report_path(project_root.resolve(), as_json=False)}")
     raise typer.Exit(EXIT_SUCCESS)
-
-

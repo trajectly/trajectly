@@ -50,7 +50,7 @@ mock_llm(str(value))
     _write_spec(
         spec,
         """
-schema_version: "0.3"
+schema_version: "0.4"
 name: determinism-demo
 command: python agent.py
 workdir: .
@@ -98,7 +98,7 @@ if os.getenv("TRAJECTLY_MODE") == "replay":
     _write_spec(
         spec,
         """
-schema_version: "0.3"
+schema_version: "0.4"
 name: network-block
 command: python agent.py
 workdir: .

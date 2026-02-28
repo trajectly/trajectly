@@ -1,3 +1,4 @@
+schema_version: "0.4"
 name: simple
 command: python tests/agents/simple_agent.py
 workdir: ..

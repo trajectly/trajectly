@@ -1,3 +1,4 @@
+schema_version: "0.4"
 name: tool-flow
 command: python tests/agents/tool_agent.py
 workdir: ..

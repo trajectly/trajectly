@@ -38,7 +38,7 @@ def test_trace_io_round_trip_for_events_and_meta(tmp_path: Path) -> None:
     loaded_events = read_trace_events(trace_path)
 
     assert loaded_meta.normalizer_version == "1"
-    assert loaded_meta.schema_version == "0.3"
+    assert loaded_meta.schema_version == "0.4"
     assert len(loaded_events) == 2
     assert loaded_events[0].event_index == 0
     assert loaded_events[1].kind == "TOOL_RESULT"
@@ -49,7 +49,7 @@ def test_trace_meta_reader_rejects_wrong_normalizer_version(tmp_path: Path) -> N
     meta_path.write_text(
         json.dumps(
             {
-                "schema_version": "0.3",
+                "schema_version": "0.4",
                 "normalizer_version": "999",
                 "metadata": {},
             }

@@ -21,6 +21,10 @@ ReplayMode = Literal["offline", "online"]
 LLMMatchMode = Literal["signature_match", "sequence_match"]
 ToolMatchMode = Literal["args_signature_match", "sequence_match"]
 RefinementMode = Literal["none", "skeleton", "strict"]
+ClockMode = Literal["record_and_freeze", "freeze_only", "disabled"]
+RandomMode = Literal["deterministic_seed", "strict", "disabled"]
+FilesystemMode = Literal["strict", "permissive"]
+SubprocessMode = Literal["strict", "permissive", "disabled"]
 
 
 @dataclass(slots=True)
@@ -43,6 +47,37 @@ class RefinementConfig:
 
 
 @dataclass(slots=True)
+class DeterminismClockConfig:
+    mode: ClockMode = "disabled"
+
+
+@dataclass(slots=True)
+class DeterminismRandomConfig:
+    mode: RandomMode = "disabled"
+
+
+@dataclass(slots=True)
+class DeterminismFilesystemConfig:
+    mode: FilesystemMode = "permissive"
+    allow_read_paths: list[str] = field(default_factory=list)
+    allow_write_paths: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class DeterminismSubprocessConfig:
+    mode: SubprocessMode = "disabled"
+    allow_commands: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class DeterminismConfig:
+    clock: DeterminismClockConfig = field(default_factory=DeterminismClockConfig)
+    random: DeterminismRandomConfig = field(default_factory=DeterminismRandomConfig)
+    filesystem: DeterminismFilesystemConfig = field(default_factory=DeterminismFilesystemConfig)
+    subprocess: DeterminismSubprocessConfig = field(default_factory=DeterminismSubprocessConfig)
+
+
+@dataclass(slots=True)
 class AgentSpec:
     name: str
     command: str
@@ -60,6 +95,7 @@ class AgentSpec:
     contracts_config: str | None = None
     replay: ReplayConfig = field(default_factory=ReplayConfig)
     refinement: RefinementConfig = field(default_factory=RefinementConfig)
+    determinism: DeterminismConfig = field(default_factory=DeterminismConfig)
     artifacts_dir: str = ".trajectly/artifacts"
     mode_profile: ModeProfile = "ci_safe"
     legacy_compat: bool = False
@@ -188,6 +224,53 @@ def _parse_refinement(raw: Any) -> RefinementConfig:
     )
 
 
+def _parse_determinism(raw: Any) -> DeterminismConfig:
+    block = _ensure_mapping(raw, field_name="determinism")
+
+    clock_block = _ensure_mapping(block.get("clock"), field_name="determinism.clock")
+    clock_mode = str(clock_block.get("mode", "disabled")).strip().lower()
+    if clock_mode not in {"record_and_freeze", "freeze_only", "disabled"}:
+        raise ValueError("determinism.clock.mode must be record_and_freeze|freeze_only|disabled")
+
+    random_block = _ensure_mapping(block.get("random"), field_name="determinism.random")
+    random_mode = str(random_block.get("mode", "disabled")).strip().lower()
+    if random_mode not in {"deterministic_seed", "strict", "disabled"}:
+        raise ValueError("determinism.random.mode must be deterministic_seed|strict|disabled")
+
+    filesystem_block = _ensure_mapping(block.get("filesystem"), field_name="determinism.filesystem")
+    filesystem_mode = str(filesystem_block.get("mode", "permissive")).strip().lower()
+    if filesystem_mode not in {"strict", "permissive"}:
+        raise ValueError("determinism.filesystem.mode must be strict|permissive")
+
+    subprocess_block = _ensure_mapping(block.get("subprocess"), field_name="determinism.subprocess")
+    subprocess_mode = str(subprocess_block.get("mode", "disabled")).strip().lower()
+    if subprocess_mode not in {"strict", "permissive", "disabled"}:
+        raise ValueError("determinism.subprocess.mode must be strict|permissive|disabled")
+
+    return DeterminismConfig(
+        clock=DeterminismClockConfig(mode=cast(ClockMode, clock_mode)),
+        random=DeterminismRandomConfig(mode=cast(RandomMode, random_mode)),
+        filesystem=DeterminismFilesystemConfig(
+            mode=cast(FilesystemMode, filesystem_mode),
+            allow_read_paths=_parse_string_list(
+                filesystem_block.get("allow_read_paths"),
+                field_name="determinism.filesystem.allow_read_paths",
+            ),
+            allow_write_paths=_parse_string_list(
+                filesystem_block.get("allow_write_paths"),
+                field_name="determinism.filesystem.allow_write_paths",
+            ),
+        ),
+        subprocess=DeterminismSubprocessConfig(
+            mode=cast(SubprocessMode, subprocess_mode),
+            allow_commands=_parse_string_list(
+                subprocess_block.get("allow_commands"),
+                field_name="determinism.subprocess.allow_commands",
+            ),
+        ),
+    )
+
+
 def _load_contracts_from_config(source_path: Path, config_path: str) -> tuple[str, AgentContracts]:
     resolved = Path(config_path)
     if not resolved.is_absolute():
@@ -224,15 +307,18 @@ def _parse_command(data: dict[str, Any], source_path: Path) -> str:
 def parse_v03_spec(data: dict[str, Any], *, source_path: Path) -> AgentSpec:
     schema_version_raw = data.get("schema_version")
     if schema_version_raw is None:
-        raise ValueError("v0.3 spec requires schema_version")
+        raise ValueError("v0.4 spec requires schema_version")
     schema_version = str(schema_version_raw).strip()
-    if schema_version not in {"0.3", "v0.3"}:
-        raise ValueError(f"Unsupported schema_version for v0.3 parser: {schema_version}")
+    if schema_version not in {"0.4", "v0.4"}:
+        raise ValueError(f"Unsupported schema_version for v0.4 parser: {schema_version}")
 
     name_raw = data.get("name")
-    if not isinstance(name_raw, str) or not name_raw.strip():
-        raise ValueError("v0.3 spec requires non-empty `name`")
-    name = name_raw.strip()
+    if name_raw is None:
+        name = source_path.stem
+    elif isinstance(name_raw, str) and name_raw.strip():
+        name = name_raw.strip()
+    else:
+        raise ValueError("v0.4 spec field `name` must be a non-empty string")
     command = _parse_command(data, source_path)
 
     raw_env = data.get("env") or {}
@@ -314,6 +400,7 @@ def parse_v03_spec(data: dict[str, Any], *, source_path: Path) -> AgentSpec:
         contracts_config=contracts_config_path,
         replay=replay,
         refinement=_parse_refinement(data.get("refinement")),
+        determinism=_parse_determinism(data.get("determinism")),
         artifacts_dir=artifacts_dir_raw.strip(),
         mode_profile=_parse_mode_profile(data.get("mode_profile")),
         legacy_compat=False,
@@ -321,69 +408,117 @@ def parse_v03_spec(data: dict[str, Any], *, source_path: Path) -> AgentSpec:
     return spec
 
 
-def parse_spec_with_compat(data: dict[str, Any], *, source_path: Path) -> AgentSpec:
+def parse_spec_with_compat(data: dict[str, Any], *, source_path: Path, allow_legacy: bool = False) -> AgentSpec:
     schema_version_raw = data.get("schema_version")
     if schema_version_raw is None:
-        parsed_v02 = parse_v02_spec(data, source_path=source_path, schema_version=TRT_SPEC_SCHEMA_VERSION)
-    else:
-        schema_version = str(schema_version_raw).strip()
-        if schema_version in {"0.3", "v0.3"}:
-            return parse_v03_spec(data, source_path=source_path)
-        if schema_version in {"0.2", "v0.2", "v1", "1"}:
-            parsed_v02 = parse_v02_spec(data, source_path=source_path, schema_version=schema_version)
-        else:
-            raise ValueError(
-                f"Unsupported schema_version: {schema_version}. "
-                "Supported: 0.3 (native), 0.2/v1 (compat loader)."
+        if allow_legacy:
+            parsed_v02 = parse_v02_spec(data, source_path=source_path, schema_version=TRT_SPEC_SCHEMA_VERSION)
+            return AgentSpec(
+                schema_version=TRT_SPEC_SCHEMA_VERSION,
+                name=parsed_v02.name,
+                command=parsed_v02.command,
+                source_path=parsed_v02.source_path,
+                workdir=parsed_v02.workdir,
+                env=parsed_v02.env,
+                fixture_policy=parsed_v02.fixture_policy,
+                strict=parsed_v02.strict,
+                redact=parsed_v02.redact,
+                budget_thresholds=parsed_v02.budget_thresholds,
+                contracts=parsed_v02.contracts,
+                baseline_trace=parsed_v02.baseline_trace,
+                abstraction_config=parsed_v02.abstraction_config,
+                contracts_config=parsed_v02.contracts_config,
+                replay=ReplayConfig(
+                    mode=cast(
+                        ReplayMode,
+                        parsed_v02.replay.mode if parsed_v02.replay.mode in {"offline", "online"} else "offline",
+                    ),
+                    strict_sequence=parsed_v02.replay.strict_sequence,
+                    llm_match_mode=cast(
+                        LLMMatchMode,
+                        parsed_v02.replay.llm_match_mode
+                        if parsed_v02.replay.llm_match_mode in {"signature_match", "sequence_match"}
+                        else "signature_match",
+                    ),
+                    tool_match_mode=cast(
+                        ToolMatchMode,
+                        parsed_v02.replay.tool_match_mode
+                        if parsed_v02.replay.tool_match_mode in {"args_signature_match", "sequence_match"}
+                        else "args_signature_match",
+                    ),
+                    fixture_policy=parsed_v02.fixture_policy,
+                ),
+                refinement=RefinementConfig(),
+                artifacts_dir=parsed_v02.artifacts_dir,
+                mode_profile=cast(
+                    ModeProfile,
+                    parsed_v02.mode_profile
+                    if parsed_v02.mode_profile in {"ci_safe", "permissive", "strict"}
+                    else "ci_safe",
+                ),
+                legacy_compat=True,
             )
-
-    return AgentSpec(
-        schema_version=TRT_SPEC_SCHEMA_VERSION,
-        name=parsed_v02.name,
-        command=parsed_v02.command,
-        source_path=parsed_v02.source_path,
-        workdir=parsed_v02.workdir,
-        env=parsed_v02.env,
-        fixture_policy=parsed_v02.fixture_policy,
-        strict=parsed_v02.strict,
-        redact=parsed_v02.redact,
-        budget_thresholds=parsed_v02.budget_thresholds,
-        contracts=parsed_v02.contracts,
-        baseline_trace=parsed_v02.baseline_trace,
-        abstraction_config=parsed_v02.abstraction_config,
-        contracts_config=parsed_v02.contracts_config,
-        replay=ReplayConfig(
-            mode=cast(
-                ReplayMode,
-                parsed_v02.replay.mode if parsed_v02.replay.mode in {"offline", "online"} else "offline",
-            ),
-            strict_sequence=parsed_v02.replay.strict_sequence,
-            llm_match_mode=cast(
-                LLMMatchMode,
-                parsed_v02.replay.llm_match_mode
-                if parsed_v02.replay.llm_match_mode in {"signature_match", "sequence_match"}
-                else "signature_match",
-            ),
-            tool_match_mode=cast(
-                ToolMatchMode,
-                parsed_v02.replay.tool_match_mode
-                if parsed_v02.replay.tool_match_mode in {"args_signature_match", "sequence_match"}
-                else "args_signature_match",
-            ),
-            fixture_policy=parsed_v02.fixture_policy,
-        ),
-        refinement=RefinementConfig(),
-        artifacts_dir=parsed_v02.artifacts_dir,
-        mode_profile=cast(
-            ModeProfile,
-            parsed_v02.mode_profile if parsed_v02.mode_profile in {"ci_safe", "permissive", "strict"} else "ci_safe",
-        ),
-        legacy_compat=True,
-    )
+        raise ValueError(
+            "Missing schema_version. Hard cutover in v0.4 requires schema_version: \"0.4\" in every spec."
+        )
+    schema_version = str(schema_version_raw).strip()
+    if schema_version not in {"0.4", "v0.4"}:
+        if allow_legacy and schema_version in {"0.2", "v0.2", "v1", "1", "0.3", "v0.3"}:
+            parsed_v02 = parse_v02_spec(data, source_path=source_path, schema_version=schema_version)
+            return AgentSpec(
+                schema_version=TRT_SPEC_SCHEMA_VERSION,
+                name=parsed_v02.name,
+                command=parsed_v02.command,
+                source_path=parsed_v02.source_path,
+                workdir=parsed_v02.workdir,
+                env=parsed_v02.env,
+                fixture_policy=parsed_v02.fixture_policy,
+                strict=parsed_v02.strict,
+                redact=parsed_v02.redact,
+                budget_thresholds=parsed_v02.budget_thresholds,
+                contracts=parsed_v02.contracts,
+                baseline_trace=parsed_v02.baseline_trace,
+                abstraction_config=parsed_v02.abstraction_config,
+                contracts_config=parsed_v02.contracts_config,
+                replay=ReplayConfig(
+                    mode=cast(
+                        ReplayMode,
+                        parsed_v02.replay.mode if parsed_v02.replay.mode in {"offline", "online"} else "offline",
+                    ),
+                    strict_sequence=parsed_v02.replay.strict_sequence,
+                    llm_match_mode=cast(
+                        LLMMatchMode,
+                        parsed_v02.replay.llm_match_mode
+                        if parsed_v02.replay.llm_match_mode in {"signature_match", "sequence_match"}
+                        else "signature_match",
+                    ),
+                    tool_match_mode=cast(
+                        ToolMatchMode,
+                        parsed_v02.replay.tool_match_mode
+                        if parsed_v02.replay.tool_match_mode in {"args_signature_match", "sequence_match"}
+                        else "args_signature_match",
+                    ),
+                    fixture_policy=parsed_v02.fixture_policy,
+                ),
+                refinement=RefinementConfig(),
+                artifacts_dir=parsed_v02.artifacts_dir,
+                mode_profile=cast(
+                    ModeProfile,
+                    parsed_v02.mode_profile
+                    if parsed_v02.mode_profile in {"ci_safe", "permissive", "strict"}
+                    else "ci_safe",
+                ),
+                legacy_compat=True,
+            )
+        raise ValueError(
+            f"Unsupported schema_version: {schema_version}. Hard cutover active: only 0.4 specs are supported."
+        )
+    return parse_v03_spec(data, source_path=source_path)
 
 
 __all__ = [
     "AgentSpec",
+    "DeterminismConfig",
     "LLMMatchMode",
     "ModeProfile",
     "RefinementConfig",

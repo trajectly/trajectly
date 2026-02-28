@@ -6,7 +6,7 @@
 
 ```
 src/trajectly/
-├── __init__.py              # __version__ = "0.3.0rc3"
+├── __init__.py              # __version__ = "0.4.0"
 ├── __main__.py              # python -m trajectly
 ├── core/
 │   ├── __init__.py
@@ -27,7 +27,7 @@ src/trajectly/
 │   ├── runtime.py           # Subprocess execution of agent commands
 │   ├── schema.py            # Trace/report JSON schema validation
 │   ├── shrink/              # Delta-debugging trace minimization
-│   ├── specs/               # Spec parser (v0.3, v0.2 compat, migration, extends)
+│   ├── specs/               # Spec parser (v0.4, v0.2 compat, migration, extends)
 │   ├── stores/
 │   │   ├── artifacts.py     # ArtifactStore protocol + LocalArtifactStore
 │   │   └── baselines.py     # BaselineStore protocol + LocalBaselineStore
@@ -113,7 +113,7 @@ contracts:
     deny: [unsafe_tool]
 ```
 
-Merge rules: dicts merge recursively (keys iterated in `sorted()` order), lists override, scalars override. Max chain depth: 10 (circular reference detection). Schema version stays `0.3`.
+Merge rules: dicts merge recursively (keys iterated in `sorted()` order), lists override, scalars override. Max chain depth: 10 (circular reference detection). Schema version stays `0.4`.
 
 ## GitHub Action Wrapper
 

@@ -45,7 +45,7 @@ class TestSpecExtends:
     def test_single_extends(self, tmp_path: Path) -> None:
         base = tmp_path / "base.agent.yaml"
         base.write_text(
-            "schema_version: '0.3'\n"
+            "schema_version: '0.4'\n"
             "name: base-spec\n"
             "command: python agent.py\n"
             "strict: true\n"
@@ -69,7 +69,7 @@ class TestSpecExtends:
     def test_chained_extends(self, tmp_path: Path) -> None:
         grandparent = tmp_path / "gp.agent.yaml"
         grandparent.write_text(
-            "schema_version: '0.3'\n"
+            "schema_version: '0.4'\n"
             "name: gp\n"
             "command: python agent.py\n"
             "strict: false\n"
@@ -97,15 +97,15 @@ class TestSpecExtends:
     def test_circular_extends_raises(self, tmp_path: Path) -> None:
         a = tmp_path / "a.agent.yaml"
         b = tmp_path / "b.agent.yaml"
-        a.write_text("extends: b.agent.yaml\nname: a\ncommand: echo a\nschema_version: '0.3'\n")
-        b.write_text("extends: a.agent.yaml\nname: b\ncommand: echo b\nschema_version: '0.3'\n")
+        a.write_text("extends: b.agent.yaml\nname: a\ncommand: echo a\nschema_version: '0.4'\n")
+        b.write_text("extends: a.agent.yaml\nname: b\ncommand: echo b\nschema_version: '0.4'\n")
         with pytest.raises(ValueError, match="extends depth exceeded"):
             load_spec(a)
 
     def test_no_extends_still_works(self, tmp_path: Path) -> None:
         spec_file = tmp_path / "solo.agent.yaml"
         spec_file.write_text(
-            "schema_version: '0.3'\n"
+            "schema_version: '0.4'\n"
             "name: solo\n"
             "command: python run.py\n"
         )

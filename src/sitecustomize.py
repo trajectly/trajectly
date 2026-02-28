@@ -8,3 +8,10 @@ if os.getenv("TRAJECTLY_REPLAY_GUARD") == "1":
     from trajectly.replay_guard import activate
 
     activate()
+
+if os.getenv("TRAJECTLY_DETERMINISM_ACTIVE") == "1":
+    # Determinism hooks patch clock/random/filesystem/subprocess behavior
+    # for replay-safe execution before user agent modules are imported.
+    from trajectly.determinism import activate_from_env
+
+    activate_from_env()
