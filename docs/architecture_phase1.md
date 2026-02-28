@@ -120,9 +120,9 @@ Merge rules: dicts merge recursively (keys iterated in `sorted()` order), lists 
 `github-action/action.yml` is a composite action with no TRT logic:
 
 1. `actions/setup-python` -- install Python
-2. `pip install` -- editable or PyPI
-3. `trajectly run` -- run specs
-4. `trajectly report --pr-comment` -- generate markdown
+2. `python -m pip install` -- editable or PyPI
+3. `python -m trajectly run` -- run specs
+4. `python -m trajectly report --pr-comment` -- generate markdown
 5. `actions/github-script` -- post/update PR comment
 6. `actions/upload-artifact` -- upload `.trajectly/**`
 7. Propagate exit code from step 3

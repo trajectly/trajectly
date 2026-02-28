@@ -49,7 +49,7 @@ jobs:
 | `spec_glob` | `specs/*.agent.yaml` | Glob pattern for agent spec files |
 | `project_root` | `.` | Root directory of the project |
 | `python_version` | `3.11` | Python version to install |
-| `install` | `editable` | `editable` (pip install -e .) or `pypi` (pip install trajectly) |
+| `install` | `editable` | `editable` (python -m pip install -e .) or `pypi` (python -m pip install trajectly) |
 | `comment_pr` | `true` | Post a PR comment with the report summary |
 | `upload_artifacts` | `true` | Upload `.trajectly/**` as build artifacts |
 
@@ -57,8 +57,8 @@ jobs:
 
 1. **Setup Python** via `actions/setup-python@v5`.
 2. **Install Trajectly**: editable from the repo or from PyPI.
-3. **Run specs**: `trajectly run <spec_glob> --project-root <project_root>`. Continues on error so the report step always runs.
-4. **Generate report**: `trajectly report --pr-comment > trajectly_pr_comment.md`.
+3. **Run specs**: `python -m trajectly run <spec_glob> --project-root <project_root>`. Continues on error so the report step always runs.
+4. **Generate report**: `python -m trajectly report --pr-comment > trajectly_pr_comment.md`.
 5. **Post PR comment** (if `comment_pr` is `true` and the event is a pull request): uses `actions/github-script@v7` to create or update a comment with a `<!-- trajectly-report -->` marker.
 6. **Upload artifacts** (if `upload_artifacts` is `true`): uploads `.trajectly/**` via `actions/upload-artifact@v4`.
 7. **Propagate exit code**: the workflow fails with the exit code from step 3 (0 = pass, 1 = regression, 2 = error).
@@ -68,9 +68,9 @@ jobs:
 If you are not using GitHub Actions, the equivalent shell commands are:
 
 ```bash
-pip install trajectly
-trajectly run specs/*.agent.yaml --project-root .
-trajectly report --pr-comment > comment.md
+python -m pip install trajectly
+python -m trajectly run specs/*.agent.yaml --project-root .
+python -m trajectly report --pr-comment > comment.md
 # upload .trajectly/** as build artifacts per your CI provider
 ```
 

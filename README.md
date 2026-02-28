@@ -47,7 +47,7 @@ python -m trajectly init
 python -m trajectly record my-agent.agent.yaml
 ```
 
-After recording, all future `trajectly run` calls replay from the captured fixtures -- fully offline and deterministic.
+After recording, all future `python -m trajectly run` calls replay from the captured fixtures -- fully offline and deterministic.
 
 ## How It Works
 
