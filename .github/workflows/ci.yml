@@ -19,7 +19,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          python -m pip install -e ".[dev]"
       - name: Private File Policy
         run: ./scripts/check_blocked_paths.sh
       - name: Lint
@@ -34,6 +34,6 @@ jobs:
         run: pytest --cov=src/trajectly --cov-report=term-missing -q
       - name: Smoke
         run: |
-          trajectly init
-          trajectly record tests/*.agent.yaml
-          trajectly run tests/*.agent.yaml
+          python -m trajectly init
+          python -m trajectly record tests/*.agent.yaml
+          python -m trajectly run tests/*.agent.yaml

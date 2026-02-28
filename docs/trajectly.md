@@ -27,15 +27,17 @@ Get a working regression test in under 5 minutes.
 
 ### Install and run
 
-Pre-recorded baselines and fixtures are included, so **no API key is needed**.
+Pre-recorded baselines and fixtures are included in standalone demo repos, so **no API key is needed**.
 
 ```bash
-git clone https://github.com/trajectly/trajectly.git
-cd trajectly
-python -m pip install -e ".[examples]"
+git clone https://github.com/trajectly/procurement-approval-demo.git
+cd procurement-approval-demo
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 
-cd examples
-python -m trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
+python -m trajectly run specs/trt-procurement-agent-regression.agent.yaml --project-root .
 python -m trajectly report
 python -m trajectly repro
 python -m trajectly shrink
@@ -68,10 +70,10 @@ After recording, all future `run` calls replay from the captured fixtures -- ful
 
 ```text
 # Baseline replay
-trt-procurement-approval-agent: PASS
+trt-procurement-agent: PASS
 
 # Regression replay
-trt-procurement-approval-agent: FAIL
+trt-procurement-agent: FAIL
   failure_step: 8
   failure_type: contract_tool_denied
   repro: trajectly repro
@@ -99,8 +101,8 @@ A spec (`.agent.yaml` file) tells Trajectly how to run your agent and what rules
 
 ```yaml
 schema_version: "0.3"
-name: trt-procurement-approval-agent
-command: python -m examples.procurement_approval_agent.main
+name: trt-procurement-agent
+command: python -m agents.procurement_agent
 contracts:
   tools:
     allow: [fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]
@@ -809,7 +811,7 @@ agent_step("processing_input", details={"key": "value"})
 | Adapter | Example |
 |---|---|
 | OpenAI | [Support Escalation Demo (standalone repo)](https://github.com/trajectly/support-escalation-demo) |
-| LangChain | [Procurement Approval Agent](tutorial-procurement-approval-agent.md) |
+| OpenAI + deterministic replay | [Procurement Approval Demo (standalone repo)](https://github.com/trajectly/procurement-approval-demo) |
 
 ---
 

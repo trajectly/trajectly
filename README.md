@@ -7,20 +7,23 @@ Record a baseline, enforce contracts, catch regressions before they ship. TRT is
 ## Install
 
 ```bash
-pip install trajectly
+python -m pip install trajectly
 ```
 
 ## 30-Second Example
 
-Pre-recorded fixtures are included in the repo, so you can try Trajectly immediately -- **no API keys needed**.
+Pre-recorded fixtures are included in standalone demo repos, so you can try Trajectly immediately -- **no API keys needed**.
 
 ```bash
-git clone https://github.com/trajectly/trajectly.git && cd trajectly
-python -m pip install -e ".[examples]"
-cd examples
+git clone https://github.com/trajectly/procurement-approval-demo.git
+cd procurement-approval-demo
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 
 # Run the regression test (replays from pre-recorded fixtures)
-python -m trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
+python -m trajectly run specs/trt-procurement-agent-regression.agent.yaml --project-root .
 
 # See what broke
 python -m trajectly report
@@ -99,20 +102,20 @@ See [docs/trajectly.md](docs/trajectly.md) for the full specification.
 | Example | Provider | Tools | What it tests |
 |---------|----------|-------|---------------|
 | [Support Escalation Demo (standalone repo)](https://github.com/trajectly/support-escalation-demo) | OpenAI + deterministic replay | `fetch_ticket`, `check_entitlements`, `escalate_to_human` | Real end-to-end PR workflow with dashboard, CI gate, repro, and shrink |
-| [Procurement Approval Agent](docs/tutorial-procurement-approval-agent.md) | LangChain adapter | `fetch_requisition`, `fetch_vendor_quotes`, `route_for_approval`, `create_purchase_order` | In-repo regression example for approval-sequence enforcement |
+| [Procurement Approval Demo (standalone repo)](https://github.com/trajectly/procurement-approval-demo) | OpenAI + deterministic replay | `fetch_requisition`, `fetch_vendor_quotes`, `route_for_approval`, `create_purchase_order` | Procurement governance regression loop with denied direct-award path |
 
-See [examples/README.md](examples/README.md) for the full regression loop walkthrough (record, run, repro, shrink, baseline update).
+Each standalone demo includes full README + tutorial walkthroughs (record, run, repro, shrink, fail/fix loop).
 
 ## CI Integration
 
 ### Any CI (recommended)
 
-Trajectly works in any CI system with a single `pip install`:
+Trajectly works in any CI system with a single install:
 
 ```bash
-pip install trajectly
-trajectly run specs/*.agent.yaml --project-root .
-trajectly report --pr-comment > comment.md
+python -m pip install trajectly
+python -m trajectly run specs/*.agent.yaml --project-root .
+python -m trajectly report --pr-comment > comment.md
 ```
 
 ### GitHub Actions
@@ -150,7 +153,7 @@ Caching `.trajectly/` across runs speeds up CI:
           restore-keys: trajectly-
 ```
 
-See [examples/.github/workflows/agent-tests.yml](examples/.github/workflows/agent-tests.yml) for a complete example and [docs/ci_github_actions.md](docs/ci_github_actions.md) for full reference.
+See [support-escalation-demo/.github/workflows/trajectly.yml](https://github.com/trajectly/support-escalation-demo/blob/main/.github/workflows/trajectly.yml), [procurement-approval-demo/.github/workflows/trajectly.yml](https://github.com/trajectly/procurement-approval-demo/blob/main/.github/workflows/trajectly.yml), and [docs/ci_github_actions.md](docs/ci_github_actions.md) for full reference.
 
 ## Architecture
 
@@ -191,9 +194,10 @@ Dicts merge recursively, lists and scalars override.
 Trajectly includes an optional local dashboard for visual trace inspection. It reads the same `.trajectly/reports/` data the CLI generates -- no cloud services required.
 
 ```bash
-cd trajectly-cloud-web
-npm install && npm run dev
-# Opens at http://localhost:5173
+git clone https://github.com/trajectly/trajectly-dashboard-local.git
+cd trajectly-dashboard-local
+npm install
+npm run dev
 ```
 
 Use the **CLI** for running tests, CI integration, and quick pass/fail checks. Use the **dashboard** when you want to visually inspect agent flow graphs, trace timelines, or compare baseline vs current metrics.
@@ -206,14 +210,14 @@ The production dashboard is live at [trajectly.dev](https://trajectly.dev).
 - [Architecture](docs/architecture_phase1.md) -- internal package boundaries, store interfaces
 - [CI: GitHub Actions](docs/ci_github_actions.md) -- workflow examples, inputs, artifacts
 - [Support Escalation Demo repository](https://github.com/trajectly/support-escalation-demo) -- full real-world CI/PR regression walkthrough
-- [Tutorial: Procurement Approval Agent](docs/tutorial-procurement-approval-agent.md) -- LangChain procurement control walkthrough
+- [Procurement Approval Demo repository](https://github.com/trajectly/procurement-approval-demo) -- procurement governance regression walkthrough
 
 ## Contributing
 
 ```bash
 git clone https://github.com/trajectly/trajectly.git
 cd trajectly
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 ```
 
 Run the test suite:

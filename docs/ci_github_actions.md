@@ -96,4 +96,4 @@ The `.trajectly/` directory contains baselines, fixtures, and reports. You can c
 
 ## Example Workflow
 
-See [examples/.github/workflows/agent-tests.yml](../examples/.github/workflows/agent-tests.yml) for a complete example that runs agent regression tests on push and PR, using pre-recorded fixtures (no API keys needed in CI).
+See [support-escalation-demo/.github/workflows/trajectly.yml](https://github.com/trajectly/support-escalation-demo/blob/main/.github/workflows/trajectly.yml) and [procurement-approval-demo/.github/workflows/trajectly.yml](https://github.com/trajectly/procurement-approval-demo/blob/main/.github/workflows/trajectly.yml) for complete standalone examples that run agent regression tests on push and PR, using pre-recorded fixtures (no API keys needed in CI).

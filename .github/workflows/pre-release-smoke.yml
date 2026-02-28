@@ -17,39 +17,9 @@ jobs:
       - name: Install core
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          python -m pip install -e ".[dev]"
       - name: Core smoke sequence
         run: |
-          trajectly init
-          trajectly record tests/*.agent.yaml
-          trajectly run tests/*.agent.yaml
-
-  examples-smoke:
-    runs-on: ubuntu-latest
-    if: ${{ vars.HAS_LLM_KEYS == 'true' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install core
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-          pip install openai
-      - name: Examples smoke sequence
-        working-directory: examples
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          trajectly init
-          trajectly record specs/trt-procurement-approval-agent-baseline.agent.yaml
-          trajectly run specs/trt-procurement-approval-agent-baseline.agent.yaml
-          set +e
-          trajectly run specs/trt-procurement-approval-agent-regression.agent.yaml
-          code_regression=$?
-          set -e
-          if [ "$code_regression" -ne 1 ]; then
-            echo "Intentional regression check did not return exit code 1" >&2
-            exit 1
-          fi
+          python -m trajectly init
+          python -m trajectly record tests/*.agent.yaml
+          python -m trajectly run tests/*.agent.yaml
