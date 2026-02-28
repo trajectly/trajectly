@@ -40,7 +40,7 @@ agent_step("done", {"value": val})
     _write_file(
         spec,
         """
-schema_version: "0.3"
+schema_version: "0.4"
 name: smoke-test
 command: python agent.py
 workdir: .
@@ -127,7 +127,7 @@ class TestCliSmoke:
         for name in ["zebra.agent.yaml", "alpha.agent.yaml", "middle.agent.yaml"]:
             _write_file(
                 specs_dir / name,
-                'schema_version: "0.3"\nname: ' + name.replace(".agent.yaml", "") + "\ncommand: echo ok",
+                'schema_version: "0.4"\nname: ' + name.replace(".agent.yaml", "") + "\ncommand: echo ok",
             )
 
         result = discover_spec_files(tmp_path)

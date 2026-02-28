@@ -100,7 +100,7 @@ A baseline is a recorded agent run that represents correct behavior. Trajectly s
 A spec (`.agent.yaml` file) tells Trajectly how to run your agent and what rules to check. At minimum, it has a name, a command, and contracts:
 
 ```yaml
-schema_version: "0.3"
+schema_version: "0.4"
 name: trt-procurement-agent
 command: python -m agents.procurement_agent
 contracts:
@@ -364,7 +364,7 @@ result = openai_chat_completion(client, model="gpt-4o", messages=messages)
 3. Create a spec file (`my-agent.agent.yaml`):
 
 ```yaml
-schema_version: "0.3"
+schema_version: "0.4"
 name: my-agent
 command: python my_agent.py
 contracts:
@@ -387,7 +387,7 @@ Start minimal and add rules as needed:
 
 ```yaml
 # Minimal -- just track tool calls
-schema_version: "0.3"
+schema_version: "0.4"
 name: my-agent
 command: python my_agent.py
 contracts:
@@ -443,7 +443,7 @@ When a run fails:
 3. **Minimize the trace**: `python -m trajectly shrink` reduces the failing trace to the smallest example that still fails.
 4. **Decide what to do**:
    - If the behavior change is a bug: fix your agent code and rerun.
-   - If the behavior change is intentional: update the baseline with `python -m trajectly baseline update`.
+   - If the behavior change is intentional: create and promote a new baseline version.
 
 ```mermaid
 flowchart TD
@@ -451,7 +451,7 @@ flowchart TD
     report --> repro["python -m trajectly repro"]
     repro --> decide{"Intentional change?"}
     decide -->|No| fixCode["Fix agent code"]
-    decide -->|Yes| updateBaseline["python -m trajectly baseline update"]
+    decide -->|Yes| updateBaseline["python -m trajectly baseline create --name v2 <spec>"]
     fixCode --> rerun["python -m trajectly run"]
     updateBaseline --> rerun
     rerun --> pass["Confirm PASS"]
@@ -473,7 +473,10 @@ flowchart TD
 | `python -m trajectly repro` | Reproduce the latest failure from fixtures |
 | `python -m trajectly shrink` | Minimize a failing trace |
 | `python -m trajectly report` | Print the latest report |
-| `python -m trajectly baseline update` | Re-record baselines for intentional changes |
+| `python -m trajectly baseline list` | List baseline versions and promoted pointers |
+| `python -m trajectly baseline create --name <version>` | Record a named baseline version |
+| `python -m trajectly baseline promote <version>` | Promote a version to active |
+| `python -m trajectly baseline diff <slug> <left> <right>` | Diff two baseline versions |
 
 ### `python -m trajectly --version`
 
@@ -481,7 +484,7 @@ Print the installed version and exit.
 
 ```bash
 python -m trajectly --version
-# trajectly 0.3.0rc3
+# trajectly 0.4.0
 ```
 
 ### `python -m trajectly init [project_root]`
@@ -514,7 +517,7 @@ python -m trajectly record specs/my-agent-baseline.agent.yaml
 python -m trajectly record --auto
 ```
 
-### `python -m trajectly run <targets...> [--project-root PATH] [--baseline-dir PATH] [--fixtures-dir PATH] [--strict|--no-strict]`
+### `python -m trajectly run <targets...> [--project-root PATH] [--baseline VERSION] [--strict|--no-strict]`
 
 Run specs against recorded baselines and report regressions.
 
@@ -524,6 +527,9 @@ python -m trajectly run specs/my-agent-baseline.agent.yaml
 
 # Run all specs (CI gate)
 python -m trajectly run specs/*.agent.yaml
+
+# Run using a specific baseline version
+python -m trajectly run specs/my-agent.agent.yaml --baseline v1
 
 # Override strict mode
 python -m trajectly run specs/my-agent.agent.yaml --strict
@@ -563,13 +569,37 @@ python -m trajectly report --json       # JSON
 python -m trajectly report --pr-comment # PR-ready markdown
 ```
 
-### `python -m trajectly baseline update [targets...] [--auto] [--allow-ci-write]`
+### `python -m trajectly baseline list [spec...] [--project-root PATH]`
 
-Re-record baselines when behavior changes are intentional.
+List known baseline versions per spec and which version is promoted.
 
 ```bash
-python -m trajectly baseline update specs/my-agent-baseline.agent.yaml
-python -m trajectly baseline update --auto
+python -m trajectly baseline list
+python -m trajectly baseline list specs/my-agent.agent.yaml
+```
+
+### `python -m trajectly baseline create --name <version> [targets...] [--project-root PATH] [--allow-ci-write]`
+
+Record a named baseline version for one or more specs.
+
+```bash
+python -m trajectly baseline create --name v2 specs/my-agent.agent.yaml
+```
+
+### `python -m trajectly baseline promote <version> [targets...] [--project-root PATH]`
+
+Promote a named baseline version so default `python -m trajectly run` uses it.
+
+```bash
+python -m trajectly baseline promote v2 specs/my-agent.agent.yaml
+```
+
+### `python -m trajectly baseline diff <spec-slug> <left> <right> [--project-root PATH] [--json]`
+
+Compare two baseline versions for one spec.
+
+```bash
+python -m trajectly baseline diff my-agent v1 v2 --json
 ```
 
 ### Exit codes
@@ -605,18 +635,19 @@ python -m trajectly shrink
 **Intentional behavior update:**
 
 ```bash
-python -m trajectly baseline update specs/my-agent-baseline.agent.yaml
+python -m trajectly baseline create --name v2 specs/my-agent-baseline.agent.yaml
+python -m trajectly baseline promote v2 specs/my-agent-baseline.agent.yaml
 python -m trajectly run specs/my-agent-baseline.agent.yaml
 ```
 
 ---
 
-## 6) Spec Reference (`.agent.yaml`, v0.3)
+## 6) Spec Reference (`.agent.yaml`, v0.4)
 
 ### Minimal spec
 
 ```yaml
-schema_version: "0.3"
+schema_version: "0.4"
 name: my-agent
 command: python my_agent.py
 contracts:
@@ -630,7 +661,7 @@ Required fields: `schema_version`, `name`, `command`.
 ### Full spec with all options
 
 ```yaml
-schema_version: "0.3"
+schema_version: "0.4"
 name: my-agent
 command: python my_agent.py
 
@@ -685,7 +716,7 @@ artifacts:
 
 | Field | Description |
 |---|---|
-| `schema_version` | `"0.3"` or `"v0.3"` |
+| `schema_version` | `"0.4"` or `"v0.4"` |
 | `name` | Stable identifier used in reports |
 | `command` | Shell command to run the agent |
 

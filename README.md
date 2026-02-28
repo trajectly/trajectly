@@ -173,7 +173,7 @@ Specs can extend a base spec with deterministic deep-merge:
 
 ```yaml
 # base.agent.yaml
-schema_version: "0.3"
+schema_version: "0.4"
 name: base-agent
 command: python agent.py
 contracts:

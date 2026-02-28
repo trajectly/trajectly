@@ -197,7 +197,7 @@ def test_sdk_context_contract_max_calls_total_raises(tmp_path: Path) -> None:
         ctx.invoke_tool("second", lambda: "boom", (), {})
 
 
-def test_sdk_context_emits_v03_trace_when_trace_paths_provided(tmp_path: Path) -> None:
+def test_sdk_context_emits_v04_trace_when_trace_paths_provided(tmp_path: Path) -> None:
     events_path = tmp_path / "events.jsonl"
     trace_path = tmp_path / "events.trace.jsonl"
     trace_meta_path = tmp_path / "events.trace.meta.json"
@@ -219,7 +219,7 @@ def test_sdk_context_emits_v03_trace_when_trace_paths_provided(tmp_path: Path) -
     raw_meta = json.loads(trace_meta_path.read_text(encoding="utf-8"))
     trace_lines = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
-    assert raw_meta["schema_version"] == "0.3"
+    assert raw_meta["schema_version"] == "0.4"
     assert raw_meta["normalizer_version"] == "1"
     assert trace_lines[0]["kind"] == "MESSAGE"
     assert trace_lines[1]["kind"] == "TOOL_CALL"

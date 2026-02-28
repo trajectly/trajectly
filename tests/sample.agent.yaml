@@ -1,3 +1,4 @@
+schema_version: "0.4"
 name: sample
 command: python agents/simple_agent.py
 fixture_policy: by_index

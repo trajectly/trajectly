@@ -29,7 +29,7 @@ def _setup_workspace(root: Path) -> Path:
     _write(
         spec,
         """
-schema_version: "0.3"
+schema_version: "0.4"
 name: bench
 command: python agent.py
 workdir: .
