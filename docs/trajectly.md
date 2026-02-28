@@ -594,7 +594,7 @@ trajectly run specs/my-agent-baseline.agent.yaml
 trajectly run specs/*.agent.yaml
 ```
 
-**Failure triage:**
+**Failure analysis:**
 
 ```bash
 trajectly report

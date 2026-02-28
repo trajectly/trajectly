@@ -20,7 +20,7 @@ All notable changes to this project are documented in this file.
 - Canonical JSON stability tests (`test_canonical_stability.py`).
 - CLI smoke tests (`test_cli_smoke.py`): init, record, run, report, exit codes.
 - Spec extends tests (`test_spec_extends.py`): single/chained extends, cycle detection.
-- Phase 1 audit report (`docs/audit_phase1.md`).
+- Phase 1 architecture audit report.
 - CI GitHub Actions guide (`docs/ci_github_actions.md`).
 
 ### Changed
@@ -64,7 +64,7 @@ All notable changes to this project are documented in this file.
 
 - TRT-first CLI coverage:
   - `trajectly shrink` for bounded ddmin counterexample reduction
-  - `trajectly migrate spec` for v0.2/v1 spec conversion to v0.3 format
+  - v0.2/v1 to v0.3 spec migration support
 - Shrinker module (`src/trajectly/shrink/ddmin.py`) with class-preserving failure predicate support.
 - TRT docs set under `docs/trt/`:
   - What Is TRT
@@ -87,7 +87,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
-- Deterministic replay/triage loop hardening with additional repeat-run stability test for TRT witness/verdict output.
+- Deterministic replay analysis loop hardening with additional repeat-run stability test for TRT witness/verdict output.
 
 ### Added
 

@@ -1,7 +1,7 @@
 name: Feature request
 description: Propose a new capability or improvement.
 labels:
-  - status:needs-triage
+  - status:needs-review
   - type:feature
 body:
   - type: textarea
@@ -28,7 +28,6 @@ body:
       options:
         - core
         - action
-        - examples
         - docs
         - schema
         - adapters

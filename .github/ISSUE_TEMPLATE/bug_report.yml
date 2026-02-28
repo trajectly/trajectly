@@ -1,7 +1,7 @@
 name: Bug report
 description: Report a defect in core behavior, CI, replay, diffing, or adapters.
 labels:
-  - status:needs-triage
+  - status:needs-review
   - type:bug
 body:
   - type: textarea
@@ -18,7 +18,6 @@ body:
       options:
         - core
         - action
-        - examples
         - docs
         - schema
         - adapters

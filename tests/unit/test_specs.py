@@ -302,12 +302,12 @@ sequence:
         spec_path,
         f"""
 schema_version: "0.3"
-name: support-triage
+name: support-routing
 command: python agent.py
 workdir: .
 mode_profile: ci_safe
 baseline:
-  trace: .trajectly/baselines/support-triage.trace.jsonl
+  trace: .trajectly/baselines/support-routing.trace.jsonl
 abstraction:
   config: trajectly/abstraction/default.yaml
 contracts:
