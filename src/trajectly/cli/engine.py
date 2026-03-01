@@ -9,7 +9,7 @@ import re
 import subprocess
 import time as time_module
 import uuid
-from collections import Counter
+from collections import Counter, defaultdict, deque
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, cast
@@ -25,6 +25,7 @@ from trajectly.constants import (
     TRT_SPEC_SCHEMA_VERSION,
 )
 from trajectly.contracts import evaluate_contracts
+from trajectly.core.canonical import sha256_of_data
 from trajectly.diff import compare_traces
 from trajectly.diff.models import DiffResult, Finding
 from trajectly.engine_common import (
@@ -304,6 +305,259 @@ def _extract_determinism_warnings(result: ExecutionResult) -> list[dict[str, str
     return warnings
 
 
+def _determinism_warning_messages(warnings: list[dict[str, str]]) -> list[str]:
+    """Collapse structured determinism warnings to unique user-facing messages."""
+    messages: list[str] = []
+    seen: set[str] = set()
+    for warning in warnings:
+        raw_message = str(warning.get("message", "")).strip()
+        code = str(warning.get("code", "")).strip()
+        normalized = raw_message or code
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        messages.append(normalized)
+    return messages
+
+
+def _collect_available_baselines(paths: _StatePaths, slug: str) -> list[str]:
+    """Return known baseline versions, placing promoted version first when present."""
+    versions = _list_baseline_versions(paths, slug)
+    if not versions:
+        return []
+    promoted = _read_promoted_version(paths, slug)
+    if promoted and promoted in versions:
+        return [promoted] + [version for version in versions if version != promoted]
+    return versions
+
+
+def _collect_baseline_metadata(paths: _StatePaths, slug: str, versions: list[str]) -> dict[str, dict[str, Any]]:
+    """Load per-version runtime metadata and attach promotion flags."""
+    promoted = _read_promoted_version(paths, slug)
+    metadata: dict[str, dict[str, Any]] = {}
+    for version in versions:
+        runtime_meta_path = _baseline_runtime_meta_path(paths, slug, version)
+        payload: dict[str, Any] = {}
+        if runtime_meta_path.exists():
+            try:
+                loaded = _load_runtime_baseline_meta(runtime_meta_path)
+                if isinstance(loaded, dict):
+                    payload.update(loaded)
+            except Exception:
+                payload["load_error"] = f"invalid runtime metadata: {runtime_meta_path}"
+        payload["version"] = version
+        payload["promoted"] = promoted == version
+        metadata[version] = payload
+    return metadata
+
+
+def _extract_fixture_observations(current_events: list[TraceEvent]) -> list[dict[str, Any]]:
+    """Pair call/return trace events into normalized fixture-observation records."""
+    observations: list[dict[str, Any]] = []
+    pending_tools: deque[dict[str, Any]] = deque()
+    pending_llms: deque[dict[str, Any]] = deque()
+
+    for event in current_events:
+        payload = event.payload
+        if event.event_type == "tool_called":
+            tool_name = str(payload.get("tool_name", "unknown"))
+            request_payload = payload.get("input", {})
+            request_map = request_payload if isinstance(request_payload, dict) else {"value": request_payload}
+            pending_tools.append(
+                {
+                    "kind": "tool",
+                    "name": tool_name,
+                    "request": request_map,
+                    "input_hash": sha256_of_data(request_map),
+                }
+            )
+            continue
+
+        if event.event_type == "tool_returned" and pending_tools:
+            prior = pending_tools.popleft()
+            observations.append(
+                {
+                    **prior,
+                    "response": {
+                        "output": payload.get("output"),
+                        "error": payload.get("error"),
+                        "error_code": payload.get("error_code"),
+                    },
+                }
+            )
+            continue
+
+        if event.event_type == "llm_called":
+            provider = str(payload.get("provider", "unknown"))
+            model = str(payload.get("model", "unknown"))
+            request_payload = payload.get("request", {})
+            request_map = request_payload if isinstance(request_payload, dict) else {"value": request_payload}
+            pending_llms.append(
+                {
+                    "kind": "llm",
+                    "name": f"{provider}:{model}",
+                    "request": request_map,
+                    "input_hash": sha256_of_data(request_map),
+                }
+            )
+            continue
+
+        if event.event_type == "llm_returned" and pending_llms:
+            prior = pending_llms.popleft()
+            observations.append(
+                {
+                    **prior,
+                    "response": {
+                        "response": payload.get("response"),
+                        "usage": payload.get("usage"),
+                        "error": payload.get("error"),
+                        "error_code": payload.get("error_code"),
+                    },
+                }
+            )
+
+    return observations
+
+
+def _build_fixture_usage(current_events: list[TraceEvent], fixture_store_path: Path) -> dict[str, Any]:
+    """Compute fixture consumption summary plus per-call match diagnostics."""
+    if not fixture_store_path.exists():
+        return {
+            "summary": {"total": 0, "consumed": 0, "misses": 0, "exhausted": 0},
+            "fixtures": [],
+        }
+
+    fixture_store = FixtureStore.load(fixture_store_path)
+    available_by_signature: dict[tuple[str, str, str], int] = defaultdict(int)
+    for entry in fixture_store.entries:
+        available_by_signature[(entry.kind, entry.name, entry.input_hash)] += 1
+
+    observed = _extract_fixture_observations(current_events)
+    consumed_by_signature: dict[tuple[str, str, str], int] = defaultdict(int)
+
+    consumed = 0
+    misses = 0
+    exhausted = 0
+    fixtures: list[dict[str, Any]] = []
+
+    for call in observed:
+        signature = (str(call["kind"]), str(call["name"]), str(call["input_hash"]))
+        available = available_by_signature.get(signature, 0)
+        consumed_by_signature[signature] += 1
+        signature_consumed = consumed_by_signature[signature]
+        matched = available > 0 and signature_consumed <= available
+
+        if matched:
+            consumed += 1
+        else:
+            misses += 1
+            if available > 0:
+                exhausted += 1
+
+        fixture_row: dict[str, Any] = {
+            "type": call["kind"],
+            "key": f"{signature[0]}:{signature[1]}:{signature[2][:12]}",
+            "label": signature[1],
+            "request": call["request"],
+            "response": call["response"],
+            "matched": matched,
+        }
+        if not matched:
+            fixture_row["mismatch"] = {
+                "expected": {"available": available, "signature": signature[2]},
+                "actual": {"consumed": signature_consumed},
+            }
+        fixtures.append(fixture_row)
+
+    return {
+        "summary": {
+            "total": len(fixture_store.entries),
+            "consumed": consumed,
+            "misses": misses,
+            "exhausted": exhausted,
+        },
+        "fixtures": fixtures,
+    }
+
+
+_DETERMINISM_CATEGORY_BY_CODE = {
+    "NONDETERMINISM_CLOCK_DETECTED": "time",
+    "NONDETERMINISM_RANDOM_DETECTED": "random",
+    "NONDETERMINISM_UUID_DETECTED": "uuid",
+    "NONDETERMINISM_FILESYSTEM_DETECTED": "filesystem",
+}
+
+
+def _infer_determinism_category(text: str) -> str | None:
+    """Map free-form warning/finding text into a determinism category."""
+    normalized = text.lower()
+    if "network" in normalized or "http" in normalized or "domain" in normalized:
+        return "network"
+    if "clock" in normalized or "utc" in normalized or "datetime" in normalized or "timestamp" in normalized:
+        return "time"
+    if "random" in normalized:
+        return "random"
+    if "uuid" in normalized:
+        return "uuid"
+    if "filesystem" in normalized or "file" in normalized or "path" in normalized:
+        return "filesystem"
+    return None
+
+
+def _build_determinism_diagnostics(
+    *,
+    spec: AgentSpec,
+    determinism_warnings: list[dict[str, str]],
+    diff_result: DiffResult,
+) -> list[dict[str, Any]]:
+    """Build normalized determinism diagnostics from warnings, findings, and spec config."""
+    diagnostics: list[dict[str, Any]] = []
+    dedupe: set[tuple[str, str | None, str]] = set()
+
+    def add(category: str, message: str, *, detected: bool, code: str | None = None) -> None:
+        key = (category, code, message)
+        if key in dedupe:
+            return
+        dedupe.add(key)
+        row: dict[str, Any] = {
+            "category": category,
+            "message": message,
+            "detected": detected,
+        }
+        if code:
+            row["code"] = code
+        diagnostics.append(row)
+
+    for warning in determinism_warnings:
+        code = str(warning.get("code", "")).strip() or None
+        message = str(warning.get("message", "")).strip() or (code or "Determinism warning detected")
+        category = _DETERMINISM_CATEGORY_BY_CODE.get(code or "")
+        if category is None:
+            category = _infer_determinism_category(message)
+        if category is None:
+            continue
+        add(category, message, detected=True, code=code)
+
+    for finding in diff_result.findings:
+        merged_text = f"{finding.classification} {finding.message}"
+        category = _infer_determinism_category(merged_text)
+        if category is None:
+            continue
+        add(category, finding.message, detected=True, code=finding.classification.upper())
+
+    # Config-only diagnostics help explain why a category may be empty during replay.
+    if spec.determinism.clock.mode == "disabled":
+        add("time", "Clock determinism mode is disabled for this spec.", detected=False)
+    if spec.determinism.random.mode == "disabled":
+        add("random", "Random determinism mode is disabled for this spec.", detected=False)
+    if spec.determinism.filesystem.mode == "permissive":
+        add("filesystem", "Filesystem determinism mode is permissive for this spec.", detected=False)
+    if spec.replay.mode == "online":
+        add("network", "Replay mode is online; network calls may execute.", detected=False)
+
+    return diagnostics
+
+
 def _template_assets(template: str) -> dict[Path, str]:
     if template == "openai":
         return {
@@ -555,6 +809,11 @@ def _augment_report_with_trt(
     *,
     baseline_version: str | None = None,
     determinism_warnings: list[dict[str, str]] | None = None,
+    available_baselines: list[str] | None = None,
+    baseline_metadata: dict[str, dict[str, Any]] | None = None,
+    fixture_usage: dict[str, Any] | None = None,
+    determinism_diagnostics: list[dict[str, Any]] | None = None,
+    replay_mode: str | None = None,
 ) -> None:
     raw = json.loads(report_json.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
@@ -564,6 +823,17 @@ def _augment_report_with_trt(
         trt_payload["baseline_version"] = baseline_version
     if determinism_warnings:
         trt_payload["determinism_warnings"] = determinism_warnings
+        trt_payload["determinism_warning_messages"] = _determinism_warning_messages(determinism_warnings)
+    if available_baselines is not None:
+        trt_payload["available_baselines"] = available_baselines
+    if baseline_metadata is not None:
+        trt_payload["baseline_metadata"] = baseline_metadata
+    if fixture_usage is not None:
+        trt_payload["fixture_usage"] = fixture_usage
+    if determinism_diagnostics is not None:
+        trt_payload["determinism_diagnostics"] = determinism_diagnostics
+    if replay_mode is not None:
+        trt_payload["replay_mode"] = replay_mode
     raw["trt_v03"] = trt_payload
     report_json.write_text(json.dumps(raw, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -1080,6 +1350,16 @@ def run_specs(
 
         _refresh_summary(diff_result)
 
+        available_baselines = _collect_available_baselines(paths, slug)
+        baseline_metadata = _collect_baseline_metadata(paths, slug, available_baselines)
+        fixture_usage = _build_fixture_usage(current_events, fixture_path)
+        determinism_diagnostics = _build_determinism_diagnostics(
+            spec=spec,
+            determinism_warnings=determinism_warnings,
+            diff_result=diff_result,
+        )
+        warning_messages = _determinism_warning_messages(determinism_warnings)
+
         report_json = paths.reports / f"{slug}.json"
         report_md = paths.reports / f"{slug}.md"
         write_reports(spec_name=spec.name, result=diff_result, json_path=report_json, md_path=report_md)
@@ -1088,6 +1368,11 @@ def run_specs(
             trt_result,
             baseline_version=resolved_version,
             determinism_warnings=determinism_warnings,
+            available_baselines=available_baselines,
+            baseline_metadata=baseline_metadata,
+            fixture_usage=fixture_usage,
+            determinism_diagnostics=determinism_diagnostics,
+            replay_mode=spec.replay.mode,
         )
         repro_artifact = _write_repro_artifact(
             paths=paths,
@@ -1147,7 +1432,10 @@ def run_specs(
                     trt_result.report.primary_violation.to_dict() if trt_result.report.primary_violation else None
                 ),
                 "trt_counterexample_prefix": str(counterexample_prefix) if counterexample_prefix else None,
-                "determinism_warnings": determinism_warnings,
+                "available_baselines": available_baselines,
+                "baseline_metadata": baseline_metadata,
+                "determinism_warnings": warning_messages,
+                "determinism_warnings_structured": determinism_warnings,
             }
         )
 

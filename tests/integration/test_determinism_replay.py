@@ -73,6 +73,10 @@ strict: true
     second_trt = cast(dict[str, Any], second_report["trt_v03"])
     assert first_trt == second_trt
     assert first_trt.get("witness_index") == second_trt.get("witness_index")
+    assert first_trt.get("replay_mode") == "offline"
+    assert isinstance(first_trt.get("fixture_usage"), dict)
+    assert isinstance(first_trt["fixture_usage"]["fixtures"], list)
+    assert isinstance(first_trt.get("determinism_diagnostics"), list)
 
 
 def test_replay_blocks_live_network_in_ci_safe_mode(tmp_path: Path) -> None:
