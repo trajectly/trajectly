@@ -360,6 +360,20 @@ add(1, 2)
     assert "v1" in entries["versioned"]["versions"]
     assert "v2" in entries["versioned"]["versions"]
 
+    report_payload = json.loads((tmp_path / ".trajectly" / "reports" / "versioned.json").read_text(encoding="utf-8"))
+    trt_payload = report_payload["trt_v03"]
+    assert trt_payload["baseline_version"] == "v2"
+    assert "v1" in trt_payload["available_baselines"]
+    assert "v2" in trt_payload["available_baselines"]
+    assert "v1" in trt_payload["baseline_metadata"]
+    assert "v2" in trt_payload["baseline_metadata"]
+
+    latest_payload = json.loads((tmp_path / ".trajectly" / "reports" / "latest.json").read_text(encoding="utf-8"))
+    latest_row = latest_payload["reports"][0]
+    assert "available_baselines" in latest_row
+    assert "baseline_metadata" in latest_row
+    assert isinstance(latest_row["determinism_warnings"], list)
+
 
 def test_run_enforces_contract_tool_deny(tmp_path: Path) -> None:
     script = tmp_path / "agent.py"
@@ -682,3 +696,8 @@ contracts:
     second_trt = second_payload["trt_v03"]
 
     assert second_trt == first_trt
+    assert first_trt.get("witness_index") == second_trt.get("witness_index")
+    assert first_trt.get("replay_mode") == "offline"
+    assert isinstance(first_trt.get("fixture_usage"), dict)
+    assert isinstance(first_trt["fixture_usage"]["summary"]["total"], int)
+    assert isinstance(first_trt.get("determinism_diagnostics"), list)

@@ -82,6 +82,13 @@ class TRTReportV03:
     repro_command: str | None = None
     counterexample_paths: dict[str, str] = field(default_factory=dict)
     shrink_stats: ShrinkStatsV03 | None = None
+    baseline_version: str | None = None
+    available_baselines: list[str] = field(default_factory=list)
+    baseline_metadata: dict[str, dict[str, Any]] = field(default_factory=dict)
+    fixture_usage: dict[str, Any] | None = None
+    determinism_diagnostics: list[dict[str, Any]] = field(default_factory=list)
+    determinism_warnings: list[dict[str, str]] = field(default_factory=list)
+    replay_mode: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -100,6 +107,20 @@ class TRTReportV03:
             payload["repro_command"] = self.repro_command
         if self.shrink_stats is not None:
             payload["shrink_stats"] = self.shrink_stats.to_dict()
+        if self.baseline_version is not None:
+            payload["baseline_version"] = self.baseline_version
+        if self.available_baselines:
+            payload["available_baselines"] = self.available_baselines
+        if self.baseline_metadata:
+            payload["baseline_metadata"] = self.baseline_metadata
+        if self.fixture_usage is not None:
+            payload["fixture_usage"] = self.fixture_usage
+        if self.determinism_diagnostics:
+            payload["determinism_diagnostics"] = self.determinism_diagnostics
+        if self.determinism_warnings:
+            payload["determinism_warnings"] = self.determinism_warnings
+        if self.replay_mode is not None:
+            payload["replay_mode"] = self.replay_mode
         return payload
 
 
