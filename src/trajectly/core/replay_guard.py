@@ -38,6 +38,25 @@ _HTTPX_ASYNC_CLIENT_REQUEST: Any = None
 _WEBSOCKET_CREATE_CONNECTION: Any = None
 
 
+class _GuardedPopenProxy:
+    """Callable proxy that preserves `subprocess.Popen[...]` subscription semantics."""
+
+    def __init__(self, wrapped: Any, original: Any) -> None:
+        self._wrapped = wrapped
+        self._original = original
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrapped(*args, **kwargs)
+
+    def __getitem__(self, item: Any) -> Any:
+        original = self._original
+        if hasattr(original, "__getitem__"):
+            return original[item]
+        if hasattr(original, "__class_getitem__"):
+            return original.__class_getitem__(item)
+        raise TypeError(f"{type(original).__name__!r} object is not subscriptable")
+
+
 def _extract_host(address: Any) -> str:
     if isinstance(address, (list, tuple)) and address:
         return str(address[0]).strip().lower()
@@ -229,7 +248,7 @@ def activate() -> None:
     urllib.request.urlopen = _guard_urlopen
     subprocess_module: Any = subprocess
     subprocess_module.run = _guard_subprocess_run
-    subprocess_module.Popen = _guard_subprocess_popen
+    subprocess_module.Popen = _GuardedPopenProxy(_guard_subprocess_popen, _ORIGINAL_SUBPROCESS_POPEN)
 
     try:
         requests_module: Any = importlib.import_module("requests")

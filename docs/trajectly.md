@@ -817,21 +817,31 @@ Available adapters:
 | Adapter | Function |
 |---|---|
 | OpenAI | `openai_chat_completion(client, model, messages, ...)` |
+| Gemini | `gemini_generate_content(client, model, contents, ...)` |
 | LangChain | `langchain_invoke(runnable, input_data, model=..., provider="langchain")` |
-| Gemini | Use `invoke_llm_call("gemini", model, call_fn, ...)` (see low-level helpers) |
 
 ### Low-level helpers
 
 For cases where decorators or adapters don't fit:
 
 ```python
-from trajectly.sdk import invoke_tool_call, invoke_llm_call, agent_step
+from trajectly.sdk import (
+    invoke_llm_call,
+    invoke_llm_call_async,
+    invoke_tool_call,
+    invoke_tool_call_async,
+    agent_step,
+)
 
 # Record a tool call manually
 result = invoke_tool_call("tool_name", my_function, arg1, arg2)
 
 # Record an LLM call manually
 result = invoke_llm_call("openai", "gpt-4o", my_llm_function, prompt)
+
+# Async call paths
+tool_result = await invoke_tool_call_async("tool_name", my_async_tool, arg1, arg2)
+llm_result = await invoke_llm_call_async("openai", "gpt-4o", my_async_llm_function, prompt)
 
 # Mark a logical agent step
 agent_step("processing_input", details={"key": "value"})

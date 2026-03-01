@@ -37,6 +37,25 @@ _ORIGINAL_SUBPROCESS_POPEN = subprocess.Popen
 _ACTIVE = False
 
 
+class _GuardedPopenProxy:
+    """Callable proxy that preserves `subprocess.Popen[...]` usage in imports."""
+
+    def __init__(self, wrapped: Any, original: Any) -> None:
+        self._wrapped = wrapped
+        self._original = original
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrapped(*args, **kwargs)
+
+    def __getitem__(self, item: Any) -> Any:
+        original = self._original
+        if hasattr(original, "__getitem__"):
+            return original[item]
+        if hasattr(original, "__class_getitem__"):
+            return original.__class_getitem__(item)
+        raise TypeError(f"{type(original).__name__!r} object is not subscriptable")
+
+
 @dataclass(slots=True)
 class DeterminismViolationError(RuntimeError):
     code: str
@@ -443,7 +462,7 @@ def _install_subprocess_hooks(state: RuntimeState) -> None:
         return _ORIGINAL_SUBPROCESS_POPEN(*args, **kwargs)
 
     cast(Any, subprocess).run = guarded_run
-    cast(Any, subprocess).Popen = guarded_popen
+    cast(Any, subprocess).Popen = _GuardedPopenProxy(guarded_popen, _ORIGINAL_SUBPROCESS_POPEN)
 
 
 def activate_from_env() -> None:

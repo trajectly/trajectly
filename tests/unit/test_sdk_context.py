@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -34,6 +36,37 @@ def test_sdk_context_record_mode_emits_events(tmp_path: Path) -> None:
         {},
     )
 
+    events = _read_events(events_path)
+    event_types = [event["event_type"] for event in events]
+
+    assert tool_result == 5
+    assert llm_result["response"] == "ok:hello"
+    assert event_types == ["tool_called", "tool_returned", "llm_called", "llm_returned"]
+
+
+def test_sdk_context_record_mode_async_emits_events(tmp_path: Path) -> None:
+    events_path = tmp_path / "events.jsonl"
+    settings = _RuntimeSettings(
+        mode="record",
+        events_path=events_path,
+        fixtures_path=None,
+        fixture_policy="by_index",
+        strict=False,
+    )
+    ctx = SDKContext(settings)
+
+    async def _run() -> tuple[int, dict[str, Any]]:
+        async def add(left: int, right: int) -> int:
+            return left + right
+
+        async def fake_llm(text: str) -> dict[str, Any]:
+            return {"response": f"ok:{text}", "usage": {"total_tokens": 7}}
+
+        tool_result = await ctx.invoke_tool_async("add", add, (2, 3), {})
+        llm_result = await ctx.invoke_llm_async("mock", "v1", fake_llm, ("hello",), {})
+        return tool_result, llm_result
+
+    tool_result, llm_result = asyncio.run(_run())
     events = _read_events(events_path)
     event_types = [event["event_type"] for event in events]
 
@@ -92,6 +125,67 @@ def test_sdk_context_replay_mode_uses_fixtures_without_calling_function(tmp_path
 
     tool_result = ctx.invoke_tool("add", _should_not_run, (2, 3), {})
     llm_result = ctx.invoke_llm("mock", "v1", _should_not_run, ("hello",), {})
+
+    events = _read_events(events_path)
+    returned_events = [e for e in events if e["event_type"] in {"tool_returned", "llm_returned"}]
+
+    assert tool_result == 5
+    assert llm_result["response"] == "ok:hello"
+    assert all(event["meta"].get("replayed") is True for event in returned_events)
+
+
+def test_sdk_context_replay_mode_async_uses_fixtures_without_calling_function(tmp_path: Path) -> None:
+    fixtures_path = tmp_path / "fixtures.json"
+    events_path = tmp_path / "events.jsonl"
+
+    store = FixtureStore(
+        entries=[
+            FixtureEntry(
+                kind="tool",
+                name="add",
+                input_payload={"args": [2, 3], "kwargs": {}},
+                input_hash="",
+                output_payload={"output": 5, "error": None},
+            ),
+            FixtureEntry(
+                kind="llm",
+                name="mock:v1",
+                input_payload={"args": ["hello"], "kwargs": {}},
+                input_hash="",
+                output_payload={
+                    "response": "ok:hello",
+                    "usage": {"total_tokens": 7},
+                    "result": {"response": "ok:hello", "usage": {"total_tokens": 7}},
+                    "error": None,
+                },
+            ),
+        ]
+    )
+    normalized = FixtureStore.from_dict(store.to_dict())
+    for entry in normalized.entries:
+        from trajectly.canonical import sha256_of_data
+
+        entry.input_hash = sha256_of_data(entry.input_payload)
+    normalized.save(fixtures_path)
+
+    settings = _RuntimeSettings(
+        mode="replay",
+        events_path=events_path,
+        fixtures_path=fixtures_path,
+        fixture_policy="by_hash",
+        strict=True,
+    )
+    ctx = SDKContext(settings)
+
+    async def _run() -> tuple[int, dict[str, Any]]:
+        async def _should_not_run(*_args: Any, **_kwargs: Any) -> Any:
+            raise AssertionError("should not execute underlying function in replay mode")
+
+        tool_result = await ctx.invoke_tool_async("add", _should_not_run, (2, 3), {})
+        llm_result = await ctx.invoke_llm_async("mock", "v1", _should_not_run, ("hello",), {})
+        return tool_result, llm_result
+
+    tool_result, llm_result = asyncio.run(_run())
 
     events = _read_events(events_path)
     returned_events = [e for e in events if e["event_type"] in {"tool_returned", "llm_returned"}]
@@ -179,6 +273,27 @@ def test_sdk_context_contract_deny_raises_with_stable_error_code(tmp_path: Path)
 
     with pytest.raises(SDKRuntimeError, match="CONTRACT_TOOL_DENIED"):
         ctx.invoke_tool("delete_account", lambda: "ok", (), {})
+
+
+def test_sdk_context_contract_deny_raises_with_stable_error_code_async(tmp_path: Path) -> None:
+    settings = _RuntimeSettings(
+        mode="record",
+        events_path=tmp_path / "events.jsonl",
+        fixtures_path=None,
+        fixture_policy="by_index",
+        strict=False,
+        contracts=_RuntimeContracts(tools_deny={"delete_account"}),
+    )
+    ctx = SDKContext(settings)
+
+    async def _run() -> None:
+        async def _delete() -> str:
+            return "ok"
+
+        await ctx.invoke_tool_async("delete_account", _delete, (), {})
+
+    with pytest.raises(SDKRuntimeError, match="CONTRACT_TOOL_DENIED"):
+        asyncio.run(_run())
 
 
 def test_sdk_context_contract_max_calls_total_raises(tmp_path: Path) -> None:

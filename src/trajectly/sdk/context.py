@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from trajectly.constants import TRT_TRACE_SCHEMA_VERSION
 from trajectly.fixtures import (
@@ -241,9 +242,81 @@ class SDKContext:
         except Exception as exc:
             self._emit("tool_returned", {"tool_name": name, "output": None, "error": str(exc)})
             raise
+        if inspect.isawaitable(output):
+            message = (
+                f"Tool `{name}` returned an awaitable in sync mode; "
+                "use invoke_tool_async or async SDK wrappers."
+            )
+            self._emit("tool_returned", {"tool_name": name, "output": None, "error": message})
+            raise SDKRuntimeError(message)
 
         self._emit("tool_returned", {"tool_name": name, "output": self._safe(output), "error": None})
         return output
+
+    async def invoke_tool_async(
+        self,
+        name: str,
+        fn: Callable[..., T] | Callable[..., Awaitable[T]],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> T:
+        input_payload = {"args": self._safe(args), "kwargs": self._safe(kwargs)}
+        self._emit("tool_called", {"tool_name": name, "input": input_payload})
+
+        contract_error = self._check_tool_contracts(name)
+        if contract_error:
+            self._emit("tool_returned", {"tool_name": name, "error": contract_error, "output": None})
+            raise SDKRuntimeError(contract_error)
+
+        if self.mode == "replay" and self._matcher is not None:
+            try:
+                fixture = self._matcher.match("tool", name, input_payload)
+            except FixtureExhaustedError as exc:
+                error_payload = exc.to_payload()
+                self._emit(
+                    "tool_returned",
+                    {
+                        "tool_name": name,
+                        "error": str(exc),
+                        "error_code": error_payload["code"],
+                        "error_details": error_payload,
+                        "output": None,
+                    },
+                )
+                raise SDKRuntimeError(str(exc)) from exc
+            except FixtureLookupError as exc:
+                self._emit("tool_returned", {"tool_name": name, "error": str(exc), "output": None})
+                raise SDKRuntimeError(str(exc)) from exc
+
+            if fixture is not None:
+                output_payload = fixture.output_payload.get("output")
+                error = fixture.output_payload.get("error")
+                self._emit(
+                    "tool_returned",
+                    {"tool_name": name, "output": self._safe(output_payload), "error": error},
+                    meta={"replayed": True},
+                )
+                if error:
+                    raise SDKRuntimeError(str(error))
+                return output_payload  # type: ignore[return-value]
+
+            if self._settings.strict:
+                message = f"Missing fixture for tool call: {name}"
+                self._emit("tool_returned", {"tool_name": name, "output": None, "error": message})
+                raise SDKRuntimeError(message)
+
+        try:
+            maybe_output = fn(*args, **kwargs)
+            if inspect.isawaitable(maybe_output):
+                output = await maybe_output
+            else:
+                output = maybe_output
+        except Exception as exc:
+            self._emit("tool_returned", {"tool_name": name, "output": None, "error": str(exc)})
+            raise
+
+        self._emit("tool_returned", {"tool_name": name, "output": self._safe(output), "error": None})
+        return cast(T, output)
 
     def _check_tool_contracts(self, tool_name: str) -> str | None:
         contracts = self._settings.contracts
@@ -371,6 +444,22 @@ class SDKContext:
                 },
             )
             raise
+        if inspect.isawaitable(result):
+            message = (
+                f"LLM call `{name}` returned an awaitable in sync mode; "
+                "use invoke_llm_async or async SDK wrappers."
+            )
+            self._emit(
+                "llm_returned",
+                {
+                    "provider": provider,
+                    "model": model,
+                    "response": None,
+                    "usage": {},
+                    "error": message,
+                },
+            )
+            raise SDKRuntimeError(message)
 
         response, usage = self._normalize_llm_result(result)
         self._emit(
@@ -385,6 +474,130 @@ class SDKContext:
             },
         )
         return result
+
+    async def invoke_llm_async(
+        self,
+        provider: str,
+        model: str,
+        fn: Callable[..., T] | Callable[..., Awaitable[T]],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> T:
+        request_payload = {"args": self._safe(args), "kwargs": self._safe(kwargs)}
+        name = f"{provider}:{model}"
+        self._emit(
+            "llm_called",
+            {
+                "provider": provider,
+                "model": model,
+                "request": request_payload,
+            },
+        )
+
+        if self.mode == "replay" and self._matcher is not None:
+            try:
+                fixture = self._matcher.match("llm", name, request_payload)
+            except FixtureExhaustedError as exc:
+                error_payload = exc.to_payload()
+                self._emit(
+                    "llm_returned",
+                    {
+                        "provider": provider,
+                        "model": model,
+                        "response": None,
+                        "usage": {},
+                        "error": str(exc),
+                        "error_code": error_payload["code"],
+                        "error_details": error_payload,
+                    },
+                )
+                raise SDKRuntimeError(str(exc)) from exc
+            except FixtureLookupError as exc:
+                self._emit(
+                    "llm_returned",
+                    {
+                        "provider": provider,
+                        "model": model,
+                        "response": None,
+                        "usage": {},
+                        "error": str(exc),
+                    },
+                )
+                raise SDKRuntimeError(str(exc)) from exc
+
+            if fixture is not None:
+                response_payload = fixture.output_payload.get("response")
+                usage = fixture.output_payload.get("usage", {})
+                error = fixture.output_payload.get("error")
+                result_payload = fixture.output_payload.get("result")
+                replay_result = result_payload
+                if replay_result is None:
+                    replay_result = {
+                        "response": response_payload,
+                        "usage": usage if isinstance(usage, dict) else {},
+                    }
+                self._emit(
+                    "llm_returned",
+                    {
+                        "provider": provider,
+                        "model": model,
+                        "response": self._safe(response_payload),
+                        "usage": self._safe(usage),
+                        "result": self._safe(replay_result),
+                        "error": error,
+                    },
+                    meta={"replayed": True},
+                )
+                if error:
+                    raise SDKRuntimeError(str(error))
+                return replay_result  # type: ignore[return-value]
+
+            if self._settings.strict:
+                message = f"Missing fixture for llm call: {name}"
+                self._emit(
+                    "llm_returned",
+                    {
+                        "provider": provider,
+                        "model": model,
+                        "response": None,
+                        "usage": {},
+                        "error": message,
+                    },
+                )
+                raise SDKRuntimeError(message)
+
+        try:
+            maybe_result = fn(*args, **kwargs)
+            if inspect.isawaitable(maybe_result):
+                result = await maybe_result
+            else:
+                result = maybe_result
+        except Exception as exc:
+            self._emit(
+                "llm_returned",
+                {
+                    "provider": provider,
+                    "model": model,
+                    "response": None,
+                    "usage": {},
+                    "error": str(exc),
+                },
+            )
+            raise
+
+        response, usage = self._normalize_llm_result(result)
+        self._emit(
+            "llm_returned",
+            {
+                "provider": provider,
+                "model": model,
+                "response": self._safe(response),
+                "usage": self._safe(usage),
+                "result": self._safe(result),
+                "error": None,
+            },
+        )
+        return cast(T, result)
 
     def _normalize_llm_result(self, result: Any) -> tuple[Any, dict[str, Any]]:
         if isinstance(result, dict):
