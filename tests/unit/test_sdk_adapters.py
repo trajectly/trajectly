@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 from types import SimpleNamespace
 from typing import Any
 
@@ -10,8 +12,11 @@ from trajectly.sdk.adapters import (
     autogen_chat_run,
     crewai_run_task,
     dspy_call,
+    gemini_generate_content,
     invoke_llm_call,
+    invoke_llm_call_async,
     invoke_tool_call,
+    invoke_tool_call_async,
     langchain_invoke,
     llamaindex_query,
     openai_chat_completion,
@@ -52,6 +57,43 @@ class FakeContext:
         return fn(*args, **kwargs)
 
 
+class FakeAsyncContext(FakeContext):
+    async def invoke_tool_async(
+        self,
+        name: str,
+        fn: Any,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        self.calls.append({"kind": "tool_async", "name": name, "args": args, "kwargs": kwargs})
+        result = fn(*args, **kwargs)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    async def invoke_llm_async(
+        self,
+        provider: str,
+        model: str,
+        fn: Any,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        self.calls.append(
+            {
+                "kind": "llm_async",
+                "provider": provider,
+                "model": model,
+                "args": args,
+                "kwargs": kwargs,
+            }
+        )
+        result = fn(*args, **kwargs)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+
 class FakeCallable:
     def __init__(self, result: Any) -> None:
         self.result = result
@@ -72,6 +114,12 @@ class FakeAnthropicClient:
     def __init__(self, result: Any) -> None:
         self.create = FakeCallable(result)
         self.messages = SimpleNamespace(create=self.create)
+
+
+class FakeGeminiClient:
+    def __init__(self, result: Any) -> None:
+        self.generate_content = FakeCallable(result)
+        self.models = SimpleNamespace(generate_content=self.generate_content)
 
 
 class OpenAIUsage:
@@ -110,6 +158,34 @@ class AnthropicResponse:
     def __init__(self, lines: list[str], input_tokens: int, output_tokens: int) -> None:
         self.content = [AnthropicBlock(line) for line in lines]
         self.usage = AnthropicUsage(input_tokens, output_tokens)
+
+
+class GeminiUsageMetadata:
+    def __init__(self, prompt_tokens: int, candidates_tokens: int, total_tokens: int) -> None:
+        self.prompt_token_count = prompt_tokens
+        self.candidates_token_count = candidates_tokens
+        self.total_token_count = total_tokens
+
+
+class GeminiPart:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class GeminiContent:
+    def __init__(self, parts: list[GeminiPart]) -> None:
+        self.parts = parts
+
+
+class GeminiCandidate:
+    def __init__(self, parts: list[GeminiPart]) -> None:
+        self.content = GeminiContent(parts)
+
+
+class GeminiResponse:
+    def __init__(self, candidates: list[GeminiCandidate], usage_metadata: GeminiUsageMetadata) -> None:
+        self.candidates = candidates
+        self.usage_metadata = usage_metadata
 
 
 class FakeRunnable:
@@ -239,6 +315,39 @@ def test_invoke_llm_call_uses_context() -> None:
     assert context.calls[0]["kwargs"] == {"prompt": "hello"}
 
 
+def test_invoke_tool_call_async_uses_context() -> None:
+    context = FakeAsyncContext()
+
+    async def add(left: int, right: int) -> int:
+        return left + right
+
+    result = asyncio.run(invoke_tool_call_async("add", add, 2, 5, context=context))
+
+    assert result == 7
+    assert context.calls == [
+        {
+            "kind": "tool_async",
+            "name": "add",
+            "args": (2, 5),
+            "kwargs": {},
+        }
+    ]
+
+
+def test_invoke_llm_call_async_uses_context() -> None:
+    context = FakeAsyncContext()
+
+    async def fake_llm(*, prompt: str) -> dict[str, Any]:
+        return {"response": prompt.upper(), "usage": {"total_tokens": 3}}
+
+    result = asyncio.run(invoke_llm_call_async("mock", "deterministic", fake_llm, context=context, prompt="hello"))
+
+    assert result == {"response": "HELLO", "usage": {"total_tokens": 3}}
+    assert context.calls[0]["provider"] == "mock"
+    assert context.calls[0]["model"] == "deterministic"
+    assert context.calls[0]["kwargs"] == {"prompt": "hello"}
+
+
 def test_openai_adapter_from_mapping_response() -> None:
     context = FakeContext()
     client = FakeOpenAIClient(
@@ -323,6 +432,70 @@ def test_anthropic_adapter_from_object_response() -> None:
 def test_anthropic_adapter_validates_client_shape() -> None:
     with pytest.raises(ValueError, match=r"messages\.create"):
         anthropic_messages_create(object(), model="claude", messages=[])
+
+
+def test_gemini_adapter_from_mapping_response() -> None:
+    context = FakeContext()
+    client = FakeGeminiClient(
+        {
+            "text": "gemini mapping",
+            "usage_metadata": {
+                "prompt_token_count": 6,
+                "candidates_token_count": 4,
+                "total_token_count": 10,
+            },
+        }
+    )
+
+    result = gemini_generate_content(
+        client,
+        model="gemini-2.0-flash",
+        contents="hello world",
+        temperature=0,
+        context=context,
+    )
+
+    assert result["response"] == "gemini mapping"
+    assert result["usage"] == {
+        "prompt_token_count": 6,
+        "candidates_token_count": 4,
+        "total_token_count": 10,
+    }
+    assert client.generate_content.requests[0]["contents"] == "hello world"
+    assert context.calls[0]["provider"] == "gemini"
+    assert context.calls[0]["model"] == "gemini-2.0-flash"
+
+
+def test_gemini_adapter_from_object_response() -> None:
+    context = FakeContext()
+    client = FakeGeminiClient(
+        GeminiResponse(
+            candidates=[
+                GeminiCandidate([GeminiPart("line one "), GeminiPart("line two")]),
+                GeminiCandidate([GeminiPart("line three")]),
+            ],
+            usage_metadata=GeminiUsageMetadata(prompt_tokens=5, candidates_tokens=7, total_tokens=12),
+        )
+    )
+
+    result = gemini_generate_content(
+        client,
+        model="gemini-2.0-pro",
+        contents=[{"role": "user", "parts": [{"text": "Summarize this"}]}],
+        context=context,
+    )
+
+    assert result["response"] == "line one line two\nline three"
+    assert result["usage"] == {
+        "prompt_token_count": 5,
+        "candidates_token_count": 7,
+        "total_token_count": 12,
+    }
+
+
+def test_gemini_adapter_validates_client_shape() -> None:
+    with pytest.raises(ValueError, match=r"models\.generate_content"):
+        gemini_generate_content(object(), model="gemini-2.0-flash", contents="prompt")
 
 
 def test_langchain_adapter_with_dict_result() -> None:

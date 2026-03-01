@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, Protocol, TypeVar, cast
 
 from trajectly.sdk.context import get_context
@@ -22,6 +22,23 @@ class SDKContextLike(Protocol):
         provider: str,
         model: str,
         fn: Callable[..., T],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> T: ...
+
+    async def invoke_tool_async(
+        self,
+        name: str,
+        fn: Callable[..., T] | Callable[..., Awaitable[T]],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> T: ...
+
+    async def invoke_llm_async(
+        self,
+        provider: str,
+        model: str,
+        fn: Callable[..., T] | Callable[..., Awaitable[T]],
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> T: ...
@@ -97,6 +114,42 @@ def _extract_anthropic_response(result: Any) -> tuple[Any, dict[str, Any]]:
             texts.append(str(text))
         if texts:
             return "\n".join(texts), usage
+
+    response = _lookup(result, "response", result)
+    return response, usage
+
+
+def _extract_gemini_response(result: Any) -> tuple[Any, dict[str, Any]]:
+    usage_source = _lookup(result, "usage_metadata", _lookup(result, "usage", {}))
+    usage = _as_usage_dict(usage_source)
+
+    text = _lookup(result, "text")
+    if text is not None:
+        return text, usage
+
+    candidates = _lookup(result, "candidates", [])
+    if isinstance(candidates, Sequence) and not isinstance(candidates, (str, bytes)):
+        candidate_texts: list[str] = []
+        for candidate in candidates:
+            output_text = _lookup(candidate, "output_text")
+            if output_text is not None:
+                candidate_texts.append(str(output_text))
+                continue
+
+            content = _lookup(candidate, "content")
+            parts = _lookup(content, "parts", [])
+            if not isinstance(parts, Sequence) or isinstance(parts, (str, bytes)):
+                continue
+            part_texts = []
+            for part in parts:
+                part_text = _lookup(part, "text")
+                if part_text is None:
+                    continue
+                part_texts.append(str(part_text))
+            if part_texts:
+                candidate_texts.append("".join(part_texts))
+        if candidate_texts:
+            return "\n".join(candidate_texts), usage
 
     response = _lookup(result, "response", result)
     return response, usage
@@ -179,6 +232,17 @@ def invoke_tool_call(
     return ctx.invoke_tool(name, fn, args, kwargs)
 
 
+async def invoke_tool_call_async(
+    name: str,
+    fn: Callable[..., T] | Callable[..., Awaitable[T]],
+    *args: Any,
+    context: SDKContextLike | None = None,
+    **kwargs: Any,
+) -> T:
+    ctx = _resolve_context(context)
+    return await ctx.invoke_tool_async(name, fn, args, kwargs)
+
+
 def invoke_llm_call(
     provider: str,
     model: str,
@@ -189,6 +253,18 @@ def invoke_llm_call(
 ) -> T:
     ctx = _resolve_context(context)
     return ctx.invoke_llm(provider=provider, model=model, fn=fn, args=args, kwargs=kwargs)
+
+
+async def invoke_llm_call_async(
+    provider: str,
+    model: str,
+    fn: Callable[..., T] | Callable[..., Awaitable[T]],
+    *args: Any,
+    context: SDKContextLike | None = None,
+    **kwargs: Any,
+) -> T:
+    ctx = _resolve_context(context)
+    return await ctx.invoke_llm_async(provider=provider, model=model, fn=fn, args=args, kwargs=kwargs)
 
 
 def openai_chat_completion(
@@ -220,6 +296,22 @@ def anthropic_messages_create(
     ctx = _resolve_context(context)
     raw_result = ctx.invoke_llm(provider="anthropic", model=model, fn=create_fn, args=(), kwargs=request)
     response, usage = _extract_anthropic_response(raw_result)
+    return {"response": response, "usage": usage, "result": raw_result}
+
+
+def gemini_generate_content(
+    client: Any,
+    *,
+    model: str,
+    contents: Any,
+    context: SDKContextLike | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    create_fn = _resolve_nested_attribute(client, ("models", "generate_content"), label="gemini")
+    request = {"model": model, "contents": contents, **kwargs}
+    ctx = _resolve_context(context)
+    raw_result = ctx.invoke_llm(provider="gemini", model=model, fn=create_fn, args=(), kwargs=request)
+    response, usage = _extract_gemini_response(raw_result)
     return {"response": response, "usage": usage, "result": raw_result}
 
 
@@ -336,8 +428,11 @@ __all__ = [
     "autogen_chat_run",
     "crewai_run_task",
     "dspy_call",
+    "gemini_generate_content",
     "invoke_llm_call",
+    "invoke_llm_call_async",
     "invoke_tool_call",
+    "invoke_tool_call_async",
     "langchain_invoke",
     "llamaindex_query",
     "openai_chat_completion",
