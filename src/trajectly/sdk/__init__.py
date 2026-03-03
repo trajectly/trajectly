@@ -23,6 +23,7 @@ from trajectly.sdk.adapters import (
     openai_chat_completion,
 )
 from trajectly.sdk.context import SDKContext, get_context
+from trajectly.sdk.graph import App, GraphError, GraphSpec, NodeSpec, scan_module
 
 T = TypeVar("T")
 
@@ -100,6 +101,10 @@ def agent_step(name: str, details: dict[str, Any] | None = None) -> None:
 
 
 __all__ = [
+    "App",
+    "GraphError",
+    "GraphSpec",
+    "NodeSpec",
     "SDKContext",
     "SDKContextLike",
     "agent_step",
@@ -117,5 +122,6 @@ __all__ = [
     "llamaindex_query",
     "llm_call",
     "openai_chat_completion",
+    "scan_module",
     "tool",
 ]
