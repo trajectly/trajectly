@@ -1,33 +1,29 @@
 # Trajectly
 
-Deterministic regression testing for AI agents, powered by **Trajectory Refinement Testing (TRT)**.
+Deterministic regression testing for AI agents with **Trajectory Refinement Testing (TRT)**.
 
-Trajectly records a known-good agent run as a baseline, then replays your agent against the same inputs when you make changes. The TRT algorithm normalizes traces, extracts call skeletons, enforces contracts, and checks behavioral refinement. If the agent's behavior regresses -- calling a denied tool, skipping required steps, or violating your rules -- Trajectly reports exactly where the failure happened and gives you a one-command repro.
+Trajectly records a baseline run, replays with fixtures, evaluates contracts plus behavioral refinement, and reports the earliest failing trace event (witness index).
 
-## Table of Contents
+## Table of contents
 
 - [1) Quickstart](#1-quickstart)
-- [2) Core Concepts](#2-core-concepts)
-- [3) The TRT Algorithm](#3-the-trt-algorithm)
-- [4) How-To Guides](#4-how-to-guides)
-- [5) CLI Reference](#5-cli-reference)
-- [6) Spec Reference](#6-spec-reference)
-- [7) SDK Reference](#7-sdk-reference)
-- [8) Trace Schema Reference](#8-trace-schema-reference)
-- [9) Contracts Reference](#9-contracts-reference)
+- [2) Core concepts](#2-core-concepts)
+- [3) TRT algorithm](#3-trt-algorithm)
+- [4) Daily workflow](#4-daily-workflow)
+- [5) CLI reference](#5-cli-reference)
+- [6) Spec reference](#6-spec-reference)
+- [7) SDK reference](#7-sdk-reference)
+- [8) Trace schema reference](#8-trace-schema-reference)
+- [9) Contracts reference](#9-contracts-reference)
 - [10) Troubleshooting](#10-troubleshooting)
 
 ---
 
 ## 1) Quickstart
 
-Get a working regression test in under 5 minutes.
+If `trajectly` is not on your `PATH`, run commands as `python -m trajectly ...` using the same interpreter where Trajectly is installed.
 
-> If `trajectly` is not on your PATH, run commands as `python -m trajectly ...` with the same interpreter you used for installation.
-
-### Install and run
-
-Pre-recorded baselines and fixtures are included in standalone demo repos, so **no API key is needed**.
+### Run a deterministic regression demo
 
 ```bash
 git clone https://github.com/trajectly/procurement-approval-demo.git
@@ -43,937 +39,531 @@ python -m trajectly repro
 python -m trajectly shrink
 ```
 
-Expected exit behavior for this quickstart (regression spec on purpose):
-- `run` exits `1` (`FAIL`)
-- `report` exits `0`
-- `repro` exits `1` (same failing run)
-- `shrink` exits `0`
+Expected exit behavior for this intentional regression:
+- `run ...regression...` -> `1`
+- `report` -> `0`
+- `repro` -> `1`
+- `shrink` -> `0`
 
-For a full real-world support CI walkthrough (outside this repo), see
-[trajectly/support-escalation-demo](https://github.com/trajectly/support-escalation-demo).
-
-### What just happened
-
-1. `python -m trajectly run` replayed the agent from pre-recorded fixtures and compared it against the baseline.
-2. The regression agent called a denied tool (`unsafe_direct_award`) -- Trajectly reported `FAIL` with the exact witness step.
-3. `python -m trajectly report` showed a human-readable summary.
-4. `python -m trajectly repro` re-ran the exact failure deterministically.
-5. `python -m trajectly shrink` minimized the trace to the shortest reproducing prefix.
-
-### Recording your own baselines
-
-When testing your own agents, you record a baseline first (requires a live LLM provider):
+### Record your own baseline
 
 ```bash
-export OPENAI_API_KEY="sk-..."
 python -m trajectly init
-python -m trajectly record my-agent.agent.yaml
+python -m trajectly record specs/my-agent.agent.yaml --project-root .
+python -m trajectly run specs/my-agent.agent.yaml --project-root .
 ```
 
-`my-agent.agent.yaml` is a placeholder; replace it with a real spec path that already exists.
-
-After recording, all future `run` calls replay from the captured fixtures -- fully offline and deterministic.
-
-### Expected output
-
-```text
-# Baseline replay
-trt-procurement-agent: PASS
-
-# Regression replay
-trt-procurement-agent: FAIL
-  failure_step: 8
-  failure_type: contract_tool_denied
-  repro: python -m trajectly repro
-```
-
-### Reproduce the failure offline
-
-```bash
-python -m trajectly repro
-```
-
-This replays from saved fixtures -- no live API calls needed.
+`specs/my-agent.agent.yaml` is a placeholder. Replace with an existing spec path.
 
 ---
 
-## 2) Core Concepts
+## 2) Core concepts
 
-### Baselines
+### Baseline
 
-A baseline is a recorded agent run that represents correct behavior. Trajectly saves the full trace (every tool call, LLM call, and result) plus the inputs needed to replay it deterministically.
+A baseline is the known-good behavior for a spec. Trajectly stores baseline traces plus fixtures for deterministic replay.
 
-### Specs
+### Replay
 
-A spec (`.agent.yaml` file) tells Trajectly how to run your agent and what rules to check. At minimum, it has a name, a command, and contracts:
+In replay mode, tool and LLM calls are matched against fixtures and returned deterministically. This removes online nondeterminism from regression checks.
 
-```yaml
-schema_version: "0.4"
-name: trt-procurement-agent
-command: python -m agents.procurement_agent
-contracts:
-  tools:
-    allow: [fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]
-    deny: [unsafe_direct_award]
-```
+### Contracts
 
-### Contracts (rules)
+Contracts define allowed behavior (tool allow/deny, sequence constraints, budgets, network/data policies, argument rules).
 
-Contracts define what your agent is and isn't allowed to do:
+### Refinement
 
-- **Tool allow/deny**: which tools can be called
-- **Sequence constraints**: required ordering of tool calls
-- **Budget limits**: max number of tool calls, tokens, or latency
-- **Data leak checks**: block PII from leaving the agent
-- **Network policies**: restrict outbound network access
+Trajectly extracts ordered tool-call skeletons and verifies baseline skeleton is a subsequence of current skeleton.
 
-### Traces
+### Witness index
 
-A trace is the ordered sequence of events from a single agent run: `run_started`, `tool_called`, `tool_returned`, `llm_called`, `llm_returned`, `run_finished`. Trajectly compares the baseline trace against the new trace to find regressions.
+When checks fail, Trajectly reports the earliest failing trace event index.
 
-### Behavior comparison (TRT)
-
-When you run a spec, the TRT algorithm checks two things:
-
-1. **Contract compliance** -- does the new run follow all the rules in your spec?
-2. **Skeleton refinement** -- does the new run's call skeleton preserve the baseline skeleton as a subsequence?
-
-If either check fails, TRT identifies the **witness index** -- the earliest event where a violation occurred -- and reports it.
-
-### Verdicts
-
-Every run produces a deterministic verdict:
-
-- **PASS** -- the agent's behavior refines the baseline and all contracts are satisfied.
-- **FAIL** -- something changed. Trajectly reports the failure step (witness index), the violation code, and a repro command.
-
-Same code + same spec + same fixtures = same verdict. Always. This is TRT's determinism guarantee.
-
-### Before vs After Trajectly
-
-| | Without Trajectly | With Trajectly |
-|---|---|---|
-| Regression detection | Heuristic, output-diff based | Deterministic checks against rules and baseline |
-| Failure location | Manual trace reading | Exact step number where the failure occurred |
-| Reproducibility | Often not replayable | One-command `python -m trajectly repro` from saved fixtures |
-| CI signal | Flaky and subjective | Stable PASS/FAIL with consistent failure codes |
-
-### Where Trajectly fits in CI
-
-```mermaid
-flowchart LR
-    prOpened["PR opened"] --> unitTests["Unit tests"]
-    unitTests --> trajectlyRun["python -m trajectly run"]
-    trajectlyRun --> verdict{"PASS?"}
-    verdict -->|Yes| mergeReady["Ready to merge"]
-    verdict -->|No| failArtifacts["Failure report + repro artifacts"]
-    failArtifacts --> devRepro["Developer runs python -m trajectly repro"]
-    devRepro --> fix["Fix and push"]
-    fix --> trajectlyRun
-```
+Important:
+- witness index is a **trace event index** (0-based)
+- trace event index is distinct from violation list ordering in report summaries
 
 ---
 
-## 3) The TRT Algorithm
+## 3) TRT algorithm
 
-**Trajectory Refinement Testing (TRT)** is the verification algorithm at the core of Trajectly. It turns agent regression testing from "did the output change?" into "did the agent's behavior violate its specification?" -- with formal guarantees.
-
-### Why a new algorithm?
-
-Traditional regression testing for LLM agents is fragile:
-
-- **Output-diff testing** breaks because LLM responses are non-deterministic. The same prompt can produce different wording every time.
-- **Snapshot testing** requires exact match, which is too strict for agents that legitimately vary in how they express results.
-- **Manual trace inspection** doesn't scale. A single agent run can produce hundreds of events.
-
-TRT solves this by testing *behavior* (what tools were called, in what order, with what policies) rather than *output* (the exact text the LLM produced). This makes tests stable, deterministic, and meaningful.
-
-### The four stages
-
-TRT processes every run through four stages:
+TRT answers: "Did behavior violate policy or diverge from baseline?" instead of "Did output text change?"
 
 ```mermaid
 flowchart LR
-    T_b["Baseline trace T_b"] --> N1["Normalize"]
-    T_n["Current trace T_n"] --> N2["Normalize"]
-    N1 --> S1["Skeleton S_b"]
-    N2 --> S2["Skeleton S_n"]
-    S1 --> R["Refinement check"]
-    S2 --> R
-    S2 --> C["Contract check"]
+    Tb["Baseline trace"] --> Nb["Normalize"]
+    Tn["Current trace"] --> Nn["Normalize"]
+    Nb --> Sb["Baseline skeleton"]
+    Nn --> Sn["Current skeleton"]
+    Sb --> R["Refinement check"]
+    Sn --> R
+    Nn --> C["Contract evaluation"]
     R --> W["Witness resolution"]
     C --> W
-    W --> V["PASS / FAIL + artifacts"]
+    W --> V["PASS/FAIL + repro artifacts"]
 ```
 
-#### Stage 1: Trace normalization
+### Stage 1: normalization
 
-Both the baseline trace (`T_b`) and current trace (`T_n`) are run through a normalization function `alpha` that:
+Canonicalization removes unstable noise (timestamps, volatile ids, shape differences) so equivalent behavior compares deterministically.
 
-- Strips non-deterministic fields (timestamps, run IDs, response latencies)
-- Canonicalizes payload formats (sorted keys, stable serialization)
-- Computes deterministic event IDs (content hashes)
+### Stage 2: skeleton extraction
 
-This produces `alpha(T_b)` and `alpha(T_n)` -- canonical representations that can be compared stably across runs.
+Tool-call sequence is extracted from normalized trace.
 
-**Why this matters:** Two runs of the same agent with the same inputs may produce traces that differ in timestamps, ordering of concurrent events, or formatting. Normalization ensures these irrelevant differences don't cause false failures.
+### Stage 3: refinement
 
-#### Stage 2: Skeleton extraction
+Baseline skeleton must appear in current skeleton in the same relative order (subsequence relation).
 
-From each normalized trace, TRT extracts the **call skeleton** -- the ordered list of tool-call names:
+### Stage 4: contracts
 
-```
-Trace: [run_started, llm_called, llm_returned, tool_called:fetch_ticket,
-        tool_returned:fetch_ticket, tool_called:store_routing,
-        tool_returned:store_routing, run_finished]
-
-Skeleton: [fetch_ticket, store_routing]
-```
-
-The skeleton captures *what the agent did* without the noise of *how the LLM reasoned about it*.
-
-#### Stage 3: Refinement check
-
-TRT checks whether the baseline skeleton `S(T_b)` is a **subsequence** of the current skeleton `S(T_n)`.
-
-**Subsequence** means every element of `S(T_b)` appears in `S(T_n)` in the same relative order, but `S(T_n)` may have additional calls interleaved.
-
-```
-Baseline skeleton:  [fetch_ticket, store_routing]
-Current skeleton:   [fetch_ticket, log_event, store_routing]    ← PASS (extra call is ok)
-Current skeleton:   [fetch_ticket, unsafe_export]               ← FAIL (store_routing missing)
-Current skeleton:   [store_routing, fetch_ticket]                ← FAIL (wrong order)
-```
-
-This is the core behavioral check. It answers: "Does the new agent still do everything the baseline did, in the right order?"
-
-The refinement check is configurable via the `refinement` section of the spec:
-
-| Setting | Effect |
-|---------|--------|
-| `allow_extra_tools: [log_event]` | Extra calls to `log_event` are ignored |
-| `allow_new_tool_names: true` | New tool names not in the baseline are allowed |
-| `ignore_call_tools: [debug]` | Calls to `debug` are stripped before comparison |
-
-#### Stage 4: Contract evaluation
-
-Independently from refinement, TRT evaluates every event in the current trace against the spec's **contracts**:
-
-| Contract class | What it checks |
-|----------------|----------------|
-| **Tool allow/deny** | Is each tool call in the allow list? Is it not in the deny list? |
-| **Sequence** | Are required tool sequences present? Are forbidden sequences absent? |
-| **Budget** | Are tool call counts, token counts, and latency within limits? |
-| **Network** | Are outbound requests to allowed domains only? |
-| **Data leak** | Does any outbound payload contain PII or secrets? |
-| **Arguments** | Do tool call arguments match required schemas and patterns? |
-
-Each contract violation produces a violation record with:
-- **Code** (e.g., `CONTRACT_TOOL_DENIED`, `REFINEMENT_BASELINE_CALL_MISSING`)
-- **Event index** where it occurred
-- **Message** describing what went wrong
-- **Hint** suggesting how to fix it
+Current trace is checked against contracts independently of refinement.
 
 ### Witness resolution
 
-When one or more violations are found, TRT identifies the **witness index** -- the smallest event index `k` such that there exists a violation at `k`. This is the earliest point in the trace where the agent's behavior diverges from what's allowed.
+If any violation exists, TRT chooses the earliest failing event index as witness.
 
-The witness is important because it gives you a precise debugging target: "Look at event `k` in the trace. That's where the problem starts."
-
-```
-Events:  [0: run_started, 1: llm_called, 2: llm_returned,
-          3: tool_called:fetch_ticket, 4: tool_returned:fetch_ticket,
-          5: tool_called:unsafe_export ← WITNESS (denied tool),
-          6: tool_returned:unsafe_export, 7: run_finished]
-
-Witness index: 5
-Primary violation: CONTRACT_TOOL_DENIED (unsafe_export)
-```
-
-### Counterexample generation
-
-Given a witness at index `k`, TRT produces a **counterexample prefix** -- the trace events `[0..k]`. This is the minimal trace that demonstrates the failure. Combined with saved fixtures, this prefix is sufficient to reproduce the failure deterministically:
-
-```bash
-python -m trajectly repro
-```
-
-TRT can also **shrink** the trace further, iteratively removing events and re-checking whether the failure still reproduces, to find the absolute minimal failing trace:
-
-```bash
-python -m trajectly shrink
-# "Shrink reduced 42 events → 12 events, same witness"
-```
-
-### Formal properties
-
-TRT provides the following guarantees:
-
-**Determinism:** For any spec `P`, trace pair `(T_b, T_n)`, and fixture set `F`:
-
-```
-TRT(P, T_b, T_n, F) at time t₁ = TRT(P, T_b, T_n, F) at time t₂
-```
-
-The same inputs always produce the same verdict. This is achieved through trace normalization and offline replay (no live network calls during comparison).
-
-**Witness minimality:** If TRT reports a witness at index `k`, there is no index `j < k` with a violation. The witness is always the earliest failing point.
-
-**Refinement soundness:** If TRT reports `PASS` for refinement, then `S(T_b)` is provably a subsequence of `S(T_n)`. If it reports `FAIL`, TRT identifies the specific baseline call that is missing and where the subsequence embedding breaks.
-
-**Contract completeness:** Every event in the current trace is checked against every active contract. No events are skipped unless explicitly configured in `ignore_call_tools`.
-
-### Putting it together: a concrete example
-
-Suppose you have a procurement approval agent with this spec:
-
-```yaml
-contracts:
-  tools:
-    allow: [fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]
-    deny: [unsafe_direct_award]
-```
-
-**Baseline run** produces skeleton: `[fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]`
-
-**Regression run** produces skeleton: `[fetch_requisition, fetch_vendor_quotes, unsafe_direct_award]`
-
-TRT processes this as follows:
-
-1. **Normalize** both traces → strips timestamps, computes event hashes.
-2. **Extract skeletons** → `S_b = [fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]`, `S_n = [fetch_requisition, fetch_vendor_quotes, unsafe_direct_award]`.
-3. **Refinement check** → is `[fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]` a subsequence of `[fetch_requisition, fetch_vendor_quotes, unsafe_direct_award]`? **No** -- `route_for_approval` and `create_purchase_order` are missing. Violation: `REFINEMENT_BASELINE_CALL_MISSING`.
-4. **Contract check** → is `unsafe_direct_award` in the deny list? **Yes**. Violation: `CONTRACT_TOOL_DENIED`.
-5. **Witness resolution** → both violations occur at the event where `unsafe_direct_award` is called (index 7 in the full trace). Witness = 7.
-6. **Verdict** → `FAIL`, witness=7, primary violation=`CONTRACT_TOOL_DENIED`, repro command=`python -m trajectly repro`.
+Practical impact:
+- deterministic CI gate
+- deterministic repro (`python -m trajectly repro`)
+- counterexample minimization (`python -m trajectly shrink`)
 
 ---
 
-## 4) How-To Guides
+## 4) Daily workflow
 
-### Add Trajectly to an existing agent
-
-1. Install: `python -m pip install trajectly`
-
-2. Instrument your agent code with the SDK:
-
-```python
-from trajectly.sdk import tool, openai_chat_completion
-
-@tool()
-def fetch_data(query: str) -> dict:
-    # your tool logic
-    ...
-
-# For LLM calls, use the appropriate adapter:
-result = openai_chat_completion(client, model="gpt-4o", messages=messages)
-```
-
-3. Create a spec file (`my-agent.agent.yaml`):
-
-```yaml
-schema_version: "0.4"
-name: my-agent
-command: python my_agent.py
-contracts:
-  tools:
-    allow: [fetch_data, save_result]
-    deny: [dangerous_tool]
-```
-
-4. Initialize, record, and test:
+### Setup once
 
 ```bash
 python -m trajectly init
-python -m trajectly record my-agent.agent.yaml
-python -m trajectly run my-agent.agent.yaml
 ```
 
-`my-agent.agent.yaml` is a placeholder in these examples; replace it with an existing spec file in your project.
-
-### Write your first spec
-
-Start minimal and add rules as needed:
-
-```yaml
-# Minimal -- just track tool calls
-schema_version: "0.4"
-name: my-agent
-command: python my_agent.py
-contracts:
-  tools:
-    allow: [fetch_data, save_result]
-```
-
-Add sequence constraints if order matters:
-
-```yaml
-contracts:
-  tools:
-    allow: [fetch_data, process, save_result]
-  sequence:
-    require: [fetch_data, process, save_result]
-```
-
-Add budget limits for cost control:
-
-```yaml
-budget_thresholds:
-  max_tool_calls: 10
-  max_tokens: 1000
-  max_latency_ms: 5000
-```
-
-### Set up CI
-
-Add Trajectly to your CI pipeline:
-
-```yaml
-# .github/workflows/agent-tests.yml
-- name: Run agent regression tests
-  run: |
-    python -m pip install trajectly
-    python -m trajectly run specs/*.agent.yaml
-```
-
-Exit codes: `0` = all passing, `1` = regression detected, `2` = config/tooling error.
-
-For PR comments:
+### Record baseline
 
 ```bash
-python -m trajectly report --pr-comment
+python -m trajectly record specs/*.agent.yaml --project-root .
 ```
 
-### Debug a failure
+### Validate changes
 
-When a run fails:
+```bash
+python -m trajectly run specs/*.agent.yaml --project-root .
+python -m trajectly report
+```
 
-1. **Read the report**: `python -m trajectly report` shows the failure step and failure type.
-2. **Reproduce locally**: `python -m trajectly repro` replays the exact failure from fixtures.
-3. **Minimize the trace**: `python -m trajectly shrink` reduces the failing trace to the smallest example that still fails.
-4. **Decide what to do**:
-   - If the behavior change is a bug: fix your agent code and rerun.
-   - If the behavior change is intentional: create and promote a new baseline version.
+### If failing
 
-```mermaid
-flowchart TD
-    fail["Run failed"] --> report["python -m trajectly report"]
-    report --> repro["python -m trajectly repro"]
-    repro --> decide{"Intentional change?"}
-    decide -->|No| fixCode["Fix agent code"]
-    decide -->|Yes| updateBaseline["python -m trajectly baseline create --name v2 <spec>"]
-    fixCode --> rerun["python -m trajectly run"]
-    updateBaseline --> rerun
-    rerun --> pass["Confirm PASS"]
+```bash
+python -m trajectly repro
+python -m trajectly shrink
+```
+
+### If change is intentional
+
+```bash
+python -m trajectly baseline create --name v2 specs/my-agent.agent.yaml --project-root .
+python -m trajectly baseline promote v2 specs/my-agent.agent.yaml --project-root .
 ```
 
 ---
 
-## 5) CLI Reference
+## 5) CLI reference
 
-### Command overview
+The command surface below reflects current `python -m trajectly --help` output.
 
-| Command | What it does |
+### Top-level commands
+
+| Command | Purpose |
 |---|---|
-| `python -m trajectly --version` | Print version and exit |
-| `python -m trajectly init` | Create `.trajectly/` workspace |
-| `python -m trajectly enable` | Set up with scaffolding and auto-discovery |
-| `python -m trajectly record` | Record baseline traces and fixtures |
-| `python -m trajectly run` | Run specs and report regressions |
-| `python -m trajectly repro` | Reproduce the latest failure from fixtures |
-| `python -m trajectly shrink` | Minimize a failing trace |
-| `python -m trajectly report` | Print the latest report |
-| `python -m trajectly baseline list` | List baseline versions and promoted pointers |
-| `python -m trajectly baseline create --name <version>` | Record a named baseline version |
-| `python -m trajectly baseline promote <version>` | Promote a version to active |
-| `python -m trajectly baseline diff <slug> <left> <right>` | Diff two baseline versions |
+| `python -m trajectly --version` | Print version |
+| `python -m trajectly init [PROJECT_ROOT]` | Initialize `.trajectly/` workspace |
+| `python -m trajectly enable [PROJECT_ROOT] [--template ...]` | Scaffold and auto-discover setup |
+| `python -m trajectly record [TARGETS]... [--auto] [--project-root ...] [--allow-ci-write]` | Record baselines and fixtures |
+| `python -m trajectly run TARGETS... [--project-root ...] [--baseline ...] [--strict/--no-strict]` | Run TRT checks |
+| `python -m trajectly repro [SELECTOR] [--project-root ...] [--strict/--no-strict] [--print-only]` | Reproduce latest/selected regression |
+| `python -m trajectly shrink [SELECTOR] [--project-root ...] [--max-seconds ...] [--max-iterations ...]` | Minimize failing trace |
+| `python -m trajectly report [--project-root ...] [--json] [--pr-comment]` | Print latest aggregate report |
+| `python -m trajectly baseline ...` | Baseline lifecycle commands |
 
-Example placeholders like `my-agent` and `specs/my-agent*.agent.yaml` assume those files/slugs already exist in your project.
-
-### `python -m trajectly --version`
-
-Print the installed version and exit.
-
-```bash
-python -m trajectly --version
-# trajectly 0.4.0
-```
-
-### `python -m trajectly init [project_root]`
-
-Create `.trajectly/` workspace directories.
+### `init`
 
 ```bash
 python -m trajectly init
 python -m trajectly init ./my-project
 ```
 
-### `python -m trajectly enable [project_root] [--template TEMPLATE]`
-
-Set up Trajectly in an existing project. Optionally apply a starter template (`openai`).
+### `enable`
 
 ```bash
 python -m trajectly enable
 python -m trajectly enable . --template openai
 ```
 
-### `python -m trajectly record [targets...] [--project-root PATH] [--auto] [--allow-ci-write]`
+Supported templates include `openai`, `langchain`, and `autogen`.
 
-Record baseline traces and fixture bundles.
+### `record`
 
-```bash
-# Record a specific spec
-python -m trajectly record specs/my-agent-baseline.agent.yaml
+Signature:
 
-# Auto-discover and record all specs
-python -m trajectly record --auto
+```text
+python -m trajectly record [TARGETS]... [--project-root PATH] [--auto] [--allow-ci-write]
 ```
 
-### `python -m trajectly run <targets...> [--project-root PATH] [--baseline VERSION] [--strict|--no-strict]`
-
-Run specs against recorded baselines and report regressions.
+Examples:
 
 ```bash
-# Run one spec
-python -m trajectly run specs/my-agent-baseline.agent.yaml
-
-# Run all specs (CI gate)
-python -m trajectly run specs/*.agent.yaml
-
-# Run using a specific baseline version
-python -m trajectly run specs/my-agent.agent.yaml --baseline v1
-
-# Override strict mode
-python -m trajectly run specs/my-agent.agent.yaml --strict
+python -m trajectly record specs/my-agent.agent.yaml --project-root .
+python -m trajectly record --auto --project-root .
 ```
 
-When a spec fails contracts/refinement, `run` exits with `1` by design.
+### `run`
 
-### `python -m trajectly repro [selector] [--project-root PATH] [--strict|--no-strict] [--print-only]`
+Signature:
 
-Reproduce the latest failure offline from saved fixtures.
+```text
+python -m trajectly run TARGETS... [--project-root PATH] [--baseline-dir PATH] [--fixtures-dir PATH] [--baseline VERSION] [--strict/--no-strict]
+```
+
+Examples:
 
 ```bash
-# Reproduce most recent failure
+python -m trajectly run specs/my-agent.agent.yaml --project-root .
+python -m trajectly run specs/*.agent.yaml --project-root . --baseline v2
+```
+
+Exit codes:
+- `0` = all passing
+- `1` = one or more regressions
+- `2` = config/internal/tooling error
+
+### `repro`
+
+Signature:
+
+```text
+python -m trajectly repro [SELECTOR] [--project-root PATH] [--strict/--no-strict] [--print-only]
+```
+
+Examples:
+
+```bash
 python -m trajectly repro
-
-# Reproduce a specific spec's failure
-python -m trajectly repro my-agent-name
-
-# Just print the command without running
+python -m trajectly repro my-agent
 python -m trajectly repro --print-only
 ```
 
-`repro` is intended for failing runs; replaying a failure will usually exit `1`.
+### `shrink`
 
-### `python -m trajectly shrink [selector] [--max-seconds N] [--max-iterations N]`
+Signature:
 
-Minimize a failing trace to the smallest example that still fails.
+```text
+python -m trajectly shrink [SELECTOR] [--project-root PATH] [--max-seconds FLOAT] [--max-iterations INT]
+```
+
+Examples:
 
 ```bash
 python -m trajectly shrink
-python -m trajectly shrink my-agent-name --max-seconds 20
+python -m trajectly shrink my-agent --max-seconds 20 --max-iterations 500
 ```
 
-Run `shrink` after a failing run has been recorded in `latest.json`.
-
-### `python -m trajectly report [--project-root PATH] [--json] [--pr-comment]`
-
-Print the latest aggregate report.
+### `report`
 
 ```bash
-python -m trajectly report              # Markdown
-python -m trajectly report --json       # JSON
-python -m trajectly report --pr-comment # PR-ready markdown
+python -m trajectly report
+python -m trajectly report --json
+python -m trajectly report --pr-comment
 ```
 
-### `python -m trajectly baseline list [spec...] [--project-root PATH]`
+### Baseline commands
 
-List known baseline versions per spec and which version is promoted.
+#### `baseline list`
+
+```text
+python -m trajectly baseline list [TARGETS]... [--project-root PATH]
+```
 
 ```bash
 python -m trajectly baseline list
 python -m trajectly baseline list specs/my-agent.agent.yaml
 ```
 
-### `python -m trajectly baseline create --name <version> [targets...] [--project-root PATH] [--allow-ci-write]`
+#### `baseline create`
 
-Record a named baseline version for one or more specs.
-
-```bash
-python -m trajectly baseline create --name v2 specs/my-agent.agent.yaml
+```text
+python -m trajectly baseline create --name VERSION TARGETS... [--project-root PATH] [--allow-ci-write]
 ```
 
-### `python -m trajectly baseline promote <version> [targets...] [--project-root PATH]`
-
-Promote a named baseline version so default `python -m trajectly run` uses it.
+`TARGETS...` is required.
 
 ```bash
-python -m trajectly baseline promote v2 specs/my-agent.agent.yaml
+python -m trajectly baseline create --name v2 specs/my-agent.agent.yaml --project-root .
 ```
 
-### `python -m trajectly baseline diff <spec-slug> <left> <right> [--project-root PATH] [--json]`
+#### `baseline promote`
 
-Compare two baseline versions for one spec.
+```text
+python -m trajectly baseline promote VERSION [TARGETS]... [--project-root PATH]
+```
 
 ```bash
+python -m trajectly baseline promote v2 specs/my-agent.agent.yaml --project-root .
+```
+
+#### `baseline diff`
+
+```text
+python -m trajectly baseline diff SPEC_SLUG LEFT RIGHT [--project-root PATH] [--json]
+```
+
+```bash
+python -m trajectly baseline diff my-agent v1 v2 --project-root .
 python -m trajectly baseline diff my-agent v1 v2 --json
 ```
 
-### Exit codes
+#### `baseline update`
 
-- `0`: success / no regression
-- `1`: regression detected
-- `2`: config, spec, or tooling error
-
-### Common workflows
-
-**First-time setup:**
-
-```bash
-python -m trajectly init
-python -m trajectly record specs/my-agent-baseline.agent.yaml
-python -m trajectly run specs/my-agent-baseline.agent.yaml
+```text
+python -m trajectly baseline update [TARGETS]... [--project-root PATH] [--auto] [--allow-ci-write]
 ```
 
-**CI regression gate:**
-
 ```bash
-python -m trajectly run specs/*.agent.yaml
-```
-
-**Failure analysis:**
-
-```bash
-python -m trajectly report
-python -m trajectly repro
-python -m trajectly shrink
-```
-
-**Intentional behavior update:**
-
-```bash
-python -m trajectly baseline create --name v2 specs/my-agent-baseline.agent.yaml
-python -m trajectly baseline promote v2 specs/my-agent-baseline.agent.yaml
-python -m trajectly run specs/my-agent-baseline.agent.yaml
+python -m trajectly baseline update specs/my-agent.agent.yaml --project-root .
+python -m trajectly baseline update --auto --project-root .
 ```
 
 ---
 
-## 6) Spec Reference (`.agent.yaml`, v0.4)
+## 6) Spec reference
 
-### Minimal spec
+Trajectly specs are `.agent.yaml` files.
 
-```yaml
-schema_version: "0.4"
-name: my-agent
-command: python my_agent.py
-contracts:
-  tools:
-    allow: [tool_a, tool_b]
-    deny: [dangerous_tool]
-```
-
-Required fields: `schema_version`, `name`, `command`.
-
-### Full spec with all options
+### Minimal example
 
 ```yaml
 schema_version: "0.4"
 name: my-agent
-command: python my_agent.py
-
-workdir: ..
-env:
-  APP_ENV: ci
-
-fixture_policy: by_hash
-strict: true
-
-replay:
-  mode: offline
-  strict_sequence: true
-  llm_match_mode: signature_match
-  tool_match_mode: args_signature_match
-  fixture_policy: by_hash
-
-refinement:
-  mode: skeleton
-  allow_extra_llm_steps: true
-  allow_extra_tools: [log_event]
-  allow_extra_side_effect_tools: []
-  allow_new_tool_names: false
-  ignore_call_tools: [log_event]
-
+command: python -m agents.my_agent
 contracts:
   tools:
-    allow: [fetch_data, process, save_result]
-    deny: [dangerous_tool]
-  sequence:
-    require: [fetch_data, process, save_result]
-  data_leak:
-    deny_pii_outbound: true
-    outbound_kinds: [TOOL_CALL, LLM_REQUEST]
-
-redact:
-  - "(?i)authorization:\\s*bearer\\s+[A-Za-z0-9._-]+"
-
-budget_thresholds:
-  max_latency_ms: 10000
-  max_tool_calls: 8
-  max_tokens: 800
-
-mode_profile: ci_safe
-artifacts:
-  dir: .trajectly/artifacts
+    allow: [fetch_data, summarize]
 ```
 
-### Field reference
+Required fields:
+- `schema_version`
+- `name`
+- `command`
 
-**Core fields:**
+### Common fields
 
-| Field | Description |
+| Field | Purpose |
 |---|---|
-| `schema_version` | `"0.4"` or `"v0.4"` |
-| `name` | Stable identifier used in reports |
-| `command` | Shell command to run the agent |
+| `schema_version` | Spec schema version (`0.4`) |
+| `name` | Human-readable spec name |
+| `command` | Command used by runtime subprocess |
+| `workdir` | Optional run working directory |
+| `env` | Env overrides |
+| `contracts` | Policy constraints |
+| `replay` | Replay matching configuration |
+| `refinement` | Refinement behavior controls |
+| `determinism` | Determinism-related runtime controls |
+| `redact` | Regex redaction patterns |
+| `budget_thresholds` | Max latency/tool calls/tokens |
+| `artifacts_dir` | Artifact output directory |
 
-**Runtime fields:**
+### Spec inheritance (`extends`)
 
-| Field | Description |
-|---|---|
-| `workdir` | Working directory for the command |
-| `env` | Environment variables to inject |
+```yaml
+# child.agent.yaml
+extends: ./base.agent.yaml
+name: my-agent-variant
+contracts:
+  tools:
+    deny: [unsafe_export]
+```
 
-**Replay fields:**
-
-| Field | Description |
-|---|---|
-| `fixture_policy` | `by_hash` or `by_index` |
-| `strict` | Enable strict replay mode |
-| `replay.mode` | `offline` (no network) or `online` |
-| `replay.strict_sequence` | Require exact event ordering |
-| `replay.llm_match_mode` | `signature_match` or `sequence_match` |
-| `replay.tool_match_mode` | `args_signature_match` or `sequence_match` |
-
-**Behavior comparison fields:**
-
-| Field | Description |
-|---|---|
-| `refinement.mode` | `none`, `skeleton`, or `strict` |
-| `refinement.allow_extra_llm_steps` | Allow extra LLM calls beyond baseline |
-| `refinement.allow_extra_tools` | Tool names allowed beyond baseline |
-| `refinement.allow_extra_side_effect_tools` | Side-effect tools allowed beyond baseline |
-| `refinement.allow_new_tool_names` | Allow tool names not in baseline |
-| `refinement.ignore_call_tools` | Tools excluded from comparison |
-
-**Contract fields:**
-
-| Field | Description |
-|---|---|
-| `contracts.tools` | Allow/deny lists and per-tool budgets |
-| `contracts.sequence` | Required ordering constraints |
-| `contracts.side_effects` | Write-guard policies |
-| `contracts.network` | Domain allowlist/denylist |
-| `contracts.data_leak` | PII/secret leak detection |
-| `contracts.args` | Argument schema/regex checks |
-
-**Other fields:**
-
-| Field | Description |
-|---|---|
-| `redact` | Regex patterns to redact from traces |
-| `budget_thresholds` | Latency, tool call, and token limits |
-| `mode_profile` | `ci_safe`, `permissive`, or `strict` |
-| `artifacts.dir` | Custom artifact output directory |
+Merge semantics:
+- dicts merge recursively
+- lists and scalars override parent values
 
 ---
 
-## 7) SDK Reference
+## 7) SDK reference
 
-The SDK instruments your agent code so Trajectly can record and replay traces.
+Trajectly supports two SDK styles that share the same runtime instrumentation path.
 
-### Decorators
-
-**`@tool(name=None)`** -- wrap a tool function to record `tool_called` / `tool_returned` events:
+### A) Decorators
 
 ```python
-from trajectly.sdk import tool
+from trajectly.sdk import tool, llm_call
 
-@tool()
+@tool("fetch_ticket")
 def fetch_ticket(ticket_id: str) -> dict:
-    return {"id": ticket_id, "status": "open"}
-
-@tool("custom_name")
-def my_function():
-    ...
-```
-
-**`@llm_call(provider, model)`** -- wrap a function that calls an LLM:
-
-```python
-from trajectly.sdk import llm_call
+    return {"id": ticket_id}
 
 @llm_call(provider="openai", model="gpt-4o")
-def ask_llm(prompt: str) -> str:
+def classify_ticket(prompt: str) -> str:
     ...
 ```
+
+### B) Declarative graph (`trajectly.App`)
+
+```python
+import trajectly
+
+app = trajectly.App(name="support-agent")
+
+@app.node(id="fetch_ticket", type="tool")
+def fetch_ticket(ticket_id: str) -> dict:
+    ...
+
+@app.node(id="classify", type="llm", depends_on=["fetch_ticket"], provider="openai", model="gpt-4o")
+def classify(fetch_ticket: dict) -> str:
+    ...
+
+@app.node(id="format", type="transform", depends_on=["classify"])
+def format_output(classify: str) -> dict:
+    return {"answer": classify}
+
+if __name__ == "__main__":
+    outputs = app.run(input_data={"ticket_id": "T-123"})
+    print(outputs["format"])
+```
+
+### Graph API objects
+
+- `trajectly.App`: graph registration and execution
+- `trajectly.sdk.graph.NodeSpec`: immutable node definition
+- `trajectly.sdk.graph.GraphSpec`: validated graph snapshot (nodes, topological order, input keys)
+- `trajectly.sdk.graph.GraphError`: static graph validation errors
+- `trajectly.sdk.graph.scan_module(module)`: discover decorated node specs
+
+### `App.node(...)` semantics
+
+Node types:
+- `tool`
+- `llm`
+- `input`
+- `transform`
+
+Dependencies:
+- `depends_on=["a", "b"]` -> positional parameter mapping
+- `depends_on={"param": "source_node"}` -> explicit mapping
+- `depends_on=None` -> parameters resolve from `input_data` or previous node ids
+
+### Deterministic order
+
+Graph execution uses deterministic topological ordering (lexicographic tie-break for same indegree).
+
+### Event mapping
+
+Graph execution emits the same event types used everywhere else:
+- `tool_called` / `tool_returned` via `ctx.invoke_tool`
+- `llm_called` / `llm_returned` via `ctx.invoke_llm`
+- `agent_step` markers for graph lifecycle and transform stages
+
+No new event type is introduced for graph mode.
+
+### `generate_spec(...)`
+
+`App.generate_spec()` returns a `.agent.yaml`-compatible dictionary template:
+- fills `schema_version`, `name`, placeholder `command`
+- derives tool allowlist and sequence requirements from graph tool nodes
+- allows deep-merged overrides
 
 ### Framework adapters
 
-Use these instead of decorators when integrating with a specific framework:
-
-```python
-from trajectly.sdk import openai_chat_completion
-
-# OpenAI
-result = openai_chat_completion(client, model="gpt-4o", messages=messages)
-```
-
-Available adapters:
-
-| Adapter | Function |
-|---|---|
-| OpenAI | `openai_chat_completion(client, model, messages, ...)` |
-| Gemini | `gemini_generate_content(client, model, contents, ...)` |
-| LangChain | `langchain_invoke(runnable, input_data, model=..., provider="langchain")` |
-
-### Low-level helpers
-
-For cases where decorators or adapters don't fit:
-
-```python
-from trajectly.sdk import (
-    invoke_llm_call,
-    invoke_llm_call_async,
-    invoke_tool_call,
-    invoke_tool_call_async,
-    agent_step,
-)
-
-# Record a tool call manually
-result = invoke_tool_call("tool_name", my_function, arg1, arg2)
-
-# Record an LLM call manually
-result = invoke_llm_call("openai", "gpt-4o", my_llm_function, prompt)
-
-# Async call paths
-tool_result = await invoke_tool_call_async("tool_name", my_async_tool, arg1, arg2)
-llm_result = await invoke_llm_call_async("openai", "gpt-4o", my_async_llm_function, prompt)
-
-# Mark a logical agent step
-agent_step("processing_input", details={"key": "value"})
-```
-
-### Examples
-
-| Adapter | Example |
-|---|---|
-| OpenAI | [Support Escalation Demo (standalone repo)](https://github.com/trajectly/support-escalation-demo) |
-| OpenAI + deterministic replay | [Procurement Approval Demo (standalone repo)](https://github.com/trajectly/procurement-approval-demo) |
+For framework-native integration, use wrappers from `trajectly.sdk` such as:
+- `openai_chat_completion`
+- `gemini_generate_content`
+- `langchain_invoke`
+- `anthropic_messages_create`
+- `llamaindex_query`
 
 ---
 
-## 8) Trace Schema Reference
+## 8) Trace schema reference
 
-Traces are stored as JSONL files (one JSON event per line).
+Trajectly stores traces as JSONL (one event per line).
 
 ### Event envelope
 
-Every event has these fields:
-
-| Field | Description |
+| Field | Meaning |
 |---|---|
-| `schema_version` | Always `"v1"` |
-| `event_type` | Event kind (see below) |
-| `seq` | Sequence number in emission order |
-| `run_id` | Unique run identifier |
+| `schema_version` | Trace event schema version (`"v1"`) |
+| `event_type` | Event kind |
+| `seq` | Emission sequence number |
+| `run_id` | Run identifier |
 | `rel_ms` | Milliseconds since run start |
-| `payload` | Event-specific data |
+| `payload` | Event-specific payload |
 | `meta` | Optional metadata |
-| `event_id` | Deterministic hash (added during normalization) |
+| `event_id` | Deterministic event hash (if present) |
 
 ### Event types
 
-| Type | When it fires |
+| Event type | Meaning |
 |---|---|
-| `run_started` | Run begins |
+| `run_started` | Runtime start marker |
 | `agent_step` | Logical step marker |
-| `llm_called` | Before LLM invocation |
-| `llm_returned` | After LLM response |
-| `tool_called` | Before tool invocation |
-| `tool_returned` | After tool result |
-| `run_finished` | Run complete |
+| `tool_called` | Tool invocation started |
+| `tool_returned` | Tool invocation finished |
+| `llm_called` | LLM invocation started |
+| `llm_returned` | LLM invocation finished |
+| `run_finished` | Runtime completion marker |
 
-### Example events
+Example:
 
 ```json
 {
   "schema_version": "v1",
   "event_type": "tool_called",
   "seq": 6,
-  "run_id": "run-01JXYZ",
+  "run_id": "run-01H...",
   "rel_ms": 124,
   "payload": {
     "tool_name": "fetch_data",
-    "input": { "args": ["query-123"], "kwargs": {} }
-  }
+    "input": {"args": ["q-123"], "kwargs": {}}
+  },
+  "meta": {}
 }
 ```
 
-```json
-{
-  "schema_version": "v1",
-  "event_type": "llm_called",
-  "seq": 8,
-  "run_id": "run-01JXYZ",
-  "rel_ms": 200,
-  "payload": {
-    "provider": "openai",
-    "model": "gpt-4o",
-    "prompt": "Analyze this data..."
-  }
-}
-```
+Note: spec schema version (`0.4`) and trace schema version (`v1`) are different artifacts and intentionally use different version namespaces.
 
 ---
 
-## 9) Contracts Reference
+## 9) Contracts reference
 
-Contracts define the rules your agent must follow. They are specified in the `contracts` section of your spec.
+Contracts are under `contracts:` in spec YAML.
 
-### Tool contracts
-
-Control which tools are allowed and denied:
+### Tools
 
 ```yaml
 contracts:
   tools:
     allow: [fetch_data, save_result]
-    deny: [dangerous_tool]
+    deny: [unsafe_export]
     max_calls_total: 10
     max_calls_per_tool:
       fetch_data: 3
 ```
 
-### Sequence contracts
-
-Require specific ordering of tool calls:
+### Sequence
 
 ```yaml
 contracts:
   sequence:
     require: [fetch_data, process, save_result]
-    forbid: [bad_sequence_a, bad_sequence_b]
-    require_before: [setup_step]
-    eventually: [cleanup_step]
-    never: [forbidden_step]
-    at_most_once: [init_step]
+    forbid: [unsafe_export]
+    require_before:
+      - before: fetch_data
+        after: save_result
+    eventually: [save_result]
+    never: [unsafe_export]
+    at_most_once: [initialize]
 ```
 
-### Side-effect contracts
-
-Guard against unintended writes:
+### Side effects
 
 ```yaml
 contracts:
@@ -981,32 +571,26 @@ contracts:
     deny_write_tools: true
 ```
 
-### Network contracts
-
-Restrict outbound network access:
+### Network
 
 ```yaml
 contracts:
   network:
     default: deny
-    allowlist: []
     allow_domains: [api.example.com]
 ```
 
-### Data leak contracts
-
-Block PII and secrets from leaving the agent:
+### Data leak
 
 ```yaml
 contracts:
   data_leak:
     deny_pii_outbound: true
     outbound_kinds: [TOOL_CALL, LLM_REQUEST]
+    secret_patterns: ["(?i)api[_-]?key"]
 ```
 
-### Argument contracts
-
-Validate tool call arguments:
+### Arguments
 
 ```yaml
 contracts:
@@ -1019,65 +603,62 @@ contracts:
           regex: "^[a-zA-Z0-9-]+$"
 ```
 
-### Failure codes
-
-When a contract is violated, Trajectly reports a failure code like `contract_tool_denied`, `contract_sequence_violated`, etc. The report includes the exact step number and a description of what went wrong.
-
 ---
 
 ## 10) Troubleshooting
 
-### "FIXTURE_EXHAUSTED" error
+### Missing fixture / fixture exhausted
 
-**What it means:** The replay needed more fixture data than was recorded.
+Symptoms:
+- `Missing fixture for tool call ...`
+- `FIXTURE_EXHAUSTED`
 
-**How to fix:**
+Actions:
+1. re-record baseline for the spec
+2. verify replay matching settings (`replay.tool_match_mode`, `replay.llm_match_mode`)
+3. reduce nondeterministic inputs between record/replay
 
-1. Re-record the baseline: `python -m trajectly record your-spec.agent.yaml`
-2. Check that your agent isn't making non-deterministic calls that change between runs
-3. Verify the matcher mode in your spec (`args_signature_match` vs `signature_match`)
+### Network blocked in replay
 
-### "NORMALIZER_VERSION_MISMATCH" error
+Offline replay intentionally blocks live network access by default.
 
-**What it means:** The baseline was recorded with a different version of Trajectly.
+If you explicitly need online mode, set `replay.mode: online` in the spec. Keep offline mode for CI determinism.
 
-**How to fix:**
+### CI baseline writes blocked
 
-1. Re-record baselines: `python -m trajectly record --auto`
-2. Pin the same Trajectly version in local dev and CI
+When `TRAJECTLY_CI=1`, baseline writes are blocked unless explicitly overridden.
 
-### Network blocked during replay
+Use:
 
-**What it means:** Offline replay mode blocks all network access to ensure determinism.
+```bash
+python -m trajectly record specs/my-agent.agent.yaml --allow-ci-write
+```
 
-**How to fix:**
+or
 
-1. This is expected behavior. Rely on fixtures for deterministic replay (recommended).
-2. If you need network access, set `replay.mode: online` in your spec (not recommended for CI).
+```bash
+python -m trajectly baseline update specs/my-agent.agent.yaml --allow-ci-write
+```
 
-### Baseline writes blocked in CI
+### Reporter says FAIL but you need the exact command
 
-**What it means:** `TRAJECTLY_CI=1` prevents accidental baseline overwrites in CI.
+Use print-only repro:
 
-**How to fix:**
+```bash
+python -m trajectly repro --print-only
+```
 
-1. Don't update baselines in standard CI runs.
-2. For intentional updates, use: `python -m trajectly record --allow-ci-write`
+### Upgrade drift after Trajectly version changes
 
-### Shrink didn't reduce the trace
+Re-record baseline versions after upgrades to align fixtures and normalizer behavior:
 
-**What it means:** No smaller trace could reproduce the same failure within the configured limits.
+```bash
+python -m trajectly baseline update --auto --project-root .
+```
 
-**How to fix:**
+---
 
-1. Increase limits: `python -m trajectly shrink --max-seconds 30 --max-iterations 500`
-2. The original failing trace is still valid for debugging.
+## Related repositories
 
-### Common mistakes
-
-| Mistake | Fix |
-|---|---|
-| Forgetting to `python -m trajectly init` first | Run `python -m trajectly init` before `python -m trajectly record` (replay-only runs can use a pre-existing `.trajectly/`) |
-| Recording with wrong API key | Set your provider API key before `python -m trajectly record` |
-| Running regression spec without recording baseline first | Always `python -m trajectly record` the baseline spec before running regression specs |
-| Baseline drift after Trajectly upgrade | Re-record baselines after upgrading: `python -m trajectly record --auto` |
+- Support demo: <https://github.com/trajectly/support-escalation-demo>
+- Procurement demo: <https://github.com/trajectly/procurement-approval-demo>

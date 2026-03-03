@@ -1,11 +1,12 @@
 # CI: GitHub Actions
 
-Trajectly ships a thin composite GitHub Action in `github-action/action.yml`. It installs Trajectly, runs the CLI, and optionally posts a PR comment and uploads artifacts. No TRT algorithm logic lives in the action.
+Trajectly ships a thin composite action at `github-action/action.yml`.
 
-## Minimal Workflow
+It wraps CLI commands and CI plumbing only. TRT evaluation remains in Python code.
+
+## Minimal workflow
 
 ```yaml
-# .github/workflows/trajectly.yml
 name: Agent Regression Tests
 on: [push, pull_request]
 
@@ -17,66 +18,67 @@ jobs:
       - uses: ./github-action
 ```
 
-This uses all defaults: Python 3.11, editable install, specs from `specs/*.agent.yaml`, PR comment enabled, artifacts uploaded.
+## Use from another repository
 
-## Customized Workflow
+If you are not vendoring the action locally:
 
 ```yaml
-name: Agent Regression Tests
-on:
-  pull_request:
-    branches: [main]
-
-jobs:
-  trajectly:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./github-action
-        with:
-          spec_glob: "tests/specs/*.agent.yaml"
-          project_root: "."
-          python_version: "3.12"
-          install: "pypi"
-          comment_pr: "true"
-          upload_artifacts: "true"
+- uses: trajectly/trajectly/github-action@main
+  with:
+    spec_glob: "specs/*.agent.yaml"
+    project_root: "."
 ```
 
-## Action Inputs
+## Action inputs
 
-| Input | Default | Description |
-|-------|---------|-------------|
-| `spec_glob` | `specs/*.agent.yaml` | Glob pattern for agent spec files |
-| `project_root` | `.` | Root directory of the project |
-| `python_version` | `3.11` | Python version to install |
-| `install` | `editable` | `editable` (python -m pip install -e .) or `pypi` (python -m pip install trajectly) |
-| `comment_pr` | `true` | Post a PR comment with the report summary |
-| `upload_artifacts` | `true` | Upload `.trajectly/**` as build artifacts |
+| Input | Default | Meaning |
+|---|---|---|
+| `spec_glob` | `specs/*.agent.yaml` | Spec files/glob passed to `trajectly run` |
+| `project_root` | `.` | Working directory for run/report steps |
+| `python_version` | `3.11` | Python version installed via `actions/setup-python@v5` |
+| `install` | `editable` | `editable` => `pip install -e <project_root>`; `pypi` => `pip install trajectly` |
+| `comment_pr` | `true` | Post/update PR comment with report markdown (PR events only) |
+| `upload_artifacts` | `true` | Upload `${project_root}/.trajectly/**` artifact |
 
-## What the Action Does
+## What the action executes
 
-1. **Setup Python** via `actions/setup-python@v5`.
-2. **Install Trajectly**: editable from the repo or from PyPI.
-3. **Run specs**: `python -m trajectly run <spec_glob> --project-root <project_root>`. Continues on error so the report step always runs.
-4. **Generate report**: `python -m trajectly report --pr-comment > trajectly_pr_comment.md`.
-5. **Post PR comment** (if `comment_pr` is `true` and the event is a pull request): uses `actions/github-script@v7` to create or update a comment with a `<!-- trajectly-report -->` marker.
-6. **Upload artifacts** (if `upload_artifacts` is `true`): uploads `.trajectly/**` via `actions/upload-artifact@v4`.
-7. **Propagate exit code**: the workflow fails with the exit code from step 3 (0 = pass, 1 = regression, 2 = error).
+In order:
 
-## Generic CI (Any Provider)
+1. **Set up Python**
+2. **Install Trajectly**
+   - `install: pypi` -> `pip install trajectly`
+   - otherwise -> `pip install -e "${project_root}"`
+3. **Run specs** (continue-on-error enabled)
+   - `trajectly run <spec_glob> --project-root .`
+   - captures exit code into `${{ steps.run.outputs.exit_code }}`
+4. **Generate PR comment markdown**
+   - `trajectly report --pr-comment > trajectly_pr_comment.md 2>/dev/null || true`
+5. **Post PR comment** (if `comment_pr == true` and event is `pull_request`)
+6. **Upload artifacts** (if `upload_artifacts == true`)
+7. **Propagate exit code**
+   - final step exits with run step exit code
 
-If you are not using GitHub Actions, the equivalent shell commands are:
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | All specs passed |
+| `1` | Regression(s) detected |
+| `2` | Config or tooling error |
+
+## Equivalent shell flow (any CI)
 
 ```bash
 python -m pip install trajectly
 python -m trajectly run specs/*.agent.yaml --project-root .
-python -m trajectly report --pr-comment > comment.md
-# upload .trajectly/** as build artifacts per your CI provider
+python -m trajectly report --pr-comment > trajectly_pr_comment.md
 ```
 
-## Caching `.trajectly/`
+Upload `.trajectly/**` as artifacts with your CI provider.
 
-The `.trajectly/` directory contains baselines, fixtures, and reports. You can cache it between runs to speed up repeated workflows:
+## Optional cache
+
+Caching `.trajectly/` can speed repeated CI runs:
 
 ```yaml
 - uses: actions/cache@v4
@@ -86,14 +88,9 @@ The `.trajectly/` directory contains baselines, fixtures, and reports. You can c
     restore-keys: trajectly-
 ```
 
-## Exit Codes
+## Standalone examples
 
-| Code | Meaning |
-|------|---------|
-| 0 | All specs passed |
-| 1 | At least one regression detected |
-| 2 | Configuration or tooling error |
-
-## Example Workflow
-
-See [support-escalation-demo/.github/workflows/trajectly.yml](https://github.com/trajectly/support-escalation-demo/blob/main/.github/workflows/trajectly.yml) and [procurement-approval-demo/.github/workflows/trajectly.yml](https://github.com/trajectly/procurement-approval-demo/blob/main/.github/workflows/trajectly.yml) for complete standalone examples that run agent regression tests on push and PR, using pre-recorded fixtures (no API keys needed in CI).
+- Support demo workflow:
+  <https://github.com/trajectly/support-escalation-demo/blob/main/.github/workflows/trajectly.yml>
+- Procurement demo workflow:
+  <https://github.com/trajectly/procurement-approval-demo/blob/main/.github/workflows/trajectly.yml>

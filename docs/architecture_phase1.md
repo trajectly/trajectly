@@ -1,128 +1,134 @@
-# Phase 1 Architecture — Trajectly
+# Phase 1 Architecture - Trajectly
 
-> This document describes the **current** (completed) architecture after the Phase 1 refactor.
+This document describes the current architecture on `main`.
 
 ## Package Layout
 
-```
+```text
 src/trajectly/
-├── __init__.py              # __version__ = "0.4.0"
-├── __main__.py              # python -m trajectly
-├── core/
-│   ├── __init__.py
-│   ├── abstraction/         # Trace abstraction pipeline + predicates
-│   ├── canonical.py         # Canonical JSON normalization (re-export)
-│   ├── constants.py         # Schema versions, failure classes, exit codes, state dirs
-│   ├── contracts.py         # Contract monitor evaluation engine
-│   ├── diff/                # Trace comparison (LCS, structural diff, models)
-│   ├── errors.py            # Error types, FailureClass
-│   ├── events.py            # TraceEvent model, JSONL I/O
-│   ├── fixtures.py          # FixtureStore / FixtureMatcher for replay
-│   ├── normalize/           # Canonical normalizer + version constant
-│   ├── redaction.py         # Regex-based PII/secret redaction
-│   ├── refinement/          # Skeleton extraction + subsequence checker
-│   ├── replay_guard.py      # Socket/requests monkey-patch for offline replay
-│   ├── report/
-│   │   └── schema.py        # Report data models (ViolationV03, TRTReportV03)
-│   ├── runtime.py           # Subprocess execution of agent commands
-│   ├── schema.py            # Trace/report JSON schema validation
-│   ├── shrink/              # Delta-debugging trace minimization
-│   ├── specs/               # Spec parser (v0.4, v0.2 compat, migration, extends)
-│   ├── stores/
-│   │   ├── artifacts.py     # ArtifactStore protocol + LocalArtifactStore
-│   │   └── baselines.py     # BaselineStore protocol + LocalBaselineStore
-│   ├── trace/               # Trace I/O, metadata, models, validation
-│   └── trt/                 # TRT runner, violation types, witness resolution
-├── cli/
-│   ├── __init__.py          # Lazy re-export of `app` via __getattr__
-│   ├── commands.py          # Typer app + all CLI commands
-│   ├── engine.py            # Orchestration: record_specs, run_specs, shrink_repro
-│   ├── engine_common.py     # Shared state paths, CommandOutcome
-│   ├── benchmark.py         # Performance benchmark harness
-│   └── report/
-│       └── renderers.py     # Markdown / PR-comment / JSON report rendering
-├── sdk/
-│   ├── __init__.py
-│   ├── adapters.py          # Framework adapters (OpenAI, Gemini, etc.)
-│   └── context.py           # SDKContext: event emission + fixture replay
-├── plugins/                 # Cross-cutting (stays at top level)
-│   ├── cloud_exporter.py
-│   ├── interfaces.py
-│   └── loader.py
-├── *.py (shims)             # Thin re-export shims at old import paths
-└── github-action/
-    └── action.yml           # Composite GitHub Action wrapper
+|-- __init__.py              # public exports: __version__, App
+|-- __main__.py              # python -m trajectly entrypoint
+|-- core/
+|   |-- abstraction/         # trace abstraction pipeline
+|   |-- canonical.py         # canonical JSON hashing/normalization helpers
+|   |-- constants.py         # schema versions, event types, exit codes, state dirs
+|   |-- contracts.py         # contract evaluation engine
+|   |-- diff/                # trace diff models/algorithms
+|   |-- errors.py            # typed failures and failure classes
+|   |-- events.py            # trace event model + JSONL I/O
+|   |-- fixtures.py          # fixture store/matcher for replay
+|   |-- normalize/           # canonical normalizer
+|   |-- redaction.py         # payload redaction
+|   |-- refinement/          # skeleton extraction and refinement checks
+|   |-- replay_guard.py      # replay-mode network guard
+|   |-- report/schema.py     # report models
+|   |-- runtime.py           # subprocess execution model for specs
+|   |-- schema.py            # trace/report schema validators
+|   |-- shrink/              # ddmin counterexample shrinking
+|   |-- specs/               # spec parsing, migration, extends deep-merge
+|   |-- stores/              # baseline and artifact store protocols/impls
+|   |-- trace/               # trace io/meta/models
+|   \-- trt/                # TRT runner + witness resolution
+|-- cli/
+|   |-- commands.py          # Typer command surface
+|   |-- engine.py            # orchestration for record/run/repro/shrink/baselines
+|   |-- engine_common.py     # shared command helpers and paths
+|   |-- benchmark.py         # benchmark harness
+|   \-- report/renderers.py  # markdown/pr-comment/json output
+|-- sdk/
+|   |-- __init__.py          # decorators + graph exports
+|   |-- context.py           # SDKContext event emission + fixture replay
+|   |-- adapters.py          # OpenAI/Gemini/LangChain/etc wrappers
+|   \-- graph.py             # declarative App DAG registration/execution
+|-- plugins/
+|   |-- cloud_exporter.py
+|   |-- interfaces.py
+|   \-- loader.py
+\-- github-action/
+    \-- action.yml          # composite CI wrapper (no TRT logic)
 ```
 
-## Layer Rules
+## Layer Boundaries
 
-| Layer | May import | Must NOT import |
-|-------|-----------|-----------------|
-| `core` | stdlib, PyYAML | typer, rich, click, cli, sdk, plugins |
-| `cli` | core, sdk, plugins, typer, rich | — |
-| `sdk` | core | typer, rich, click, cli, plugins |
-| `plugins` | core, sdk | typer, rich, click, cli |
+| Layer | Allowed imports | Not allowed |
+|---|---|---|
+| `core` | stdlib, PyYAML | `cli`, `sdk`, Typer, Rich |
+| `cli` | `core`, `sdk`, `plugins`, Typer, Rich | n/a |
+| `sdk` | `core` | `cli`, Typer, Rich |
+| `plugins` | `core`, `sdk` | `cli`, Typer, Rich |
 
-Boundary enforcement is tested in `tests/unit/test_boundary_enforcement.py` using AST analysis.
+Boundary checks are enforced by tests (AST-based import rules).
 
-## Entrypoint
+## Execution Flow
 
-`pyproject.toml` scripts entrypoint: `trajectly = "trajectly.cli.commands:app"`
+### CLI-driven execution
 
-`cli/__init__.py` uses `__getattr__` to lazily re-export `app` from `cli/commands.py`, breaking circular imports when other modules do `from trajectly.cli import app`.
+1. `python -m trajectly run ...` loads specs and resolves project paths.
+2. `core/runtime.py` executes each spec command in a subprocess with `TRAJECTLY_*` env wiring.
+3. Agent code emits events through SDK instrumentation.
+4. TRT compares baseline vs current traces and computes a deterministic verdict.
+5. CLI renders reports and exits with `0` (pass), `1` (regression), or `2` (internal/config error).
+
+### Declarative graph SDK flow
+
+`App.run()` (in `sdk/graph.py`) executes a validated DAG in deterministic topological order and routes instrumentation through `SDKContext`:
+
+`App.run -> SDKContext.invoke_tool/invoke_llm/agent_step -> trace events -> existing core TRT pipeline`
+
+This means graph-based agents and decorator-based agents share the same replay, fixture, and report semantics.
+
+## SDK Instrumentation Model
+
+`SDKContext` is the single runtime instrumentation boundary:
+
+1. Emits `tool_called` / `tool_returned`.
+2. Emits `llm_called` / `llm_returned`.
+3. Emits `agent_step` markers.
+4. Replays from fixtures in replay mode (strict behavior enforced by runtime settings).
+
+No separate event schema exists for graph mode.
 
 ## Compatibility Shims
 
-Every module that moved to `core/` or `cli/` has a thin re-export shim at its original path:
+Legacy import-path shims remain for modules moved under `core/` and `cli/`.
+
+Example:
 
 ```python
-# src/trajectly/contracts.py (shim)
 from trajectly.core.contracts import *  # noqa: F403
 ```
 
-Package shims (directories like `abstraction/`, `trace/`, etc.) have per-submodule shim files that explicitly re-export from `trajectly.core.*`. This ensures `isinstance` checks work correctly across both import paths.
+Shims are retained for compatibility while imports migrate to canonical paths.
 
-`replay_guard.py` uses `sys.modules` aliasing so that `monkeypatch` in tests affects both the shim and core module:
+## Spec Inheritance (`extends`)
 
-```python
-import trajectly.core.replay_guard as _mod
-sys.modules[__name__] = _mod
-```
+Specs support deterministic deep-merge inheritance:
 
-Shims will be retained for one release cycle.
+- dicts merge recursively
+- lists and scalars override
+- max chain depth protects against cycles
 
-## Store Interfaces
+This enables a shared base policy with per-agent overrides.
 
-`core/stores/artifacts.py`:
-- `ArtifactStore` protocol: `put_bytes`, `put_file`, `get_bytes`, `list_keys`
-- `LocalArtifactStore`: wraps `.trajectly/{reports,repros}/` filesystem layout
+## Storage Interfaces
 
-`core/stores/baselines.py`:
-- `BaselineStore` protocol: `resolve`, `write`, `list_baselines`
-- `LocalBaselineStore`: wraps `.trajectly/baselines/` + `fixtures/` layout
+`core/stores` defines protocol boundaries:
 
-## Spec `extends`
+- `ArtifactStore` / `LocalArtifactStore`
+- `BaselineStore` / `LocalBaselineStore`
 
-Specs can inherit from a base spec using deterministic deep-merge:
+These isolate filesystem layout concerns from higher-level orchestration.
 
-```yaml
-extends: ./base.agent.yaml
-name: my-variant
-contracts:
-  tools:
-    deny: [unsafe_tool]
-```
+## GitHub Action Boundary
 
-Merge rules: dicts merge recursively (keys iterated in `sorted()` order), lists override, scalars override. Max chain depth: 10 (circular reference detection). Schema version stays `0.4`.
+`github-action/action.yml` is intentionally thin:
 
-## GitHub Action Wrapper
+1. setup Python
+2. install Trajectly (`editable` or `pypi`)
+3. run specs
+4. generate PR comment markdown
+5. optionally post comment
+6. optionally upload `.trajectly/**`
+7. propagate run exit code
 
-`github-action/action.yml` is a composite action with no TRT logic:
-
-1. `actions/setup-python` -- install Python
-2. `python -m pip install` -- editable or PyPI
-3. `python -m trajectly run` -- run specs
-4. `python -m trajectly report --pr-comment` -- generate markdown
-5. `actions/github-script` -- post/update PR comment
-6. `actions/upload-artifact` -- upload `.trajectly/**`
-7. Propagate exit code from step 3
+All TRT logic remains in Python packages, not in workflow YAML.
