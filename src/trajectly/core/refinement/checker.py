@@ -1,4 +1,4 @@
-"""Skeleton refinement checker (Definitions 4-5 in trt_theory.md).
+"""Skeleton refinement checker.
 
 Implements ``check_skeleton_refinement``, which verifies the skeleton
 refinement preorder: baseline call names must embed as a subsequence in the

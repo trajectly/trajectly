@@ -1,14 +1,14 @@
-"""TRT decision procedure (Definition 8 in trt_theory.md).
+"""TRT decision procedure.
 
 Implements ``evaluate_trt``, the top-level verdict function that composes
 abstraction, contract evaluation, skeleton refinement, and witness resolution
 into a single deterministic pipeline.
 
-**Soundness guarantee (Theorem 1):** If ``evaluate_trt`` returns PASS, every
+**Soundness guarantee:** If ``evaluate_trt`` returns PASS, every
 configured contract obligation is satisfied and skeleton refinement holds for
 the observed traces.
 
-**Determinism guarantee (Theorem 2):** For fixed inputs ``(T_b, T_n, spec)``,
+**Determinism guarantee:** For fixed inputs ``(T_b, T_n, spec)``,
 the output (verdict, witness index, violation list) is identical across
 invocations — no randomness, no hash-map iteration order dependency, no
 parallelism.

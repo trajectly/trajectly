@@ -1,9 +1,9 @@
-"""Deterministic abstraction pipeline (Definition 2 in trt_theory.md).
+"""Deterministic abstraction pipeline.
 
 Implements ``build_abstract_trace``, which maps a concrete event trace to an
 abstract representation consisting of a token stream and a predicate bag.
 
-**Determinism (Theorem 2 precondition):** The pipeline iterates events by
+**Determinism (stability precondition):** The pipeline iterates events by
 index, applies a fixed token-mapping function per event type, and accumulates
 predicates in a single pass.  Output keys are sorted (``tool_calls_by_name``,
 ``domains``) so the abstract trace is identical for identical inputs regardless

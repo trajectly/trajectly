@@ -1,4 +1,4 @@
-"""Property-based invariant tests for TRT core theorems:
+"""Property-based invariant tests for TRT core guarantees:
 - Determinism: identical inputs → identical outputs
 - Soundness: PASS ↔ zero violations
 - Witness minimality: witness_index == min(event_index)
@@ -52,7 +52,7 @@ def _spec() -> AgentSpec:
 
 
 # ---------------------------------------------------------------------------
-# Theorem 2: Determinism
+# Guarantee 2: Determinism
 # ---------------------------------------------------------------------------
 
 class TestDeterminism:
@@ -109,7 +109,7 @@ class TestDeterminism:
 
 
 # ---------------------------------------------------------------------------
-# Theorem 1: Soundness
+# Guarantee 1: Soundness
 # ---------------------------------------------------------------------------
 
 class TestSoundness:
@@ -159,7 +159,7 @@ class TestSoundness:
 
 
 # ---------------------------------------------------------------------------
-# Theorem 3: Witness minimality
+# Guarantee 3: Witness minimality
 # ---------------------------------------------------------------------------
 
 class TestWitnessMinimality:
@@ -208,7 +208,7 @@ class TestWitnessMinimality:
 
 
 # ---------------------------------------------------------------------------
-# Theorem 4: Counterexample prefix sufficiency
+# Guarantee 4: Counterexample prefix sufficiency
 # ---------------------------------------------------------------------------
 
 class TestCounterexamplePrefix:

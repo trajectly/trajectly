@@ -1,4 +1,4 @@
-"""Contract monitor evaluation (Definition 3 in trt_theory.md).
+"""Contract monitor evaluation.
 
 Implements ``evaluate_contracts``, which checks every obligation in the
 contract set Φ independently and collects all violations (no short-circuit).
@@ -14,7 +14,7 @@ are appended in traversal order.  Pre-compiled regexes (``_RE_EMAIL``,
 ordering.
 
 **Completeness:** Every obligation type is checked; the empty violation list
-implies all obligations passed (Theorem 1 precondition).
+implies all obligations passed (soundness precondition).
 """
 
 from __future__ import annotations

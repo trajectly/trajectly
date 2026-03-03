@@ -1,13 +1,13 @@
-"""Witness resolution (Definitions 6-7 in trt_theory.md).
+"""Witness resolution.
 
 Implements ``resolve_witness``, which selects the earliest violation event
-(Theorem 3: witness minimality) and applies deterministic tie-breaking:
+(witness minimality guarantee) and applies deterministic tie-breaking:
 
 1. Failure class rank: REFINEMENT < CONTRACT < TOOLING.
 2. Lexicographic violation code order within the same class.
 
 This yields a total order on violations at the witness index, guaranteeing a
-unique and stable primary violation across invocations (Theorem 2).
+unique and stable primary violation across invocations (determinism guarantee).
 """
 
 from __future__ import annotations
