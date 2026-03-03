@@ -6,4 +6,4 @@ from trajectly.sdk.graph import App
 
 __all__ = ["App", "__version__"]
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
