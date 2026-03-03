@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/abstraction/predicates.py."""
+
 from __future__ import annotations
 
 import re
@@ -13,6 +15,7 @@ URL_RE = re.compile(r"https?://[^\s)]+")
 def _walk_strings(value: Any) -> Iterable[str]:
     # Predicate extraction intentionally walks only serializable payload-like
     # shapes to keep abstraction deterministic and side-effect free.
+    """Execute `_walk_strings`."""
     if isinstance(value, str):
         yield value
         return
@@ -26,14 +29,17 @@ def _walk_strings(value: Any) -> Iterable[str]:
 
 
 def contains_email(value: Any) -> bool:
+    """Execute `contains_email`."""
     return any(EMAIL_RE.search(text) for text in _walk_strings(value))
 
 
 def contains_phone(value: Any) -> bool:
+    """Execute `contains_phone`."""
     return any(PHONE_RE.search(text) for text in _walk_strings(value))
 
 
 def extract_domains(value: Any) -> list[str]:
+    """Execute `extract_domains`."""
     domains: set[str] = set()
     for text in _walk_strings(value):
         candidates = [text, *URL_RE.findall(text)]
@@ -46,6 +52,7 @@ def extract_domains(value: Any) -> list[str]:
 
 
 def extract_numeric_values(value: Any) -> list[float]:
+    """Execute `extract_numeric_values`."""
     numbers: list[float] = []
     if isinstance(value, int | float):
         return [float(value)]

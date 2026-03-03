@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/redaction.py."""
+
 from __future__ import annotations
 
 import re
@@ -8,6 +10,7 @@ REDACTION_TOKEN = "[REDACTED]"
 
 
 def _redact_string(value: str, patterns: Sequence[re.Pattern[str]]) -> str:
+    """Execute `_redact_string`."""
     redacted = value
     for pattern in patterns:
         redacted = pattern.sub(REDACTION_TOKEN, redacted)
@@ -15,11 +18,13 @@ def _redact_string(value: str, patterns: Sequence[re.Pattern[str]]) -> str:
 
 
 def apply_redactions(value: Any, regex_patterns: Sequence[str]) -> Any:
+    """Execute `apply_redactions`."""
     if not regex_patterns:
         return value
     compiled = [re.compile(pattern) for pattern in regex_patterns]
 
     def walk(node: Any) -> Any:
+        """Execute `walk`."""
         if isinstance(node, str):
             return _redact_string(node, compiled)
         if isinstance(node, Mapping):

@@ -1,4 +1,4 @@
-# Compatibility shim — real code lives in trajectly.core.replay_guard
+"""Compatibility shim: real code lives in trajectly.core.replay_guard."""
 # Uses sys.modules aliasing so monkeypatch on this module affects core too.
 from __future__ import annotations
 

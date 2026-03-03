@@ -17,6 +17,7 @@ from trajectly.constants import EXIT_SUCCESS
 
 
 def _write(path: Path, body: str) -> None:
+    """Execute `_write`."""
     path.write_text(body.strip() + "\n", encoding="utf-8")
 
 

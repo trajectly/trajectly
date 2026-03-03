@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/trace/__init__.py."""
+
 from trajectly.core.trace.io import (
     append_trace_event,
     read_trace_events,

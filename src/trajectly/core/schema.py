@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/schema.py."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -9,10 +11,12 @@ SUPPORTED_REPORT_SCHEMA_VERSIONS = {SCHEMA_VERSION}
 
 
 class SchemaValidationError(ValueError):
+    """Represent `SchemaValidationError`."""
     pass
 
 
 def _unsupported_version_message(kind: str, version: str, supported: set[str]) -> str:
+    """Execute `_unsupported_version_message`."""
     supported_text = ", ".join(sorted(supported))
     return (
         f"Unsupported {kind} schema_version '{version}'. Supported versions: {supported_text}. "
@@ -27,6 +31,7 @@ def _normalize_schema_version(
     supported: set[str],
     allow_missing: bool,
 ) -> str:
+    """Execute `_normalize_schema_version`."""
     if value is None:
         if allow_missing:
             return SCHEMA_VERSION
@@ -39,6 +44,7 @@ def _normalize_schema_version(
 
 
 def validate_trace_event_dict(data: dict[str, Any]) -> dict[str, Any]:
+    """Execute `validate_trace_event_dict`."""
     if not isinstance(data, dict):
         raise SchemaValidationError("Trace event must be an object")
 
@@ -90,6 +96,7 @@ def validate_trace_event_dict(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_diff_report_dict(data: dict[str, Any]) -> dict[str, Any]:
+    """Execute `validate_diff_report_dict`."""
     if not isinstance(data, dict):
         raise SchemaValidationError("Diff report must be an object")
 
@@ -128,6 +135,7 @@ def validate_diff_report_dict(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_latest_report_dict(data: dict[str, Any]) -> dict[str, Any]:
+    """Execute `validate_latest_report_dict`."""
     if not isinstance(data, dict):
         raise SchemaValidationError("Latest report must be an object")
 

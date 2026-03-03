@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/report/__init__.py."""
+
 from __future__ import annotations
 
 from trajectly.core.report.schema import (

@@ -1,3 +1,5 @@
+"""CLI module: trajectly/cli/report/renderers.py."""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +12,7 @@ from trajectly.schema import validate_diff_report_dict
 
 
 def render_markdown(spec_name: str, result: DiffResult) -> str:
+    """Execute `render_markdown`."""
     lines: list[str] = []
     lines.append(f"## Trajectly Report: {spec_name}")
     lines.append("")
@@ -53,6 +56,7 @@ def render_markdown(spec_name: str, result: DiffResult) -> str:
 
 
 def write_reports(spec_name: str, result: DiffResult, json_path: Path, md_path: Path) -> None:
+    """Execute `write_reports`."""
     json_path.parent.mkdir(parents=True, exist_ok=True)
     md_path.parent.mkdir(parents=True, exist_ok=True)
     report_payload = {"schema_version": SCHEMA_VERSION, **result.to_dict()}
@@ -62,6 +66,7 @@ def write_reports(spec_name: str, result: DiffResult, json_path: Path, md_path: 
 
 
 def render_pr_comment(latest_report: dict[str, Any]) -> str:
+    """Execute `render_pr_comment`."""
     processed_specs = int(latest_report.get("processed_specs", 0))
     regressions = int(latest_report.get("regressions", 0))
     errors = latest_report.get("errors", [])

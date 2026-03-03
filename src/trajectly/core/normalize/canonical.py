@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/normalize/canonical.py."""
+
 from __future__ import annotations
 
 import hashlib
@@ -22,11 +24,13 @@ DEFAULT_VOLATILE_KEYS = (
 
 @dataclass(slots=True, frozen=True)
 class CanonicalNormalizer:
+    """Represent `CanonicalNormalizer`."""
     version: str = NORMALIZER_VERSION
     volatile_keys: tuple[str, ...] = DEFAULT_VOLATILE_KEYS
     float_precision: int = 12
 
     def _normalize_float(self, value: float) -> float | str:
+        """Execute `_normalize_float`."""
         if math.isnan(value):
             return "NaN"
         if math.isinf(value):
@@ -36,6 +40,7 @@ class CanonicalNormalizer:
     def strip_volatile(self, value: Any) -> Any:
         # Canonical ordering is required so hashing/signatures stay stable across
         # Python versions and mapping insertion order differences.
+        """Execute `strip_volatile`."""
         if isinstance(value, Mapping):
             stripped: dict[str, Any] = {}
             for key in sorted(value.keys(), key=str):
@@ -55,6 +60,7 @@ class CanonicalNormalizer:
         return str(value)
 
     def normalize(self, value: Any, *, strip_volatile: bool = True) -> Any:
+        """Execute `normalize`."""
         if strip_volatile:
             return self.strip_volatile(value)
         if isinstance(value, Mapping):
@@ -70,14 +76,17 @@ class CanonicalNormalizer:
         return str(value)
 
     def canonical_dumps(self, value: Any, *, strip_volatile: bool = True) -> str:
+        """Execute `canonical_dumps`."""
         normalized = self.normalize(value, strip_volatile=strip_volatile)
         return json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
     def sha256(self, value: Any, *, strip_volatile: bool = True) -> str:
+        """Execute `sha256`."""
         digest = hashlib.sha256(self.canonical_dumps(value, strip_volatile=strip_volatile).encode("utf-8"))
         return digest.hexdigest()
 
     def sha256_subset(self, value: Mapping[str, Any], ignored_keys: set[str] | None = None) -> str:
+        """Execute `sha256_subset`."""
         ignored = ignored_keys or set()
         # Subset hashing is used by legacy event-id paths; keys are filtered
         # before canonicalization so callers can exclude volatile envelope fields.
@@ -89,18 +98,22 @@ DEFAULT_CANONICAL_NORMALIZER = CanonicalNormalizer()
 
 
 def normalize_for_json(value: Any) -> Any:
+    """Execute `normalize_for_json`."""
     return DEFAULT_CANONICAL_NORMALIZER.normalize(value, strip_volatile=False)
 
 
 def canonical_dumps(value: Any) -> str:
+    """Execute `canonical_dumps`."""
     return DEFAULT_CANONICAL_NORMALIZER.canonical_dumps(value, strip_volatile=False)
 
 
 def sha256_of_data(value: Any) -> str:
+    """Execute `sha256_of_data`."""
     return DEFAULT_CANONICAL_NORMALIZER.sha256(value, strip_volatile=False)
 
 
 def sha256_of_subset(value: Mapping[str, Any], ignored_keys: set[str] | None = None) -> str:
+    """Execute `sha256_of_subset`."""
     return DEFAULT_CANONICAL_NORMALIZER.sha256_subset(value, ignored_keys=ignored_keys)
 
 

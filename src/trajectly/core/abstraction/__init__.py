@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/abstraction/__init__.py."""
+
 from trajectly.core.abstraction.pipeline import AbstractionConfig, AbstractTrace, Token, build_abstract_trace
 from trajectly.core.abstraction.predicates import (
     contains_email,

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 
 def __getattr__(name: str) -> object:
+    """Execute `__getattr__`."""
     if name == "app":
         from trajectly.cli.commands import app
         return app

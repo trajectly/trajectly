@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/replay_guard.py."""
+
 from __future__ import annotations
 
 import importlib
@@ -11,6 +13,7 @@ from typing import Any
 
 
 class NetworkBlockedError(RuntimeError):
+    """Represent `NetworkBlockedError`."""
     pass
 
 
@@ -42,13 +45,16 @@ class _GuardedPopenProxy:
     """Callable proxy that preserves `subprocess.Popen[...]` subscription semantics."""
 
     def __init__(self, wrapped: Any, original: Any) -> None:
+        """Execute `__init__`."""
         self._wrapped = wrapped
         self._original = original
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Execute `__call__`."""
         return self._wrapped(*args, **kwargs)
 
     def __getitem__(self, item: Any) -> Any:
+        """Execute `__getitem__`."""
         original = self._original
         if hasattr(original, "__getitem__"):
             return original[item]
@@ -58,6 +64,7 @@ class _GuardedPopenProxy:
 
 
 def _extract_host(address: Any) -> str:
+    """Execute `_extract_host`."""
     if isinstance(address, (list, tuple)) and address:
         return str(address[0]).strip().lower()
     if isinstance(address, bytes):
@@ -68,6 +75,7 @@ def _extract_host(address: Any) -> str:
 
 
 def _host_from_url(raw_url: Any) -> str:
+    """Execute `_host_from_url`."""
     if hasattr(raw_url, "full_url"):
         parsed = urllib.parse.urlparse(str(raw_url.full_url))
     else:
@@ -76,6 +84,7 @@ def _host_from_url(raw_url: Any) -> str:
 
 
 def _allowed(address: Any) -> bool:
+    """Execute `_allowed`."""
     if not _ALLOWLIST:
         return False
     host = _extract_host(address)
@@ -88,6 +97,7 @@ def _allowed(address: Any) -> bool:
 
 
 def _blocked(reason: str | None = None) -> None:
+    """Execute `_blocked`."""
     suffix = f" ({reason})" if reason else ""
     raise NetworkBlockedError(
         "Trajectly replay mode blocks network access. "
@@ -97,36 +107,42 @@ def _blocked(reason: str | None = None) -> None:
 
 
 def _guard_create_connection(address: Any, *args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_create_connection`."""
     if _allowed(address):
         return _ORIGINAL_CREATE_CONNECTION(address, *args, **kwargs)
     _blocked(f"host={_extract_host(address) or 'unknown'}")
 
 
 def _guard_getaddrinfo(host: Any, *args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_getaddrinfo`."""
     if _allowed(host):
         return _ORIGINAL_GETADDRINFO(host, *args, **kwargs)
     _blocked(f"dns={_extract_host(host) or 'unknown'}")
 
 
 def _guard_socket_connect(sock: Any, address: Any, *args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_socket_connect`."""
     if _allowed(address):
         return _ORIGINAL_SOCKET_CONNECT(sock, address, *args, **kwargs)
     _blocked(f"host={_extract_host(address) or 'unknown'}")
 
 
 def _guard_socket_connect_ex(sock: Any, address: Any, *args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_socket_connect_ex`."""
     if _allowed(address):
         return _ORIGINAL_SOCKET_CONNECT_EX(sock, address, *args, **kwargs)
     _blocked(f"host={_extract_host(address) or 'unknown'}")
 
 
 def _guard_socket_sendto(sock: Any, data: Any, address: Any, *args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_socket_sendto`."""
     if _allowed(address):
         return _ORIGINAL_SOCKET_SENDTO(sock, data, address, *args, **kwargs)
     _blocked(f"host={_extract_host(address) or 'unknown'}")
 
 
 def _guard_urlopen(url: Any, *args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_urlopen`."""
     host = _host_from_url(url)
     if _allowed(host):
         return _ORIGINAL_URLOPEN(url, *args, **kwargs)
@@ -134,6 +150,7 @@ def _guard_urlopen(url: Any, *args: Any, **kwargs: Any) -> Any:
 
 
 def _guard_requests_request(self: Any, method: str, url: str, *args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_requests_request`."""
     host = _host_from_url(url)
     if _allowed(host):
         if _REQUESTS_SESSION_REQUEST is None:
@@ -143,6 +160,7 @@ def _guard_requests_request(self: Any, method: str, url: str, *args: Any, **kwar
 
 
 def _guard_httpx_request(self: Any, method: str, url: Any, *args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_httpx_request`."""
     host = _host_from_url(url)
     if _allowed(host):
         if _HTTPX_CLIENT_REQUEST is None:
@@ -152,6 +170,7 @@ def _guard_httpx_request(self: Any, method: str, url: Any, *args: Any, **kwargs:
 
 
 async def _guard_httpx_async_request(self: Any, method: str, url: Any, *args: Any, **kwargs: Any) -> Any:
+    """Run `_guard_httpx_async_request` asynchronously."""
     host = _host_from_url(url)
     if _allowed(host):
         if _HTTPX_ASYNC_CLIENT_REQUEST is None:
@@ -161,6 +180,7 @@ async def _guard_httpx_async_request(self: Any, method: str, url: Any, *args: An
 
 
 def _guard_websocket_create_connection(url: Any, *args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_websocket_create_connection`."""
     host = _host_from_url(url)
     if _allowed(host):
         if _WEBSOCKET_CREATE_CONNECTION is None:
@@ -170,6 +190,7 @@ def _guard_websocket_create_connection(url: Any, *args: Any, **kwargs: Any) -> A
 
 
 def _extract_command_name(command: Any) -> str:
+    """Execute `_extract_command_name`."""
     if isinstance(command, str):
         tokens = shlex.split(command)
         if not tokens:
@@ -181,6 +202,7 @@ def _extract_command_name(command: Any) -> str:
 
 
 def _is_blocked_subprocess(command: Any) -> bool:
+    """Execute `_is_blocked_subprocess`."""
     name = _extract_command_name(command)
     if not name:
         return False
@@ -190,6 +212,7 @@ def _is_blocked_subprocess(command: Any) -> bool:
 
 
 def _guard_subprocess_run(*args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_subprocess_run`."""
     command = args[0] if args else kwargs.get("args")
     if _is_blocked_subprocess(command):
         _blocked(f"subprocess={_extract_command_name(command)}")
@@ -197,6 +220,7 @@ def _guard_subprocess_run(*args: Any, **kwargs: Any) -> Any:
 
 
 def _guard_subprocess_popen(*args: Any, **kwargs: Any) -> Any:
+    """Execute `_guard_subprocess_popen`."""
     command = args[0] if args else kwargs.get("args")
     if _is_blocked_subprocess(command):
         _blocked(f"subprocess={_extract_command_name(command)}")
@@ -204,6 +228,7 @@ def _guard_subprocess_popen(*args: Any, **kwargs: Any) -> Any:
 
 
 def activate() -> None:
+    """Execute `activate`."""
     global _PATCHED
     global _ALLOWLIST
     global _SUBPROCESS_ALLOWLIST
@@ -242,9 +267,10 @@ def activate() -> None:
 
     socket.create_connection = _guard_create_connection
     socket.getaddrinfo = _guard_getaddrinfo
-    socket.socket.connect = _guard_socket_connect  # type: ignore[method-assign]
-    socket.socket.connect_ex = _guard_socket_connect_ex  # type: ignore[method-assign]
-    socket.socket.sendto = _guard_socket_sendto  # type: ignore[method-assign]
+    socket_type: Any = socket.socket
+    socket_type.connect = _guard_socket_connect
+    socket_type.connect_ex = _guard_socket_connect_ex
+    socket_type.sendto = _guard_socket_sendto
     urllib.request.urlopen = _guard_urlopen
     subprocess_module: Any = subprocess
     subprocess_module.run = _guard_subprocess_run

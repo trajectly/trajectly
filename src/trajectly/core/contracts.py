@@ -48,6 +48,7 @@ _REGEX_CACHE: dict[str, re.Pattern[str]] = {}
 
 
 def _tool_name_from_event(event: TraceEvent) -> str | None:
+    """Execute `_tool_name_from_event`."""
     if event.event_type != "tool_called":
         return None
     tool_name = event.payload.get("tool_name")
@@ -57,6 +58,7 @@ def _tool_name_from_event(event: TraceEvent) -> str | None:
 
 
 def _operation_signature(event: TraceEvent) -> str | None:
+    """Execute `_operation_signature`."""
     if event.event_type == "tool_called":
         tool_name = event.payload.get("tool_name")
         if isinstance(tool_name, str):
@@ -76,6 +78,7 @@ def _operation_signature(event: TraceEvent) -> str | None:
 
 
 def _looks_like_write_tool(tool_name: str) -> bool:
+    """Execute `_looks_like_write_tool`."""
     normalized = tool_name.strip().lower()
     return any(token in normalized for token in _WRITE_TOOL_HINTS)
 
@@ -94,6 +97,7 @@ def _resolve_operation(name: str, operations: list[str], start: int = 0) -> int:
 
 
 def _find_required_sequence_missing(requirements: list[str], operations: list[str]) -> list[str]:
+    """Execute `_find_required_sequence_missing`."""
     if not requirements:
         return []
     missing: list[str] = []
@@ -109,6 +113,7 @@ def _find_required_sequence_missing(requirements: list[str], operations: list[st
 
 
 def _safe_find_operation_index(operations: list[str], target: str) -> int | None:
+    """Execute `_safe_find_operation_index`."""
     try:
         return _resolve_operation(target, operations)
     except ValueError:
@@ -116,6 +121,7 @@ def _safe_find_operation_index(operations: list[str], target: str) -> int | None
 
 
 def _extract_tool_input(event: TraceEvent) -> dict[str, Any]:
+    """Execute `_extract_tool_input`."""
     payload = event.payload
     input_payload = payload.get("input")
     if isinstance(input_payload, dict):
@@ -124,6 +130,7 @@ def _extract_tool_input(event: TraceEvent) -> dict[str, Any]:
 
 
 def _extract_tool_kwargs(event: TraceEvent) -> dict[str, Any]:
+    """Execute `_extract_tool_kwargs`."""
     input_payload = _extract_tool_input(event)
     kwargs = input_payload.get("kwargs")
     if isinstance(kwargs, dict):
@@ -132,6 +139,7 @@ def _extract_tool_kwargs(event: TraceEvent) -> dict[str, Any]:
 
 
 def _extract_tool_args(event: TraceEvent) -> list[Any]:
+    """Execute `_extract_tool_args`."""
     input_payload = _extract_tool_input(event)
     args = input_payload.get("args")
     if isinstance(args, list):
@@ -140,6 +148,7 @@ def _extract_tool_args(event: TraceEvent) -> list[Any]:
 
 
 def _coerce_number(value: Any) -> float | None:
+    """Execute `_coerce_number`."""
     if isinstance(value, int | float):
         return float(value)
     if isinstance(value, str):
@@ -151,6 +160,7 @@ def _coerce_number(value: Any) -> float | None:
 
 
 def _contains_pii(value: Any) -> bool:
+    """Execute `_contains_pii`."""
     if isinstance(value, str):
         return _RE_EMAIL.search(value) is not None or _RE_PHONE.search(value) is not None
     if isinstance(value, dict):
@@ -161,6 +171,7 @@ def _contains_pii(value: Any) -> bool:
 
 
 def _compiled_pattern(pattern: str) -> re.Pattern[str]:
+    """Execute `_compiled_pattern`."""
     cached = _REGEX_CACHE.get(pattern)
     if cached is not None:
         return cached
@@ -170,6 +181,7 @@ def _compiled_pattern(pattern: str) -> re.Pattern[str]:
 
 
 def _contains_regex(value: Any, pattern: str) -> bool:
+    """Execute `_contains_regex`."""
     compiled = _compiled_pattern(pattern)
     if isinstance(value, str):
         return compiled.search(value) is not None
@@ -181,6 +193,7 @@ def _contains_regex(value: Any, pattern: str) -> bool:
 
 
 def _extract_url_from_event(event: TraceEvent) -> str | None:
+    """Execute `_extract_url_from_event`."""
     kwargs = _extract_tool_kwargs(event)
     for key in ("url", "uri", "endpoint"):
         value = kwargs.get(key)
@@ -195,6 +208,7 @@ def _extract_url_from_event(event: TraceEvent) -> str | None:
 
 
 def _extract_domain(value: str) -> str | None:
+    """Execute `_extract_domain`."""
     parsed = urlparse(value)
     host = parsed.hostname
     if host:
@@ -205,6 +219,7 @@ def _extract_domain(value: str) -> str | None:
 
 
 def _validate_tool_schema(tool_name: str, event: TraceEvent, schema: dict[str, Any]) -> list[Finding]:
+    """Execute `_validate_tool_schema`."""
     findings: list[Finding] = []
     if not schema:
         return findings
@@ -310,6 +325,7 @@ def _validate_tool_schema(tool_name: str, event: TraceEvent, schema: dict[str, A
 
 
 def evaluate_contracts(current: list[TraceEvent], contracts: AgentContracts) -> list[Finding]:
+    """Execute `evaluate_contracts`."""
     findings: list[Finding] = []
 
     tool_events = [event for event in current if event.event_type == "tool_called"]

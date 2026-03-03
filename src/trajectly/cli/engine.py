@@ -1,3 +1,5 @@
+"""Execution engine behind Trajectly CLI record/run/repro/baseline commands."""
+
 from __future__ import annotations
 
 import datetime as datetime_module
@@ -78,6 +80,7 @@ __all__ = [
 
 
 def initialize_workspace(project_root: Path) -> None:
+    """Create required state directories and a starter sample spec."""
     paths = _state_paths(project_root)
     _ensure_state_dirs(paths)
 
@@ -127,6 +130,7 @@ _DETERMINISM_CODE_RE = re.compile(
 
 
 def _validate_baseline_version(version: str) -> str:
+    """Execute `_validate_baseline_version`."""
     normalized = version.strip()
     if not normalized:
         raise ValueError("Baseline version name cannot be empty")
@@ -138,42 +142,52 @@ def _validate_baseline_version(version: str) -> str:
 
 
 def _baseline_spec_dir(paths: _StatePaths, slug: str) -> Path:
+    """Execute `_baseline_spec_dir`."""
     return paths.baselines / slug
 
 
 def _baseline_version_dir(paths: _StatePaths, slug: str, version: str) -> Path:
+    """Execute `_baseline_version_dir`."""
     return _baseline_spec_dir(paths, slug) / _validate_baseline_version(version)
 
 
 def _baseline_trace_path(paths: _StatePaths, slug: str, version: str) -> Path:
+    """Execute `_baseline_trace_path`."""
     return _baseline_version_dir(paths, slug, version) / "trace.jsonl"
 
 
 def _baseline_trace_meta_path(paths: _StatePaths, slug: str, version: str) -> Path:
+    """Execute `_baseline_trace_meta_path`."""
     return _baseline_version_dir(paths, slug, version) / "trace.meta.json"
 
 
 def _baseline_fixture_path(paths: _StatePaths, slug: str, version: str) -> Path:
+    """Execute `_baseline_fixture_path`."""
     return _baseline_version_dir(paths, slug, version) / "fixtures.json"
 
 
 def _baseline_runtime_meta_path(paths: _StatePaths, slug: str, version: str) -> Path:
+    """Execute `_baseline_runtime_meta_path`."""
     return _baseline_version_dir(paths, slug, version) / "baseline.meta.json"
 
 
 def _legacy_baseline_trace_path(paths: _StatePaths, slug: str) -> Path:
+    """Execute `_legacy_baseline_trace_path`."""
     return paths.baselines / f"{slug}.jsonl"
 
 
 def _legacy_fixture_path(paths: _StatePaths, slug: str) -> Path:
+    """Execute `_legacy_fixture_path`."""
     return paths.fixtures / f"{slug}.json"
 
 
 def _legacy_meta_path(paths: _StatePaths, slug: str) -> Path:
+    """Execute `_legacy_meta_path`."""
     return paths.baselines / f"{slug}.meta.json"
 
 
 def _reject_legacy_baseline_layout(paths: _StatePaths, slug: str) -> str | None:
+    """Execute `_reject_legacy_baseline_layout`."""
     legacy_paths = [
         _legacy_baseline_trace_path(paths, slug),
         _legacy_meta_path(paths, slug),
@@ -191,10 +205,12 @@ def _reject_legacy_baseline_layout(paths: _StatePaths, slug: str) -> str | None:
 
 
 def _promoted_pointer_path(paths: _StatePaths, slug: str) -> Path:
+    """Execute `_promoted_pointer_path`."""
     return paths.current / f"{slug}.json"
 
 
 def _read_promoted_version(paths: _StatePaths, slug: str) -> str | None:
+    """Execute `_read_promoted_version`."""
     pointer = _promoted_pointer_path(paths, slug)
     if not pointer.exists():
         return None
@@ -208,6 +224,7 @@ def _read_promoted_version(paths: _StatePaths, slug: str) -> str | None:
 
 
 def _write_promoted_version(paths: _StatePaths, slug: str, version: str) -> Path:
+    """Execute `_write_promoted_version`."""
     pointer = _promoted_pointer_path(paths, slug)
     pointer.parent.mkdir(parents=True, exist_ok=True)
     pointer.write_text(
@@ -226,6 +243,7 @@ def _write_promoted_version(paths: _StatePaths, slug: str, version: str) -> Path
 
 
 def _list_baseline_versions(paths: _StatePaths, slug: str) -> list[str]:
+    """Execute `_list_baseline_versions`."""
     directory = _baseline_spec_dir(paths, slug)
     if not directory.exists():
         return []
@@ -240,6 +258,7 @@ def _list_baseline_versions(paths: _StatePaths, slug: str) -> list[str]:
 
 
 def _default_record_version(paths: _StatePaths, slug: str) -> str:
+    """Execute `_default_record_version`."""
     existing = _read_promoted_version(paths, slug)
     if existing:
         return existing
@@ -247,14 +266,17 @@ def _default_record_version(paths: _StatePaths, slug: str) -> str:
 
 
 def _current_run_trace_path(paths: _StatePaths, slug: str) -> Path:
+    """Execute `_current_run_trace_path`."""
     return paths.current / f"{slug}.run.jsonl"
 
 
 def _spec_file_hash(spec: AgentSpec) -> str:
+    """Execute `_spec_file_hash`."""
     return hashlib.sha256(spec.source_path.read_bytes()).hexdigest()
 
 
 def _resolve_git_sha(project_root: Path) -> str:
+    """Execute `_resolve_git_sha`."""
     try:
         completed = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -277,6 +299,7 @@ def _make_runtime_baseline_meta(
     clock_seed: float | None,
     random_seed: int | None,
 ) -> dict[str, Any]:
+    """Execute `_make_runtime_baseline_meta`."""
     return {
         "created_at": datetime_module.datetime.now(datetime_module.UTC).isoformat(),
         "git_sha": _resolve_git_sha(project_root),
@@ -288,6 +311,7 @@ def _make_runtime_baseline_meta(
 
 
 def _extract_determinism_warnings(result: ExecutionResult) -> list[dict[str, str]]:
+    """Execute `_extract_determinism_warnings`."""
     combined = f"{result.stdout}\n{result.stderr}"
     warnings: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -515,6 +539,7 @@ def _build_determinism_diagnostics(
     dedupe: set[tuple[str, str | None, str]] = set()
 
     def add(category: str, message: str, *, detected: bool, code: str | None = None) -> None:
+        """Execute `add`."""
         key = (category, code, message)
         if key in dedupe:
             return
@@ -559,6 +584,7 @@ def _build_determinism_diagnostics(
 
 
 def _template_assets(template: str) -> dict[Path, str]:
+    """Execute `_template_assets`."""
     if template == "openai":
         return {
             Path("templates/openai_agent.py"): (
@@ -656,6 +682,7 @@ def enable_workspace(project_root: Path) -> list[Path]:
 
 
 def apply_enable_template(project_root: Path, template: str) -> list[Path]:
+    """Apply a named starter template into a project workspace."""
     normalized = template.strip().lower()
     if normalized not in SUPPORTED_ENABLE_TEMPLATES:
         supported = ", ".join(sorted(SUPPORTED_ENABLE_TEMPLATES))
@@ -674,6 +701,7 @@ def apply_enable_template(project_root: Path, template: str) -> list[Path]:
 
 
 def _build_trace(spec: AgentSpec, result: ExecutionResult, run_id: str) -> list[TraceEvent]:
+    """Execute `_build_trace`."""
     events: list[TraceEvent] = []
     seq = 1
     events.append(
@@ -749,6 +777,7 @@ def _build_trace(spec: AgentSpec, result: ExecutionResult, run_id: str) -> list[
 
 
 def _write_latest_report(paths: _StatePaths, aggregate: dict[str, Any], markdown: str) -> tuple[Path, Path]:
+    """Execute `_write_latest_report`."""
     latest_json = paths.reports / "latest.json"
     latest_md = paths.reports / "latest.md"
     latest_json.write_text(json.dumps(aggregate, indent=2, sort_keys=True), encoding="utf-8")
@@ -757,6 +786,7 @@ def _write_latest_report(paths: _StatePaths, aggregate: dict[str, Any], markdown
 
 
 def _refresh_summary(result: DiffResult) -> None:
+    """Execute `_refresh_summary`."""
     counts = Counter(f.classification for f in result.findings)
     result.summary["regression"] = bool(result.findings)
     result.summary["finding_count"] = len(result.findings)
@@ -764,6 +794,7 @@ def _refresh_summary(result: DiffResult) -> None:
 
 
 def _trt_violation_to_finding(violation: TRTViolation) -> Finding:
+    """Execute `_trt_violation_to_finding`."""
     path = f"$.trt.event[{violation.event_index}]"
     classification = violation.code.strip().lower()
     return Finding(
@@ -776,6 +807,7 @@ def _trt_violation_to_finding(violation: TRTViolation) -> Finding:
 
 
 def _merge_trt_findings(diff_result: DiffResult, trt_result: TRTResult) -> None:
+    """Execute `_merge_trt_findings`."""
     existing_keys = {
         (finding.classification, finding.message, finding.path)
         for finding in diff_result.findings
@@ -796,6 +828,7 @@ def _write_counterexample_prefix(
     current_events: list[TraceEvent],
     witness_index: int,
 ) -> Path:
+    """Execute `_write_counterexample_prefix`."""
     cutoff = max(witness_index, 0)
     prefix_events = current_events[: cutoff + 1]
     prefix_path = paths.repros / f"{slug}.counterexample.prefix.jsonl"
@@ -815,6 +848,7 @@ def _augment_report_with_trt(
     determinism_diagnostics: list[dict[str, Any]] | None = None,
     replay_mode: str | None = None,
 ) -> None:
+    """Execute `_augment_report_with_trt`."""
     raw = json.loads(report_json.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         return
@@ -839,6 +873,7 @@ def _augment_report_with_trt(
 
 
 def _aggregate_markdown(rows: list[dict[str, Any]], errors: list[str]) -> str:
+    """Execute `_aggregate_markdown`."""
     lines: list[str] = []
     lines.append("# Trajectly Latest Run")
     lines.append("")
@@ -875,6 +910,7 @@ def _aggregate_markdown(rows: list[dict[str, Any]], errors: list[str]) -> str:
 
 
 def _build_repro_command(spec_path: Path, project_root: Path, strict_override: bool | None = None) -> str:
+    """Execute `_build_repro_command`."""
     command = f'python -m trajectly run "{spec_path}" --project-root "{project_root}"'
     if strict_override is True:
         command += " --strict"
@@ -884,10 +920,12 @@ def _build_repro_command(spec_path: Path, project_root: Path, strict_override: b
 
 
 def _determinism_payload(spec: AgentSpec) -> dict[str, object]:
+    """Execute `_determinism_payload`."""
     return cast(dict[str, object], asdict(spec.determinism))
 
 
 def _seed_values_for_spec(spec: AgentSpec) -> tuple[float | None, int | None]:
+    """Execute `_seed_values_for_spec`."""
     clock_mode = spec.determinism.clock.mode
     random_mode = spec.determinism.random.mode
     clock_seed = time_module.time() if clock_mode != "disabled" else None
@@ -896,6 +934,7 @@ def _seed_values_for_spec(spec: AgentSpec) -> tuple[float | None, int | None]:
 
 
 def _load_runtime_baseline_meta(path: Path) -> dict[str, Any]:
+    """Execute `_load_runtime_baseline_meta`."""
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError(f"Invalid baseline runtime meta file: {path}")
@@ -917,6 +956,7 @@ def _write_repro_artifact(
     trt_witness_index: int | None = None,
     trt_counterexample_prefix: Path | None = None,
 ) -> Path:
+    """Execute `_write_repro_artifact`."""
     first_divergence = diff_result.summary.get("first_divergence")
     cutoff_index: int | None = None
     if isinstance(first_divergence, dict):
@@ -960,6 +1000,7 @@ def _write_repro_artifact(
 
 
 def _minimize_trace(events: list[TraceEvent], cutoff_index: int | None) -> list[TraceEvent]:
+    """Execute `_minimize_trace`."""
     op_types = {"tool_called", "tool_returned", "llm_called", "llm_returned"}
     minimized: list[TraceEvent] = []
     op_index = 0
@@ -1004,6 +1045,7 @@ def _write_minimized_repro_traces(
     current_events: list[TraceEvent],
     cutoff_index: int | None,
 ) -> tuple[Path, Path]:
+    """Execute `_write_minimized_repro_traces`."""
     baseline_min_path = paths.repros / f"{slug}.baseline.min.jsonl"
     current_min_path = paths.repros / f"{slug}.current.min.jsonl"
     write_events_jsonl(baseline_min_path, _minimize_trace(baseline_events, cutoff_index=cutoff_index))
@@ -1012,6 +1054,7 @@ def _write_minimized_repro_traces(
 
 
 def _read_latest_report_dict(project_root: Path) -> dict[str, Any]:
+    """Execute `_read_latest_report_dict`."""
     report_path = latest_report_path(project_root, as_json=True)
     if not report_path.exists():
         raise FileNotFoundError(f"Latest report not found: {report_path}. Run `python -m trajectly run` first")
@@ -1022,6 +1065,7 @@ def _read_latest_report_dict(project_root: Path) -> dict[str, Any]:
 
 
 def _resolve_latest_report_row(project_root: Path, selector: str | None = None) -> dict[str, Any]:
+    """Execute `_resolve_latest_report_row`."""
     report = _read_latest_report_dict(project_root)
     rows = report.get("reports", [])
     if not isinstance(rows, list) or not rows:
@@ -1054,6 +1098,7 @@ def _resolve_latest_report_row(project_root: Path, selector: str | None = None) 
 
 
 def resolve_repro_spec(project_root: Path, selector: str | None = None) -> tuple[str, Path]:
+    """Resolve spec name and path for repro from latest report metadata."""
     chosen = _resolve_latest_report_row(project_root, selector)
     spec_path_raw = chosen.get("spec_path")
     if not isinstance(spec_path_raw, str) or not spec_path_raw.strip():
@@ -1071,6 +1116,7 @@ def record_specs(
     allow_ci_write: bool = False,
     baseline_version: str | None = None,
 ) -> CommandOutcome:
+    """Record baselines and fixture bundles for one or more specs."""
     paths = _state_paths(project_root)
     _ensure_state_dirs(paths)
 
@@ -1174,6 +1220,7 @@ def run_specs(
     strict_override: bool | None = None,
     baseline_version: str | None = None,
 ) -> CommandOutcome:
+    """Replay specs against baselines, evaluate TRT, and write reports."""
     paths = _state_paths(project_root)
     _ensure_state_dirs(paths)
 
@@ -1473,6 +1520,7 @@ def _refresh_latest_report_row(
     slug: str,
     row_updates: dict[str, Any],
 ) -> tuple[Path, Path]:
+    """Execute `_refresh_latest_report_row`."""
     latest_json = paths.reports / "latest.json"
     if not latest_json.exists():
         raise FileNotFoundError(f"Latest report not found: {latest_json}")
@@ -1506,6 +1554,7 @@ def shrink_repro(
     max_seconds: float = 10.0,
     max_iterations: int = 200,
 ) -> CommandOutcome:
+    """Shrink the latest failing counterexample while preserving failure class."""
     paths = _state_paths(project_root.resolve())
     _ensure_state_dirs(paths)
 
@@ -1603,6 +1652,7 @@ def shrink_repro(
     original_failure_class = original_result.report.failure_class
 
     def _preserves_failure_class(candidate: list[TraceEvent]) -> bool:
+        """Execute `_preserves_failure_class`."""
         candidate_result = evaluate_trt(
             baseline_events=baseline_events,
             current_events=candidate,
@@ -1695,6 +1745,7 @@ def shrink_repro(
 
 
 def _resolve_slug_filters_for_baseline_targets(paths: _StatePaths, targets: list[str] | None) -> list[str]:
+    """Execute `_resolve_slug_filters_for_baseline_targets`."""
     if not targets:
         return []
     slugs: list[str] = []
@@ -1709,6 +1760,7 @@ def _resolve_slug_filters_for_baseline_targets(paths: _StatePaths, targets: list
 
 
 def baseline_list(project_root: Path, targets: list[str] | None = None) -> dict[str, Any]:
+    """Return available baseline versions and promoted pointers per spec."""
     paths = _state_paths(project_root.resolve())
     _ensure_state_dirs(paths)
 
@@ -1750,6 +1802,7 @@ def baseline_create(
     name: str,
     allow_ci_write: bool = False,
 ) -> CommandOutcome:
+    """Create a named baseline version by recording target specs."""
     version = _validate_baseline_version(name)
     return record_specs(
         targets=targets,
@@ -1765,6 +1818,7 @@ def baseline_promote(
     version: str,
     targets: list[str] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
+    """Promote an existing baseline version to default for target specs."""
     paths = _state_paths(project_root.resolve())
     _ensure_state_dirs(paths)
 
@@ -1803,6 +1857,7 @@ def baseline_diff(
     left: str,
     right: str,
 ) -> dict[str, Any]:
+    """Diff two baseline versions for a spec and return summary/findings."""
     paths = _state_paths(project_root.resolve())
     _ensure_state_dirs(paths)
     slug = _slugify(spec_slug)
@@ -1835,6 +1890,7 @@ def baseline_diff(
 
 
 def read_latest_report(project_root: Path, as_json: bool) -> str:
+    """Read latest markdown or JSON aggregate report from state directory."""
     paths = _state_paths(project_root)
     if as_json:
         path = paths.reports / "latest.json"
@@ -1850,9 +1906,11 @@ def read_latest_report(project_root: Path, as_json: bool) -> str:
 
 
 def latest_report_path(project_root: Path, as_json: bool) -> Path:
+    """Return latest report path in markdown or JSON form."""
     paths = _state_paths(project_root)
     return paths.reports / ("latest.json" if as_json else "latest.md")
 
 
 def build_repro_command(spec_path: Path, project_root: Path, strict_override: bool | None = None) -> str:
+    """Build CLI repro command for a specific spec path."""
     return _build_repro_command(spec_path=spec_path, project_root=project_root, strict_override=strict_override)

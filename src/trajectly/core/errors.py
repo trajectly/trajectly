@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/errors.py."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -25,6 +27,7 @@ ERROR_CODE_NONDETERMINISM_FILESYSTEM_DETECTED = "NONDETERMINISM_FILESYSTEM_DETEC
 
 @dataclass(slots=True, frozen=True)
 class TrajectlyError:
+    """Represent `TrajectlyError`."""
     code: str
     message: str
     failure_class: FailureClass | None = None
@@ -32,6 +35,7 @@ class TrajectlyError:
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         payload: dict[str, Any] = {
             "code": self.code,
             "message": self.message,

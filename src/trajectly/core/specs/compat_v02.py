@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/specs/compat_v02.py."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -9,6 +11,7 @@ FixturePolicy = Literal["by_index", "by_hash"]
 
 @dataclass(slots=True)
 class BudgetThresholds:
+    """Represent `BudgetThresholds`."""
     max_latency_ms: int | None = None
     max_tool_calls: int | None = None
     max_tokens: int | None = None
@@ -16,6 +19,7 @@ class BudgetThresholds:
 
 @dataclass(slots=True)
 class ToolContracts:
+    """Represent `ToolContracts`."""
     allow: list[str] = field(default_factory=list)
     deny: list[str] = field(default_factory=list)
     max_calls_total: int | None = None
@@ -25,6 +29,7 @@ class ToolContracts:
 
 @dataclass(slots=True)
 class SequenceContracts:
+    """Represent `SequenceContracts`."""
     require: list[str] = field(default_factory=list)
     forbid: list[str] = field(default_factory=list)
     require_before: list[tuple[str, str]] = field(default_factory=list)
@@ -35,11 +40,13 @@ class SequenceContracts:
 
 @dataclass(slots=True)
 class SideEffectContracts:
+    """Represent `SideEffectContracts`."""
     deny_write_tools: bool = False
 
 
 @dataclass(slots=True)
 class NetworkContracts:
+    """Represent `NetworkContracts`."""
     allowlist: list[str] = field(default_factory=list)
     default: str = "deny"
     allow_domains: list[str] = field(default_factory=list)
@@ -47,6 +54,7 @@ class NetworkContracts:
 
 @dataclass(slots=True)
 class DataLeakContracts:
+    """Represent `DataLeakContracts`."""
     deny_pii_outbound: bool = False
     outbound_kinds: list[str] = field(default_factory=list)
     secret_patterns: list[str] = field(default_factory=list)
@@ -54,6 +62,7 @@ class DataLeakContracts:
 
 @dataclass(slots=True)
 class AgentContracts:
+    """Represent `AgentContracts`."""
     version: str = "v1"
     tools: ToolContracts = field(default_factory=ToolContracts)
     sequence: SequenceContracts = field(default_factory=SequenceContracts)
@@ -64,6 +73,7 @@ class AgentContracts:
 
 @dataclass(slots=True)
 class ReplayConfig:
+    """Represent `ReplayConfig`."""
     mode: str = "offline"
     strict_sequence: bool = False
     llm_match_mode: str = "signature_match"
@@ -73,6 +83,7 @@ class ReplayConfig:
 
 @dataclass(slots=True)
 class RefinementConfig:
+    """Represent `RefinementConfig`."""
     mode: str = "skeleton"
     allow_extra_llm_steps: bool = True
     allow_extra_tools: list[str] = field(default_factory=list)
@@ -83,6 +94,7 @@ class RefinementConfig:
 
 @dataclass(slots=True)
 class AgentSpecV02Compat:
+    """Represent `AgentSpecV02Compat`."""
     schema_version: str
     name: str
     command: str
@@ -104,6 +116,7 @@ class AgentSpecV02Compat:
     legacy_compat: bool = True
 
     def resolved_workdir(self) -> Path:
+        """Execute `resolved_workdir`."""
         if self.workdir is None:
             return self.source_path.parent
         candidate = Path(self.workdir)
@@ -113,6 +126,7 @@ class AgentSpecV02Compat:
 
 
 def _parse_string_list(raw: Any, *, field_name: str) -> list[str]:
+    """Execute `_parse_string_list`."""
     if raw is None:
         return []
     if not isinstance(raw, list):
@@ -121,6 +135,7 @@ def _parse_string_list(raw: Any, *, field_name: str) -> list[str]:
 
 
 def _parse_budget_thresholds(raw: Any) -> BudgetThresholds:
+    """Execute `_parse_budget_thresholds`."""
     if raw is None:
         return BudgetThresholds()
     if not isinstance(raw, dict):
@@ -136,6 +151,7 @@ def _parse_budget_thresholds(raw: Any) -> BudgetThresholds:
 
 
 def parse_contracts_v1(raw: Any) -> AgentContracts:
+    """Execute `parse_contracts_v1`."""
     if raw is None:
         return AgentContracts()
     if not isinstance(raw, dict):
@@ -281,6 +297,7 @@ def parse_contracts_v1(raw: Any) -> AgentContracts:
 
 
 def parse_v02_spec(data: dict[str, Any], *, source_path: Path, schema_version: str) -> AgentSpecV02Compat:
+    """Execute `parse_v02_spec`."""
     name = str(data.get("name") or source_path.stem)
     command = data.get("command")
     if not isinstance(command, str) or not command.strip():

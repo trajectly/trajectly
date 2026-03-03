@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/canonical.py."""
+
 from trajectly.core.normalize.canonical import (
     DEFAULT_CANONICAL_NORMALIZER,
     CanonicalNormalizer,

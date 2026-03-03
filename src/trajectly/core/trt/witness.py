@@ -20,12 +20,14 @@ from trajectly.core.trt.types import TRTViolation
 
 @dataclass(slots=True)
 class WitnessResolution:
+    """Represent `WitnessResolution`."""
     witness_index: int
     primary_violation: TRTViolation
     all_violations_at_witness: list[TRTViolation]
 
 
 def _class_rank(failure_class: str) -> int:
+    """Execute `_class_rank`."""
     for idx, value in enumerate(WITNESS_FAILURE_CLASS_ORDER):
         if value == failure_class:
             return idx
@@ -33,6 +35,7 @@ def _class_rank(failure_class: str) -> int:
 
 
 def resolve_witness(violations: list[TRTViolation]) -> WitnessResolution | None:
+    """Execute `resolve_witness`."""
     if not violations:
         return None
 

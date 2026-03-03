@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/events.py."""
+
 from __future__ import annotations
 
 import json
@@ -12,6 +14,7 @@ from trajectly.core.schema import validate_trace_event_dict
 
 @dataclass(slots=True)
 class TraceEvent:
+    """Represent `TraceEvent`."""
     event_type: str
     seq: int
     run_id: str
@@ -22,6 +25,7 @@ class TraceEvent:
     event_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         data: dict[str, Any] = {
             "schema_version": self.schema_version,
             "event_type": self.event_type,
@@ -37,6 +41,7 @@ class TraceEvent:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TraceEvent:
+        """Execute `from_dict`."""
         normalized = validate_trace_event_dict(data)
         event_id = str(normalized.get("event_id", ""))
         event = cls(
@@ -55,6 +60,7 @@ class TraceEvent:
 
 
 def compute_event_id(event: TraceEvent) -> str:
+    """Execute `compute_event_id`."""
     payload = event.to_dict()
     return sha256_of_subset(payload, ignored_keys={"event_id", "rel_ms", "meta"})
 
@@ -67,6 +73,7 @@ def make_event(
     payload: dict[str, Any],
     meta: dict[str, Any] | None = None,
 ) -> TraceEvent:
+    """Execute `make_event`."""
     if event_type not in TRACE_EVENT_TYPES:
         raise ValueError(f"Unsupported event type: {event_type}")
     event = TraceEvent(
@@ -82,6 +89,7 @@ def make_event(
 
 
 def write_events_jsonl(path: Path, events: list[TraceEvent]) -> None:
+    """Execute `write_events_jsonl`."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         for event in events:
@@ -91,6 +99,7 @@ def write_events_jsonl(path: Path, events: list[TraceEvent]) -> None:
 
 
 def read_events_jsonl(path: Path) -> list[TraceEvent]:
+    """Execute `read_events_jsonl`."""
     events: list[TraceEvent] = []
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:

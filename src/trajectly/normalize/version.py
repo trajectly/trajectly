@@ -1,2 +1,2 @@
-# Compatibility shim — real code lives in trajectly.core.normalize.version
+"""Compatibility shim: real code lives in trajectly.core.normalize.version."""
 from trajectly.core.normalize.version import *  # noqa: F403

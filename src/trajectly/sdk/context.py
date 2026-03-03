@@ -1,3 +1,5 @@
+"""Runtime SDK context for emitting trace events and replaying fixtures."""
+
 from __future__ import annotations
 
 import inspect
@@ -26,11 +28,15 @@ T = TypeVar("T")
 
 
 class SDKRuntimeError(RuntimeError):
+    """Raised when SDK runtime constraints or replay expectations are violated."""
+
     pass
 
 
 @dataclass(slots=True)
 class _RuntimeSettings:
+    """Resolved runtime settings derived from CLI environment wiring."""
+
     mode: str
     events_path: Path | None
     fixtures_path: Path | None
@@ -44,6 +50,8 @@ class _RuntimeSettings:
 
 @dataclass(slots=True)
 class _RuntimeContracts:
+    """Tool-level contract constraints enforced during runtime instrumentation."""
+
     tools_allow: set[str] = field(default_factory=set)
     tools_deny: set[str] = field(default_factory=set)
     max_calls_total: int | None = None
@@ -73,11 +81,13 @@ _EVENT_TYPE_TO_TRACE_KIND = {
 
 
 def _looks_like_write_tool(tool_name: str) -> bool:
+    """Heuristically detect write-capable tool names."""
     normalized = tool_name.strip().lower()
     return any(token in normalized for token in _WRITE_TOOL_HINTS)
 
 
 def _parse_runtime_contracts(raw: str | None) -> _RuntimeContracts:
+    """Parse serialized contract payload from environment into runtime settings."""
     if not raw:
         return _RuntimeContracts()
     try:
@@ -126,7 +136,10 @@ def _parse_runtime_contracts(raw: str | None) -> _RuntimeContracts:
 
 
 class SDKContext:
+    """Context object that instruments tool/LLM calls for record or replay."""
+
     def __init__(self, settings: _RuntimeSettings) -> None:
+        """Execute `__init__`."""
         self._settings = settings
         self._start = time.monotonic()
         self._lock = threading.Lock()
@@ -155,6 +168,7 @@ class SDKContext:
 
     @staticmethod
     def from_env() -> SDKContext:
+        """Construct context from ``TRAJECTLY_*`` environment variables."""
         mode = os.getenv("TRAJECTLY_MODE", "record").strip().lower()
         events_file = os.getenv("TRAJECTLY_EVENTS_FILE")
         fixtures_file = os.getenv("TRAJECTLY_FIXTURES_FILE")
@@ -179,9 +193,11 @@ class SDKContext:
 
     @property
     def mode(self) -> str:
+        """Expose active runtime mode (record/replay)."""
         return self._settings.mode
 
     def agent_step(self, name: str, details: dict[str, Any] | None = None) -> None:
+        """Emit an explicit agent-step message event."""
         payload = {"name": name, "details": details or {}}
         self._emit("agent_step", payload)
 
@@ -192,6 +208,7 @@ class SDKContext:
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> T:
+        """Invoke a synchronous tool with tracing, replay, and contract checks."""
         input_payload = {"args": self._safe(args), "kwargs": self._safe(kwargs)}
         self._emit("tool_called", {"tool_name": name, "input": input_payload})
 
@@ -260,6 +277,7 @@ class SDKContext:
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> T:
+        """Invoke an async-capable tool with tracing, replay, and contract checks."""
         input_payload = {"args": self._safe(args), "kwargs": self._safe(kwargs)}
         self._emit("tool_called", {"tool_name": name, "input": input_payload})
 
@@ -319,6 +337,7 @@ class SDKContext:
         return cast(T, output)
 
     def _check_tool_contracts(self, tool_name: str) -> str | None:
+        """Validate tool call against configured runtime tool contracts."""
         contracts = self._settings.contracts
 
         self._tool_calls_total += 1
@@ -347,6 +366,7 @@ class SDKContext:
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> T:
+        """Invoke a synchronous LLM call with tracing and optional fixture replay."""
         request_payload = {"args": self._safe(args), "kwargs": self._safe(kwargs)}
         name = f"{provider}:{model}"
         self._emit(
@@ -483,6 +503,7 @@ class SDKContext:
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> T:
+        """Invoke an async-capable LLM call with tracing and fixture replay."""
         request_payload = {"args": self._safe(args), "kwargs": self._safe(kwargs)}
         name = f"{provider}:{model}"
         self._emit(
@@ -600,6 +621,7 @@ class SDKContext:
         return cast(T, result)
 
     def _normalize_llm_result(self, result: Any) -> tuple[Any, dict[str, Any]]:
+        """Normalize heterogeneous LLM adapter returns to response/usage tuple."""
         if isinstance(result, dict):
             usage = result.get("usage", {})
             response = result.get("response", result)
@@ -609,6 +631,7 @@ class SDKContext:
         return result, {}
 
     def _emit(self, event_type: str, payload: dict[str, Any], meta: dict[str, Any] | None = None) -> None:
+        """Write JSON event records and normalized trace events atomically."""
         safe_payload = self._safe(payload)
         safe_meta = self._safe(meta or {})
         record = {
@@ -642,6 +665,7 @@ class SDKContext:
                 self._trace_event_index += 1
 
     def _safe(self, value: Any) -> Any:
+        """Convert arbitrary values into JSON-serializable structures."""
         try:
             json.dumps(value)
             return value
@@ -657,6 +681,7 @@ _CONTEXT: SDKContext | None = None
 
 
 def get_context() -> SDKContext:
+    """Return singleton SDK context bound to current process environment."""
     global _CONTEXT
     if _CONTEXT is None:
         _CONTEXT = SDKContext.from_env()

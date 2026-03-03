@@ -18,6 +18,7 @@ from trajectly.constants import (
 
 @dataclass(slots=True)
 class CommandOutcome:
+    """Represent `CommandOutcome`."""
     exit_code: int
     processed_specs: int
     regressions: int = 0
@@ -28,6 +29,7 @@ class CommandOutcome:
 
 @dataclass(slots=True)
 class _StatePaths:
+    """Represent `_StatePaths`."""
     root: Path
     state: Path
     baselines: Path
@@ -39,12 +41,14 @@ class _StatePaths:
 
 
 def _slugify(value: str) -> str:
+    """Execute `_slugify`."""
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
     slug = slug.strip("-")
     return slug or "spec"
 
 
 def _state_paths(project_root: Path) -> _StatePaths:
+    """Execute `_state_paths`."""
     state = project_root / STATE_DIR
     return _StatePaths(
         root=project_root,
@@ -59,10 +63,12 @@ def _state_paths(project_root: Path) -> _StatePaths:
 
 
 def _baseline_meta_path(baseline_trace_path: Path) -> Path:
+    """Execute `_baseline_meta_path`."""
     return baseline_trace_path.with_name(f"{baseline_trace_path.stem}.meta.json")
 
 
 def _ensure_state_dirs(paths: _StatePaths) -> None:
+    """Execute `_ensure_state_dirs`."""
     directories = [
         paths.state,
         paths.baselines,

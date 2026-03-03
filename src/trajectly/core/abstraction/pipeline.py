@@ -40,6 +40,7 @@ TokenKind = Literal[
 
 @dataclass(slots=True)
 class Token:
+    """Represent `Token`."""
     event_index: int
     kind: TokenKind
     name: str
@@ -48,6 +49,7 @@ class Token:
 
 @dataclass(slots=True)
 class AbstractionConfig:
+    """Represent `AbstractionConfig`."""
     ignore_call_tools: list[str] = field(default_factory=list)
     enable_pii_detection: bool = True
     enable_domain_extraction: bool = True
@@ -56,6 +58,7 @@ class AbstractionConfig:
 
 @dataclass(slots=True)
 class AbstractTrace:
+    """Represent `AbstractTrace`."""
     tokens: list[Token]
     predicates: dict[str, Any]
 
@@ -63,6 +66,7 @@ class AbstractTrace:
 def _token_from_event(event: TraceEvent, event_index: int, ignore_call_tools: set[str]) -> Token | None:
     # Event-to-token mapping is intentionally conservative: only stable,
     # contract-relevant event types feed TRT abstraction.
+    """Execute `_token_from_event`."""
     payload = dict(event.payload)
     if event.event_type == "tool_called":
         tool_name = str(payload.get("tool_name", "unknown"))
@@ -93,6 +97,7 @@ def build_abstract_trace(
     *,
     config: AbstractionConfig | None = None,
 ) -> AbstractTrace:
+    """Execute `build_abstract_trace`."""
     cfg = config or AbstractionConfig()
     ignore_call_tools = set(cfg.ignore_call_tools)
     tokens: list[Token] = []

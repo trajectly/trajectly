@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/diff/engine.py."""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -13,6 +15,7 @@ _TRACKED_EVENT_TYPES = {"tool_called", "tool_returned", "llm_called", "llm_retur
 
 
 def _signature(event: TraceEvent) -> str:
+    """Execute `_signature`."""
     payload = event.payload
     if event.event_type == "tool_called":
         return f"tool_called:{payload.get('tool_name', 'unknown')}"
@@ -30,10 +33,12 @@ def _signature(event: TraceEvent) -> str:
 
 
 def _tracked(events: list[TraceEvent]) -> list[TraceEvent]:
+    """Execute `_tracked`."""
     return [event for event in events if event.event_type in _TRACKED_EVENT_TYPES]
 
 
 def _sum_tokens(events: list[TraceEvent]) -> int:
+    """Execute `_sum_tokens`."""
     total = 0
     for event in events:
         if event.event_type != "llm_returned":
@@ -47,6 +52,7 @@ def _sum_tokens(events: list[TraceEvent]) -> int:
 
 
 def _duration_ms(events: list[TraceEvent]) -> int:
+    """Execute `_duration_ms`."""
     finished = [event for event in events if event.event_type == "run_finished"]
     if not finished:
         return 0
@@ -56,10 +62,12 @@ def _duration_ms(events: list[TraceEvent]) -> int:
 
 
 def _tool_calls(events: list[TraceEvent]) -> int:
+    """Execute `_tool_calls`."""
     return sum(1 for event in events if event.event_type == "tool_called")
 
 
 def _first_divergence(baseline_ops: list[TraceEvent], current_ops: list[TraceEvent]) -> dict[str, Any] | None:
+    """Execute `_first_divergence`."""
     limit = max(len(baseline_ops), len(current_ops))
     for index in range(limit):
         baseline_event = baseline_ops[index] if index < len(baseline_ops) else None
@@ -97,6 +105,7 @@ def compare_traces(
     current: list[TraceEvent],
     budgets: BudgetThresholds | None = None,
 ) -> DiffResult:
+    """Execute `compare_traces`."""
     findings: list[Finding] = []
     baseline_ops = _tracked(baseline)
     current_ops = _tracked(current)

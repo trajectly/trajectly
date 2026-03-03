@@ -26,6 +26,7 @@ from trajectly.core.trt.types import TRTViolation
 
 @dataclass(slots=True)
 class RefinementPolicy:
+    """Represent `RefinementPolicy`."""
     mode: str = "skeleton"
     allow_extra_tools: list[str] = field(default_factory=list)
     allow_extra_side_effect_tools: list[str] = field(default_factory=list)
@@ -34,6 +35,7 @@ class RefinementPolicy:
 
 @dataclass(slots=True)
 class RefinementCheckResult:
+    """Represent `RefinementCheckResult`."""
     violations: list[TRTViolation]
     refinement_skeleton_vacuous: bool = False
 
@@ -72,6 +74,7 @@ def check_skeleton_refinement(
     policy: RefinementPolicy,
     side_effect_tools: set[str],
 ) -> RefinementCheckResult:
+    """Execute `check_skeleton_refinement`."""
     if policy.mode == "none":
         return RefinementCheckResult(violations=[], refinement_skeleton_vacuous=False)
 

@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/specs/__init__.py."""
+
 from __future__ import annotations
 
 import glob
@@ -20,6 +22,7 @@ _MAX_EXTENDS_DEPTH = 10
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
+    """Execute `_load_yaml`."""
     import yaml
 
     loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -62,12 +65,14 @@ def _resolve_extends(data: dict[str, Any], source_path: Path, depth: int = 0) ->
 
 
 def load_spec(path: Path) -> AgentSpec:
+    """Execute `load_spec`."""
     data = _load_yaml(path)
     data = _resolve_extends(data, path.resolve())
     return parse_spec_with_compat(data, source_path=path.resolve())
 
 
 def _resolve_targets(targets: list[str], cwd: Path) -> list[Path]:
+    """Execute `_resolve_targets`."""
     resolved: list[Path] = []
     for target in targets:
         candidate = Path(target)
@@ -84,6 +89,7 @@ def _resolve_targets(targets: list[str], cwd: Path) -> list[Path]:
 
 
 def load_specs(targets: list[str], cwd: Path | None = None) -> list[AgentSpec]:
+    """Execute `load_specs`."""
     root = cwd or Path.cwd()
     paths = _resolve_targets(targets, root)
     return [load_spec(path) for path in paths]

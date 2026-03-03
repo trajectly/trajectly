@@ -1,3 +1,5 @@
+"""Plugin module: trajectly/plugins/loader.py."""
+
 from __future__ import annotations
 
 from importlib.metadata import entry_points
@@ -11,6 +13,7 @@ from trajectly.plugins.interfaces import RunHookPlugin, SemanticDiffPlugin
 
 
 def _load_group(group: str) -> list[Any]:
+    """Execute `_load_group`."""
     loaded: list[Any] = []
     for entry in entry_points().select(group=group):
         loaded.append(entry.load())
@@ -21,6 +24,7 @@ def run_semantic_plugins(
     baseline: list[TraceEvent],
     current: list[TraceEvent],
 ) -> list[Finding]:
+    """Execute `run_semantic_plugins`."""
     findings: list[Finding] = []
     for plugin in _load_group("trajectly.semantic_diff_plugins"):
         instance: SemanticDiffPlugin
@@ -30,6 +34,7 @@ def run_semantic_plugins(
 
 
 def run_run_hooks(context: dict[str, Any], report_paths: dict[str, Path]) -> None:
+    """Execute `run_run_hooks`."""
     built_in_exporter = CloudRunHookExporter.from_env()
     built_ins: list[Any] = [built_in_exporter] if built_in_exporter is not None else []
 

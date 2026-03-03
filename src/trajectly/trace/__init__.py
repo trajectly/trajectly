@@ -1,2 +1,2 @@
-# Compatibility shim — real code lives in trajectly.core.trace
+"""Compatibility shim: real code lives in trajectly.core.trace."""
 from trajectly.core.trace import *  # noqa: F403

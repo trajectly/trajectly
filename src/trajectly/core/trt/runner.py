@@ -43,6 +43,7 @@ _VALID_FAILURE_CLASSES = {"REFINEMENT", "CONTRACT", "TOOLING"}
 
 @dataclass(slots=True)
 class TRTResult:
+    """Represent `TRTResult`."""
     status: TRTStatus
     report: TRTReportV03
     witness: WitnessResolution | None = None
@@ -53,10 +54,12 @@ class TRTResult:
 
     @property
     def all_violations(self) -> list[TRTViolation]:
+        """Execute `all_violations`."""
         return [*self.contract_violations, *self.refinement_violations]
 
 
 def _token_signature(token_kind: str, token_name: str) -> str:
+    """Execute `_token_signature`."""
     if token_kind == "CALL":
         return f"tool:{token_name}"
     if token_kind == "LLM_REQUEST":
@@ -67,6 +70,7 @@ def _token_signature(token_kind: str, token_name: str) -> str:
 
 
 def _code_from_classification(classification: str) -> str:
+    """Execute `_code_from_classification`."""
     overrides = {
         "contract_network_domain_denied": "NETWORK_DOMAIN_DENIED",
         "contract_data_leak_secret_pattern": "DATA_LEAK_SECRET_PATTERN",
@@ -88,6 +92,7 @@ def _event_index_from_finding(
 ) -> int:
     # Map contract finding paths back to concrete trace indices so witness
     # resolution remains actionable for repro workflows.
+    """Execute `_event_index_from_finding`."""
     if not path:
         return fallback_index
 
@@ -130,6 +135,7 @@ def _build_contract_violations(
     current_abstract: AbstractTrace,
     spec: AgentSpec,
 ) -> list[TRTViolation]:
+    """Execute `_build_contract_violations`."""
     violations: list[TRTViolation] = []
 
     call_tokens = [
@@ -202,6 +208,7 @@ def _to_report(
     counterexample_paths: dict[str, str],
     metadata: dict[str, Any] | None = None,
 ) -> TRTReportV03:
+    """Execute `_to_report`."""
     report = TRTReportV03(
         status=status,
         metadata=TRTReportMetadataV03(metadata=metadata or {}),
@@ -251,6 +258,7 @@ def evaluate_trt(
     repro_command: str | None = None,
     counterexample_paths: dict[str, str] | None = None,
 ) -> TRTResult:
+    """Execute `evaluate_trt`."""
     abstraction_cfg = AbstractionConfig(ignore_call_tools=spec.refinement.ignore_call_tools)
     baseline_abs = build_abstract_trace(baseline_events, config=abstraction_cfg)
     current_abs = build_abstract_trace(current_events, config=abstraction_cfg)

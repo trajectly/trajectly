@@ -1,7 +1,10 @@
+"""Core implementation module: trajectly/core/diff/lcs.py."""
+
 from __future__ import annotations
 
 
 def lcs_pairs(left: list[str], right: list[str]) -> list[tuple[int, int]]:
+    """Execute `lcs_pairs`."""
     m = len(left)
     n = len(right)
     table = [[0 for _ in range(n + 1)] for _ in range(m + 1)]

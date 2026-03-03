@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/trt/types.py."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,6 +8,7 @@ from typing import Any
 
 @dataclass(slots=True)
 class TRTViolation:
+    """Represent `TRTViolation`."""
     code: str
     message: str
     failure_class: str

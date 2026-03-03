@@ -43,6 +43,12 @@ python -m trajectly repro
 python -m trajectly shrink
 ```
 
+Expected exit behavior for this quickstart (regression spec on purpose):
+- `run` exits `1` (`FAIL`)
+- `report` exits `0`
+- `repro` exits `1` (same failing run)
+- `shrink` exits `0`
+
 For a full real-world support CI walkthrough (outside this repo), see
 [trajectly/support-escalation-demo](https://github.com/trajectly/support-escalation-demo).
 
@@ -63,6 +69,8 @@ export OPENAI_API_KEY="sk-..."
 python -m trajectly init
 python -m trajectly record my-agent.agent.yaml
 ```
+
+`my-agent.agent.yaml` is a placeholder; replace it with a real spec path that already exists.
 
 After recording, all future `run` calls replay from the captured fixtures -- fully offline and deterministic.
 
@@ -381,6 +389,8 @@ python -m trajectly record my-agent.agent.yaml
 python -m trajectly run my-agent.agent.yaml
 ```
 
+`my-agent.agent.yaml` is a placeholder in these examples; replace it with an existing spec file in your project.
+
 ### Write your first spec
 
 Start minimal and add rules as needed:
@@ -478,6 +488,8 @@ flowchart TD
 | `python -m trajectly baseline promote <version>` | Promote a version to active |
 | `python -m trajectly baseline diff <slug> <left> <right>` | Diff two baseline versions |
 
+Example placeholders like `my-agent` and `specs/my-agent*.agent.yaml` assume those files/slugs already exist in your project.
+
 ### `python -m trajectly --version`
 
 Print the installed version and exit.
@@ -535,6 +547,8 @@ python -m trajectly run specs/my-agent.agent.yaml --baseline v1
 python -m trajectly run specs/my-agent.agent.yaml --strict
 ```
 
+When a spec fails contracts/refinement, `run` exits with `1` by design.
+
 ### `python -m trajectly repro [selector] [--project-root PATH] [--strict|--no-strict] [--print-only]`
 
 Reproduce the latest failure offline from saved fixtures.
@@ -550,6 +564,8 @@ python -m trajectly repro my-agent-name
 python -m trajectly repro --print-only
 ```
 
+`repro` is intended for failing runs; replaying a failure will usually exit `1`.
+
 ### `python -m trajectly shrink [selector] [--max-seconds N] [--max-iterations N]`
 
 Minimize a failing trace to the smallest example that still fails.
@@ -558,6 +574,8 @@ Minimize a failing trace to the smallest example that still fails.
 python -m trajectly shrink
 python -m trajectly shrink my-agent-name --max-seconds 20
 ```
+
+Run `shrink` after a failing run has been recorded in `latest.json`.
 
 ### `python -m trajectly report [--project-root PATH] [--json] [--pr-comment]`
 

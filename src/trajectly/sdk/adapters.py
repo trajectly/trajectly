@@ -1,3 +1,5 @@
+"""Provider adapter helpers that route tool and LLM calls through SDK context."""
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -9,13 +11,17 @@ T = TypeVar("T")
 
 
 class SDKContextLike(Protocol):
+    """Minimal protocol required by adapter helpers."""
+
     def invoke_tool(
         self,
         name: str,
         fn: Callable[..., T],
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
-    ) -> T: ...
+    ) -> T:
+        """Invoke a synchronous tool call through SDK context hooks."""
+        ...
 
     def invoke_llm(
         self,
@@ -24,7 +30,9 @@ class SDKContextLike(Protocol):
         fn: Callable[..., T],
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
-    ) -> T: ...
+    ) -> T:
+        """Invoke a synchronous model call through SDK context hooks."""
+        ...
 
     async def invoke_tool_async(
         self,
@@ -32,7 +40,9 @@ class SDKContextLike(Protocol):
         fn: Callable[..., T] | Callable[..., Awaitable[T]],
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
-    ) -> T: ...
+    ) -> T:
+        """Invoke an asynchronous tool call through SDK context hooks."""
+        ...
 
     async def invoke_llm_async(
         self,
@@ -41,16 +51,20 @@ class SDKContextLike(Protocol):
         fn: Callable[..., T] | Callable[..., Awaitable[T]],
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
-    ) -> T: ...
+    ) -> T:
+        """Invoke an asynchronous model call through SDK context hooks."""
+        ...
 
 
 def _resolve_context(context: SDKContextLike | None) -> SDKContextLike:
+    """Return caller-provided context or the process-global SDK context."""
     if context is not None:
         return context
     return get_context()
 
 
 def _as_mapping(value: Any) -> Mapping[str, Any] | None:
+    """Convert mapping-like objects to ``Mapping[str, Any]`` when possible."""
     if isinstance(value, Mapping):
         return cast(Mapping[str, Any], value)
     if hasattr(value, "__dict__"):
@@ -60,6 +74,7 @@ def _as_mapping(value: Any) -> Mapping[str, Any] | None:
 
 
 def _as_usage_dict(value: Any) -> dict[str, Any]:
+    """Normalize arbitrary usage payloads to a plain dictionary."""
     mapping = _as_mapping(value)
     if mapping is None:
         return {}
@@ -67,6 +82,7 @@ def _as_usage_dict(value: Any) -> dict[str, Any]:
 
 
 def _lookup(value: Any, key: str, default: Any = None) -> Any:
+    """Read key from mapping/object with a shared default path."""
     mapping = _as_mapping(value)
     if mapping is not None:
         return mapping.get(key, default)
@@ -74,6 +90,7 @@ def _lookup(value: Any, key: str, default: Any = None) -> Any:
 
 
 def _resolve_nested_attribute(root: Any, segments: tuple[str, ...], label: str) -> Any:
+    """Resolve nested object attributes and raise a clear adapter error."""
     current = root
     for segment in segments:
         if not hasattr(current, segment):
@@ -84,6 +101,7 @@ def _resolve_nested_attribute(root: Any, segments: tuple[str, ...], label: str) 
 
 
 def _extract_openai_response(result: Any) -> tuple[Any, dict[str, Any]]:
+    """Extract normalized response text and usage from OpenAI SDK payloads."""
     usage = _as_usage_dict(_lookup(result, "usage", {}))
     choices = _lookup(result, "choices", [])
 
@@ -103,6 +121,7 @@ def _extract_openai_response(result: Any) -> tuple[Any, dict[str, Any]]:
 
 
 def _extract_anthropic_response(result: Any) -> tuple[Any, dict[str, Any]]:
+    """Extract normalized response text and usage from Anthropic payloads."""
     usage = _as_usage_dict(_lookup(result, "usage", {}))
     content_blocks = _lookup(result, "content", [])
     if isinstance(content_blocks, Sequence) and not isinstance(content_blocks, (str, bytes)):
@@ -120,6 +139,7 @@ def _extract_anthropic_response(result: Any) -> tuple[Any, dict[str, Any]]:
 
 
 def _extract_gemini_response(result: Any) -> tuple[Any, dict[str, Any]]:
+    """Extract normalized response text and usage from Gemini payloads."""
     usage_source = _lookup(result, "usage_metadata", _lookup(result, "usage", {}))
     usage = _as_usage_dict(usage_source)
 
@@ -156,6 +176,7 @@ def _extract_gemini_response(result: Any) -> tuple[Any, dict[str, Any]]:
 
 
 def _extract_llamaindex_response(result: Any) -> tuple[Any, dict[str, Any]]:
+    """Extract normalized response text and usage from LlamaIndex payloads."""
     metadata = _lookup(result, "metadata", {})
     usage_source = _lookup(result, "usage", metadata)
     usage = _as_usage_dict(usage_source)
@@ -164,6 +185,7 @@ def _extract_llamaindex_response(result: Any) -> tuple[Any, dict[str, Any]]:
 
 
 def _extract_crewai_result(result: Any) -> tuple[Any, dict[str, Any]]:
+    """Extract normalized response text and usage from CrewAI payloads."""
     usage_source = _lookup(result, "usage", _lookup(result, "token_usage", {}))
     usage = _as_usage_dict(usage_source)
 
@@ -181,6 +203,7 @@ def _extract_crewai_result(result: Any) -> tuple[Any, dict[str, Any]]:
 
 
 def _extract_autogen_result(result: Any) -> tuple[Any, dict[str, Any]]:
+    """Extract normalized response text and usage from AutoGen payloads."""
     usage_source = _lookup(result, "usage", _lookup(result, "token_usage", {}))
     usage = _as_usage_dict(usage_source)
 
@@ -205,6 +228,7 @@ def _extract_autogen_result(result: Any) -> tuple[Any, dict[str, Any]]:
 
 
 def _extract_dspy_result(result: Any) -> tuple[Any, dict[str, Any]]:
+    """Extract normalized response text and usage from DSPy payloads."""
     usage_source = _lookup(result, "usage", _lookup(result, "token_usage", {}))
     usage = _as_usage_dict(usage_source)
 
@@ -228,6 +252,7 @@ def invoke_tool_call(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> T:
+    """Invoke a tool through the active SDK context and emit trace events."""
     ctx = _resolve_context(context)
     return ctx.invoke_tool(name, fn, args, kwargs)
 
@@ -239,6 +264,7 @@ async def invoke_tool_call_async(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> T:
+    """Async variant of :func:`invoke_tool_call`."""
     ctx = _resolve_context(context)
     return await ctx.invoke_tool_async(name, fn, args, kwargs)
 
@@ -251,6 +277,7 @@ def invoke_llm_call(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> T:
+    """Invoke an LLM call through the active SDK context."""
     ctx = _resolve_context(context)
     return ctx.invoke_llm(provider=provider, model=model, fn=fn, args=args, kwargs=kwargs)
 
@@ -263,6 +290,7 @@ async def invoke_llm_call_async(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> T:
+    """Async variant of :func:`invoke_llm_call`."""
     ctx = _resolve_context(context)
     return await ctx.invoke_llm_async(provider=provider, model=model, fn=fn, args=args, kwargs=kwargs)
 
@@ -275,6 +303,7 @@ def openai_chat_completion(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    """Run OpenAI chat completions with normalized response and usage output."""
     create_fn = _resolve_nested_attribute(client, ("chat", "completions", "create"), label="openai")
     request = {"model": model, "messages": messages, **kwargs}
     ctx = _resolve_context(context)
@@ -291,6 +320,7 @@ def anthropic_messages_create(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    """Run Anthropic messages API with normalized response and usage output."""
     create_fn = _resolve_nested_attribute(client, ("messages", "create"), label="anthropic")
     request = {"model": model, "messages": messages, **kwargs}
     ctx = _resolve_context(context)
@@ -307,6 +337,7 @@ def gemini_generate_content(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    """Run Gemini generate_content with normalized response and usage output."""
     create_fn = _resolve_nested_attribute(client, ("models", "generate_content"), label="gemini")
     request = {"model": model, "contents": contents, **kwargs}
     ctx = _resolve_context(context)
@@ -324,6 +355,7 @@ def langchain_invoke(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    """Invoke a LangChain runnable while preserving Trajectly trace semantics."""
     if not hasattr(runnable, "invoke"):
         raise ValueError("langchain runnable must expose `invoke`")
     invoke_fn = runnable.invoke
@@ -351,6 +383,7 @@ def llamaindex_query(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    """Query a LlamaIndex query engine with normalized response and usage output."""
     if not hasattr(query_engine, "query"):
         raise ValueError("llamaindex query engine must expose `query`")
     query_fn = query_engine.query
@@ -368,6 +401,7 @@ def crewai_run_task(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    """Run a CrewAI task and normalize response/usage payloads."""
     run_fn: Callable[..., Any]
     if hasattr(task, "execute"):
         run_fn = task.execute
@@ -392,6 +426,7 @@ def autogen_chat_run(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    """Run an AutoGen chat executor and normalize response/usage payloads."""
     if not hasattr(chat_runner, "run"):
         raise ValueError("autogen chat runner must expose `run`")
     run_fn = chat_runner.run
@@ -409,6 +444,7 @@ def dspy_call(
     context: SDKContextLike | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    """Run a DSPy callable/program and normalize response/usage payloads."""
     call_fn: Callable[..., Any]
     if callable(program):
         call_fn = program

@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/specs/v03.py."""
+
 from __future__ import annotations
 
 import shlex
@@ -29,6 +31,7 @@ SubprocessMode = Literal["strict", "permissive", "disabled"]
 
 @dataclass(slots=True)
 class ReplayConfig:
+    """Represent `ReplayConfig`."""
     mode: ReplayMode = "offline"
     strict_sequence: bool = False
     llm_match_mode: LLMMatchMode = "signature_match"
@@ -38,6 +41,7 @@ class ReplayConfig:
 
 @dataclass(slots=True)
 class RefinementConfig:
+    """Represent `RefinementConfig`."""
     mode: RefinementMode = "skeleton"
     allow_extra_llm_steps: bool = True
     allow_extra_tools: list[str] = field(default_factory=list)
@@ -48,16 +52,19 @@ class RefinementConfig:
 
 @dataclass(slots=True)
 class DeterminismClockConfig:
+    """Represent `DeterminismClockConfig`."""
     mode: ClockMode = "disabled"
 
 
 @dataclass(slots=True)
 class DeterminismRandomConfig:
+    """Represent `DeterminismRandomConfig`."""
     mode: RandomMode = "disabled"
 
 
 @dataclass(slots=True)
 class DeterminismFilesystemConfig:
+    """Represent `DeterminismFilesystemConfig`."""
     mode: FilesystemMode = "permissive"
     allow_read_paths: list[str] = field(default_factory=list)
     allow_write_paths: list[str] = field(default_factory=list)
@@ -65,12 +72,14 @@ class DeterminismFilesystemConfig:
 
 @dataclass(slots=True)
 class DeterminismSubprocessConfig:
+    """Represent `DeterminismSubprocessConfig`."""
     mode: SubprocessMode = "disabled"
     allow_commands: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class DeterminismConfig:
+    """Represent `DeterminismConfig`."""
     clock: DeterminismClockConfig = field(default_factory=DeterminismClockConfig)
     random: DeterminismRandomConfig = field(default_factory=DeterminismRandomConfig)
     filesystem: DeterminismFilesystemConfig = field(default_factory=DeterminismFilesystemConfig)
@@ -79,6 +88,7 @@ class DeterminismConfig:
 
 @dataclass(slots=True)
 class AgentSpec:
+    """Represent `AgentSpec`."""
     name: str
     command: str
     source_path: Path
@@ -101,6 +111,7 @@ class AgentSpec:
     legacy_compat: bool = False
 
     def resolved_workdir(self) -> Path:
+        """Execute `resolved_workdir`."""
         if self.workdir is None:
             return self.source_path.parent
         candidate = Path(self.workdir)
@@ -110,6 +121,7 @@ class AgentSpec:
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
+    """Execute `_load_yaml`."""
     loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
     if loaded is None:
         return {}
@@ -119,6 +131,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 
 def _parse_string_list(raw: Any, *, field_name: str) -> list[str]:
+    """Execute `_parse_string_list`."""
     if raw is None:
         return []
     if not isinstance(raw, list):
@@ -127,6 +140,7 @@ def _parse_string_list(raw: Any, *, field_name: str) -> list[str]:
 
 
 def _parse_budget_thresholds(raw: Any) -> BudgetThresholds:
+    """Execute `_parse_budget_thresholds`."""
     if raw is None:
         return BudgetThresholds()
     if not isinstance(raw, dict):
@@ -142,6 +156,7 @@ def _parse_budget_thresholds(raw: Any) -> BudgetThresholds:
 
 
 def _ensure_mapping(raw: Any, *, field_name: str) -> dict[str, Any]:
+    """Execute `_ensure_mapping`."""
     if raw is None:
         return {}
     if not isinstance(raw, dict):
@@ -150,6 +165,7 @@ def _ensure_mapping(raw: Any, *, field_name: str) -> dict[str, Any]:
 
 
 def _parse_mode_profile(raw: Any) -> ModeProfile:
+    """Execute `_parse_mode_profile`."""
     profile = str(raw or "ci_safe").strip().lower()
     if profile not in {"ci_safe", "permissive", "strict"}:
         raise ValueError(f"mode_profile must be one of ci_safe|permissive|strict; got: {profile}")
@@ -157,6 +173,7 @@ def _parse_mode_profile(raw: Any) -> ModeProfile:
 
 
 def _parse_replay(raw: Any) -> ReplayConfig:
+    """Execute `_parse_replay`."""
     block = _ensure_mapping(raw, field_name="replay")
 
     mode = str(block.get("mode", "offline")).strip().lower()
@@ -193,6 +210,7 @@ def _parse_replay(raw: Any) -> ReplayConfig:
 
 
 def _parse_refinement(raw: Any) -> RefinementConfig:
+    """Execute `_parse_refinement`."""
     block = _ensure_mapping(raw, field_name="refinement")
     mode = str(block.get("mode", "skeleton")).strip().lower()
     if mode not in {"none", "skeleton", "strict"}:
@@ -225,6 +243,7 @@ def _parse_refinement(raw: Any) -> RefinementConfig:
 
 
 def _parse_determinism(raw: Any) -> DeterminismConfig:
+    """Execute `_parse_determinism`."""
     block = _ensure_mapping(raw, field_name="determinism")
 
     clock_block = _ensure_mapping(block.get("clock"), field_name="determinism.clock")
@@ -272,6 +291,7 @@ def _parse_determinism(raw: Any) -> DeterminismConfig:
 
 
 def _load_contracts_from_config(source_path: Path, config_path: str) -> tuple[str, AgentContracts]:
+    """Execute `_load_contracts_from_config`."""
     resolved = Path(config_path)
     if not resolved.is_absolute():
         resolved = (source_path.parent / resolved).resolve()
@@ -293,6 +313,7 @@ def _load_contracts_from_config(source_path: Path, config_path: str) -> tuple[st
 
 
 def _parse_command(data: dict[str, Any], source_path: Path) -> str:
+    """Execute `_parse_command`."""
     command = data.get("command")
     if isinstance(command, str) and command.strip():
         return command.strip()
@@ -305,6 +326,7 @@ def _parse_command(data: dict[str, Any], source_path: Path) -> str:
 
 
 def parse_v03_spec(data: dict[str, Any], *, source_path: Path) -> AgentSpec:
+    """Execute `parse_v03_spec`."""
     schema_version_raw = data.get("schema_version")
     if schema_version_raw is None:
         raise ValueError("v0.4 spec requires schema_version")
@@ -409,6 +431,7 @@ def parse_v03_spec(data: dict[str, Any], *, source_path: Path) -> AgentSpec:
 
 
 def parse_spec_with_compat(data: dict[str, Any], *, source_path: Path, allow_legacy: bool = False) -> AgentSpec:
+    """Execute `parse_spec_with_compat`."""
     schema_version_raw = data.get("schema_version")
     if schema_version_raw is None:
         if allow_legacy:

@@ -35,6 +35,12 @@ python -m trajectly repro
 python -m trajectly shrink
 ```
 
+Expected exit behavior for this intentional regression flow:
+- `python -m trajectly run ...regression...` exits `1` (`FAIL`)
+- `python -m trajectly report` exits `0`
+- `python -m trajectly repro` exits `1` (replays the same failing run)
+- `python -m trajectly shrink` exits `0`
+
 The report shows exactly **which step** failed, **why** (the regression calls `unsafe_direct_award`, which is denied by policy), and gives you a **deterministic repro command**.
 
 ### Recording your own baselines
@@ -46,6 +52,8 @@ export OPENAI_API_KEY="sk-..."   # only needed for recording
 python -m trajectly init
 python -m trajectly record my-agent.agent.yaml
 ```
+
+`my-agent.agent.yaml` must be an existing spec file path in your project.
 
 After recording, all future `python -m trajectly run` calls replay from the captured fixtures -- fully offline and deterministic.
 
@@ -225,7 +233,7 @@ Run the test suite:
 ```bash
 pytest tests/
 ruff check .
-mypy src/trajectly/__main__.py src/sitecustomize.py --ignore-missing-imports
+mypy src
 ```
 
 Tests do not require API keys (agents use mock LLM fixtures during replay).

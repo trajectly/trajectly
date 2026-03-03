@@ -1,2 +1,2 @@
-# Compatibility shim — real code lives in trajectly.core.diff.lcs
+"""Compatibility shim: real code lives in trajectly.core.diff.lcs."""
 from trajectly.core.diff.lcs import *  # noqa: F403

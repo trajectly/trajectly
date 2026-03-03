@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/trace/models.py."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -28,6 +30,7 @@ TRACE_EVENT_KINDS_V03 = {
 
 @dataclass(slots=True)
 class TraceEventV03:
+    """Represent `TraceEventV03`."""
     event_index: int
     kind: EventKindV03
     payload: dict[str, Any]
@@ -35,6 +38,7 @@ class TraceEventV03:
     schema_version: str = TRT_TRACE_SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         return {
             "schema_version": self.schema_version,
             "event_index": self.event_index,
@@ -46,6 +50,7 @@ class TraceEventV03:
 
 @dataclass(slots=True)
 class TraceMetaV03:
+    """Represent `TraceMetaV03`."""
     schema_version: str = TRT_TRACE_SCHEMA_VERSION
     normalizer_version: str = TRT_NORMALIZER_VERSION
     spec_name: str | None = None
@@ -54,6 +59,7 @@ class TraceMetaV03:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         payload: dict[str, Any] = {
             "schema_version": self.schema_version,
             "normalizer_version": self.normalizer_version,

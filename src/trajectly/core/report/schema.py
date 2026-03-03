@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/report/schema.py."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -15,6 +17,7 @@ TRTStatus = Literal["PASS", "FAIL", "ERROR"]
 
 @dataclass(slots=True)
 class ViolationV03:
+    """Represent `ViolationV03`."""
     code: str
     message: str
     failure_class: FailureClass
@@ -24,6 +27,7 @@ class ViolationV03:
     hint: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         payload: dict[str, Any] = {
             "code": self.code,
             "message": self.message,
@@ -41,12 +45,14 @@ class ViolationV03:
 
 @dataclass(slots=True)
 class ShrinkStatsV03:
+    """Represent `ShrinkStatsV03`."""
     original_len: int
     reduced_len: int
     iterations: int
     seconds: float
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         return {
             "original_len": self.original_len,
             "reduced_len": self.reduced_len,
@@ -57,12 +63,14 @@ class ShrinkStatsV03:
 
 @dataclass(slots=True)
 class TRTReportMetadataV03:
+    """Represent `TRTReportMetadataV03`."""
     report_schema_version: str = TRT_REPORT_SCHEMA_VERSION
     normalizer_version: str = TRT_NORMALIZER_VERSION
     side_effect_registry_version: str = TRT_SIDE_EFFECT_REGISTRY_VERSION
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         return {
             "report_schema_version": self.report_schema_version,
             "normalizer_version": self.normalizer_version,
@@ -73,6 +81,7 @@ class TRTReportMetadataV03:
 
 @dataclass(slots=True)
 class TRTReportV03:
+    """Represent `TRTReportV03`."""
     status: TRTStatus
     metadata: TRTReportMetadataV03 = field(default_factory=TRTReportMetadataV03)
     failure_class: FailureClass | None = None
@@ -91,6 +100,7 @@ class TRTReportV03:
     replay_mode: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         payload: dict[str, Any] = {
             "metadata": self.metadata.to_dict(),
             "status": self.status,

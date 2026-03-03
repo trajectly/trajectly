@@ -1,4 +1,4 @@
-# Compatibility shim — real code lives in trajectly.cli.engine_common
+"""Compatibility shim: real code lives in trajectly.cli.engine_common."""
 from trajectly.cli.engine_common import (
     CommandOutcome,
     _baseline_meta_path,

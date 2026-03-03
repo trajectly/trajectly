@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/specs/migrate.py."""
+
 from __future__ import annotations
 
 from dataclasses import asdict
@@ -12,10 +14,12 @@ from trajectly.core.specs.v03 import AgentSpec, parse_spec_with_compat
 
 
 def _omit_none(value: dict[str, Any]) -> dict[str, Any]:
+    """Execute `_omit_none`."""
     return {k: v for k, v in value.items() if v is not None}
 
 
 def spec_to_v03_payload(spec: AgentSpec) -> dict[str, Any]:
+    """Execute `spec_to_v03_payload`."""
     payload: dict[str, Any] = {
         "schema_version": TRT_SPEC_SCHEMA_VERSION,
         "name": spec.name,
@@ -76,6 +80,7 @@ def migrate_spec_file(
     output_path: Path | None,
     in_place: bool,
 ) -> Path:
+    """Execute `migrate_spec_file`."""
     if in_place and output_path is not None:
         raise ValueError("--in-place and --output are mutually exclusive")
 

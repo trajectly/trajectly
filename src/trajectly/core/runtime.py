@@ -1,3 +1,5 @@
+"""Subprocess execution layer for spec commands in record/replay modes."""
+
 from __future__ import annotations
 
 import json
@@ -13,6 +15,8 @@ from trajectly.core.trace.meta import default_trace_meta_path, default_trace_pat
 
 @dataclass(slots=True)
 class ExecutionResult:
+    """Captured subprocess outcome plus raw emitted trace events."""
+
     returncode: int
     stdout: str
     stderr: str
@@ -22,11 +26,13 @@ class ExecutionResult:
 
 
 def _repo_src_path() -> Path:
+    """Return local ``src/`` path so subprocesses import the checked-out code."""
     # __file__ is src/trajectly/core/runtime.py → parents[2] is src/
     return Path(__file__).resolve().parents[2]
 
 
 def _load_raw_events(events_path: Path) -> list[dict[str, object]]:
+    """Load raw JSONL event rows emitted by SDK instrumentation."""
     if not events_path.exists():
         return []
     rows: list[dict[str, object]] = []
@@ -52,6 +58,7 @@ def execute_spec(
     random_seed: int | None = None,
     project_root: Path | None = None,
 ) -> ExecutionResult:
+    """Execute one spec command with Trajectly runtime environment wiring."""
     events_path.parent.mkdir(parents=True, exist_ok=True)
     if events_path.exists():
         events_path.unlink()

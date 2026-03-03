@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/diff/structural.py."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -7,12 +9,14 @@ from typing import Any
 
 @dataclass(slots=True)
 class StructuralChange:
+    """Represent `StructuralChange`."""
     path: str
     baseline: Any
     current: Any
 
 
 def structural_diff(baseline: Any, current: Any, path: str = "$") -> list[StructuralChange]:
+    """Execute `structural_diff`."""
     changes: list[StructuralChange] = []
 
     if type(baseline) is not type(current):

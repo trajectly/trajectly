@@ -1,3 +1,5 @@
+"""Typer command surface for Trajectly CLI workflows."""
+
 from __future__ import annotations
 
 import json
@@ -29,6 +31,7 @@ from trajectly.report import render_pr_comment
 
 
 def _version_callback(value: bool) -> None:
+    """Print version and exit early when ``--version`` is requested."""
     if value:
         from trajectly import __version__
 
@@ -45,12 +48,14 @@ def _main(
         False, "--version", callback=_version_callback, is_eager=True, help="Print version and exit."
     ),
 ) -> None:
+    """CLI root callback for global options."""
     pass
 baseline_app = typer.Typer(add_completion=False, help="Manage baseline update workflows")
 app.add_typer(baseline_app, name="baseline")
 
 
 def _emit_outcome(outcome: CommandOutcome) -> None:
+    """Render command outcome details and exit with the mapped status code."""
     if outcome.errors:
         for error in outcome.errors:
             typer.echo(f"ERROR: {error}", err=True)
@@ -73,6 +78,7 @@ def _resolve_targets_for_command(
     targets: list[str] | None,
     auto: bool,
 ) -> list[str]:
+    """Resolve explicit or auto-discovered spec targets for record commands."""
     resolved_targets = list(targets or [])
     if auto:
         discovered = [str(path) for path in discover_spec_files(project_root.resolve())]

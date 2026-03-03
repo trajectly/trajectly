@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/trace/validate.py."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -7,10 +9,12 @@ from trajectly.core.trace.models import TRACE_EVENT_KINDS_V03
 
 
 class TraceValidationError(ValueError):
+    """Represent `TraceValidationError`."""
     pass
 
 
 def validate_trace_event_v03(data: dict[str, Any]) -> dict[str, Any]:
+    """Execute `validate_trace_event_v03`."""
     schema_version = data.get("schema_version")
     if schema_version != TRT_TRACE_SCHEMA_VERSION:
         raise TraceValidationError(
@@ -43,6 +47,7 @@ def validate_trace_event_v03(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_trace_meta_v03(data: dict[str, Any]) -> dict[str, Any]:
+    """Execute `validate_trace_meta_v03`."""
     schema_version = data.get("schema_version")
     if schema_version != TRT_TRACE_SCHEMA_VERSION:
         raise TraceValidationError(

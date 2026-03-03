@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/fixtures.py."""
+
 from __future__ import annotations
 
 import json
@@ -11,11 +13,13 @@ from trajectly.core.events import TraceEvent
 
 
 class FixtureLookupError(RuntimeError):
+    """Represent `FixtureLookupError`."""
     pass
 
 
 @dataclass(slots=True)
 class FixtureExhaustedError(FixtureLookupError):
+    """Represent `FixtureExhaustedError`."""
     kind: str
     name: str
     expected_signature: str
@@ -23,6 +27,7 @@ class FixtureExhaustedError(FixtureLookupError):
     available_count: int
 
     def to_payload(self) -> dict[str, object]:
+        """Execute `to_payload`."""
         context_key = "tool_name" if self.kind == "tool" else "llm_signature"
         return {
             "code": "FIXTURE_EXHAUSTED",
@@ -34,6 +39,7 @@ class FixtureExhaustedError(FixtureLookupError):
         }
 
     def __str__(self) -> str:
+        """Execute `__str__`."""
         context_key = "tool_name" if self.kind == "tool" else "llm_signature"
         return (
             "FIXTURE_EXHAUSTED: "
@@ -44,6 +50,7 @@ class FixtureExhaustedError(FixtureLookupError):
 
 @dataclass(slots=True)
 class FixtureEntry:
+    """Represent `FixtureEntry`."""
     kind: str
     name: str
     input_payload: dict[str, Any]
@@ -52,6 +59,7 @@ class FixtureEntry:
     error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         return {
             "kind": self.kind,
             "name": self.name,
@@ -63,6 +71,7 @@ class FixtureEntry:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FixtureEntry:
+        """Execute `from_dict`."""
         return cls(
             kind=str(data["kind"]),
             name=str(data["name"]),
@@ -75,19 +84,23 @@ class FixtureEntry:
 
 @dataclass(slots=True)
 class FixtureStore:
+    """Represent `FixtureStore`."""
     entries: list[FixtureEntry]
 
     def to_dict(self) -> dict[str, Any]:
+        """Execute `to_dict`."""
         return {"entries": [entry.to_dict() for entry in self.entries]}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FixtureStore:
+        """Execute `from_dict`."""
         rows = data.get("entries", [])
         entries = [FixtureEntry.from_dict(row) for row in rows]
         return cls(entries=entries)
 
     @classmethod
     def from_events(cls, events: list[TraceEvent]) -> FixtureStore:
+        """Execute `from_events`."""
         pending_tool: deque[dict[str, Any]] = deque()
         pending_llm: deque[dict[str, Any]] = deque()
         entries: list[FixtureEntry] = []
@@ -150,17 +163,21 @@ class FixtureStore:
         return cls(entries=entries)
 
     def save(self, path: Path) -> None:
+        """Execute `save`."""
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(self.to_dict(), sort_keys=True, indent=2), encoding="utf-8")
 
     @classmethod
     def load(cls, path: Path) -> FixtureStore:
+        """Execute `load`."""
         loaded = json.loads(path.read_text(encoding="utf-8"))
         return cls.from_dict(loaded)
 
 
 class FixtureMatcher:
+    """Represent `FixtureMatcher`."""
     def __init__(self, store: FixtureStore, policy: str, strict: bool) -> None:
+        """Execute `__init__`."""
         self._policy = policy
         self._strict = strict
         self._entries: dict[tuple[str, str], list[FixtureEntry]] = defaultdict(list)
@@ -170,6 +187,7 @@ class FixtureMatcher:
         self._used_hash_slots: set[tuple[tuple[str, str], int]] = set()
 
     def match(self, kind: str, name: str, input_payload: dict[str, Any]) -> FixtureEntry | None:
+        """Execute `match`."""
         key = (kind, name)
         entries = self._entries.get(key, [])
         request_hash = sha256_of_data(input_payload)

@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/shrink/ddmin.py."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -10,6 +12,7 @@ from trajectly.core.events import TraceEvent
 
 @dataclass(slots=True)
 class ShrinkResult:
+    """Represent `ShrinkResult`."""
     original_len: int
     reduced_len: int
     iterations: int
@@ -18,6 +21,7 @@ class ShrinkResult:
 
     @property
     def reduced(self) -> bool:
+        """Execute `reduced`."""
         return self.reduced_len < self.original_len
 
 
@@ -28,6 +32,7 @@ def ddmin_shrink(
     max_seconds: float,
     max_iterations: int,
 ) -> ShrinkResult:
+    """Execute `ddmin_shrink`."""
     if max_seconds <= 0:
         raise ValueError("max_seconds must be > 0")
     if max_iterations <= 0:

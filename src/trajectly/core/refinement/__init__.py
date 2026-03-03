@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/refinement/__init__.py."""
+
 from trajectly.core.refinement.checker import RefinementCheckResult, RefinementPolicy, check_skeleton_refinement
 from trajectly.core.refinement.skeleton import SkeletonStep, extract_call_skeleton
 

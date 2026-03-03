@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/trace/io.py."""
+
 from __future__ import annotations
 
 import json
@@ -9,6 +11,7 @@ from trajectly.core.trace.validate import validate_trace_event_v03, validate_tra
 
 
 def append_trace_event(path: Path, event: TraceEventV03 | dict[str, Any]) -> None:
+    """Execute `append_trace_event`."""
     path.parent.mkdir(parents=True, exist_ok=True)
     raw = event.to_dict() if isinstance(event, TraceEventV03) else event
     validated = validate_trace_event_v03(raw)
@@ -18,6 +21,7 @@ def append_trace_event(path: Path, event: TraceEventV03 | dict[str, Any]) -> Non
 
 
 def write_trace_events(path: Path, events: list[TraceEventV03 | dict[str, Any]]) -> None:
+    """Execute `write_trace_events`."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         for event in events:
@@ -28,6 +32,7 @@ def write_trace_events(path: Path, events: list[TraceEventV03 | dict[str, Any]])
 
 
 def read_trace_events(path: Path) -> list[TraceEventV03]:
+    """Execute `read_trace_events`."""
     rows: list[TraceEventV03] = []
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
@@ -40,6 +45,7 @@ def read_trace_events(path: Path) -> list[TraceEventV03]:
 
 
 def write_trace_meta(path: Path, meta: TraceMetaV03 | dict[str, Any]) -> None:
+    """Execute `write_trace_meta`."""
     path.parent.mkdir(parents=True, exist_ok=True)
     raw = meta.to_dict() if isinstance(meta, TraceMetaV03) else meta
     validated = validate_trace_meta_v03(raw)
@@ -47,6 +53,7 @@ def write_trace_meta(path: Path, meta: TraceMetaV03 | dict[str, Any]) -> None:
 
 
 def read_trace_meta(path: Path) -> TraceMetaV03:
+    """Execute `read_trace_meta`."""
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("Trace meta payload must be an object")

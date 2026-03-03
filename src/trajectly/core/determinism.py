@@ -1,3 +1,5 @@
+"""Core implementation module: trajectly/core/determinism.py."""
+
 from __future__ import annotations
 
 import builtins
@@ -41,13 +43,16 @@ class _GuardedPopenProxy:
     """Callable proxy that preserves `subprocess.Popen[...]` usage in imports."""
 
     def __init__(self, wrapped: Any, original: Any) -> None:
+        """Execute `__init__`."""
         self._wrapped = wrapped
         self._original = original
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Execute `__call__`."""
         return self._wrapped(*args, **kwargs)
 
     def __getitem__(self, item: Any) -> Any:
+        """Execute `__getitem__`."""
         original = self._original
         if hasattr(original, "__getitem__"):
             return original[item]
@@ -58,26 +63,31 @@ class _GuardedPopenProxy:
 
 @dataclass(slots=True)
 class DeterminismViolationError(RuntimeError):
+    """Represent `DeterminismViolationError`."""
     code: str
     message: str
     details: dict[str, Any]
 
     def __str__(self) -> str:
+        """Execute `__str__`."""
         return f"{self.code}: {self.message} :: {json.dumps(self.details, sort_keys=True)}"
 
 
 @dataclass(slots=True)
 class ClockConfig:
+    """Represent `ClockConfig`."""
     mode: str = "disabled"
 
 
 @dataclass(slots=True)
 class RandomConfig:
+    """Represent `RandomConfig`."""
     mode: str = "disabled"
 
 
 @dataclass(slots=True)
 class FilesystemConfig:
+    """Represent `FilesystemConfig`."""
     mode: str = "permissive"
     allow_read_paths: list[str] = field(default_factory=list)
     allow_write_paths: list[str] = field(default_factory=list)
@@ -85,12 +95,14 @@ class FilesystemConfig:
 
 @dataclass(slots=True)
 class SubprocessConfig:
+    """Represent `SubprocessConfig`."""
     mode: str = "disabled"
     allow_commands: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class DeterminismConfig:
+    """Represent `DeterminismConfig`."""
     clock: ClockConfig = field(default_factory=ClockConfig)
     random: RandomConfig = field(default_factory=RandomConfig)
     filesystem: FilesystemConfig = field(default_factory=FilesystemConfig)
@@ -99,6 +111,7 @@ class DeterminismConfig:
 
 @dataclass(slots=True)
 class RuntimeState:
+    """Represent `RuntimeState`."""
     mode: str
     project_root: Path
     config: DeterminismConfig
@@ -114,6 +127,7 @@ class RuntimeState:
 
 
 def _sha(value: Any) -> str:
+    """Execute `_sha`."""
     try:
         raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     except TypeError:
@@ -130,6 +144,7 @@ def _raise_violation(
     suggested_fix: str,
     payload_diff: dict[str, Any] | None = None,
 ) -> None:
+    """Execute `_raise_violation`."""
     details: dict[str, Any] = {
         "expected": expected,
         "actual": actual,
@@ -143,6 +158,7 @@ def _raise_violation(
 
 
 def _parse_config(raw: str | None) -> DeterminismConfig:
+    """Execute `_parse_config`."""
     if not raw:
         return DeterminismConfig()
     payload = json.loads(raw)
@@ -171,6 +187,7 @@ def _parse_config(raw: str | None) -> DeterminismConfig:
 
 
 def _resolve_path(project_root: Path, raw: str) -> Path:
+    """Execute `_resolve_path`."""
     candidate = Path(raw)
     if candidate.is_absolute():
         return candidate.resolve()
@@ -178,6 +195,7 @@ def _resolve_path(project_root: Path, raw: str) -> Path:
 
 
 def _build_state_from_env() -> RuntimeState | None:
+    """Execute `_build_state_from_env`."""
     config = _parse_config(os.getenv("TRAJECTLY_DETERMINISM_JSON"))
     if (
         config.clock.mode == "disabled"
@@ -235,6 +253,7 @@ def _build_state_from_env() -> RuntimeState | None:
 
 
 def _is_within(parent: Path, child: Path) -> bool:
+    """Execute `_is_within`."""
     try:
         child.relative_to(parent)
         return True
@@ -243,10 +262,12 @@ def _is_within(parent: Path, child: Path) -> bool:
 
 
 def _allowed_path(path: Path, allowlist: list[Path]) -> bool:
+    """Execute `_allowed_path`."""
     return any(_is_within(candidate, path) for candidate in allowlist)
 
 
 def _parse_access_mode(mode: str) -> tuple[bool, bool]:
+    """Execute `_parse_access_mode`."""
     normalized = mode or "r"
     is_read = "r" in normalized or "+" in normalized
     is_write = any(flag in normalized for flag in ("w", "a", "x", "+"))
@@ -254,6 +275,7 @@ def _parse_access_mode(mode: str) -> tuple[bool, bool]:
 
 
 def _guard_path_access(state: RuntimeState, file: str | os.PathLike[str], mode: str) -> None:
+    """Execute `_guard_path_access`."""
     if state.config.filesystem.mode != "strict":
         return
     candidate = Path(file).resolve()
@@ -290,6 +312,7 @@ def _guard_path_access(state: RuntimeState, file: str | os.PathLike[str], mode: 
 
 
 def _install_clock_hooks(state: RuntimeState) -> None:
+    """Execute `_install_clock_hooks`."""
     clock_mode = state.config.clock.mode
     if clock_mode == "disabled":
         return
@@ -311,14 +334,18 @@ def _install_clock_hooks(state: RuntimeState) -> None:
     frozen_dt = _ORIGINAL_DATETIME_CLASS.fromtimestamp(state.clock_seed, tz=datetime_module.UTC)
 
     class FrozenDateTime(_ORIGINAL_DATETIME_CLASS):
+        """Freeze ``now``/``utcnow`` reads to the recorded timestamp."""
+
         @classmethod
         def now(cls, tz: datetime_module.tzinfo | None = None) -> FrozenDateTime:
+            """Execute `now`."""
             if tz is None:
                 return cast(FrozenDateTime, frozen_dt.replace(tzinfo=None))
             return cast(FrozenDateTime, frozen_dt.astimezone(tz))
 
         @classmethod
         def utcnow(cls) -> FrozenDateTime:
+            """Execute `utcnow`."""
             return cast(FrozenDateTime, frozen_dt.replace(tzinfo=None))
 
     cast(Any, datetime_module).datetime = FrozenDateTime
@@ -327,6 +354,7 @@ def _install_clock_hooks(state: RuntimeState) -> None:
 
 
 def _install_random_hooks(state: RuntimeState) -> None:
+    """Execute `_install_random_hooks`."""
     random_mode = state.config.random.mode
     if random_mode == "disabled":
         return
@@ -346,6 +374,7 @@ def _install_random_hooks(state: RuntimeState) -> None:
 
     if random_mode in {"deterministic_seed", "strict"}:
         def deterministic_uuid4() -> uuid_module.UUID:
+            """Execute `deterministic_uuid4`."""
             assert state.deterministic_rng is not None
             if random_mode == "strict":
                 _raise_violation(
@@ -363,6 +392,7 @@ def _install_random_hooks(state: RuntimeState) -> None:
         uuid_module.uuid4 = deterministic_uuid4
 
         def deterministic_urandom(size: int) -> bytes:
+            """Execute `deterministic_urandom`."""
             assert state.deterministic_rng is not None
             if random_mode == "strict":
                 _raise_violation(
@@ -378,6 +408,7 @@ def _install_random_hooks(state: RuntimeState) -> None:
 
 
 def _extract_command_name(command: Any) -> str:
+    """Execute `_extract_command_name`."""
     if isinstance(command, str):
         tokens = shlex.split(command)
         return tokens[0].strip().lower() if tokens else ""
@@ -387,6 +418,7 @@ def _extract_command_name(command: Any) -> str:
 
 
 def _install_filesystem_hooks(state: RuntimeState) -> None:
+    """Execute `_install_filesystem_hooks`."""
     if state.config.filesystem.mode != "strict":
         return
 
@@ -400,6 +432,7 @@ def _install_filesystem_hooks(state: RuntimeState) -> None:
         closefd: bool = True,
         opener: Callable[[str, int], int] | None = None,
     ) -> Any:
+        """Execute `guarded_open`."""
         _guard_path_access(state, file, mode)
         return _ORIGINAL_OPEN(file, mode, buffering, encoding, errors, newline, closefd, opener)
 
@@ -413,6 +446,7 @@ def _install_filesystem_hooks(state: RuntimeState) -> None:
         closefd: bool = True,
         opener: Callable[[str, int], int] | None = None,
     ) -> Any:
+        """Execute `guarded_io_open`."""
         _guard_path_access(state, file, mode)
         return _ORIGINAL_IO_OPEN(file, mode, buffering, encoding, errors, newline, closefd, opener)
 
@@ -424,6 +458,7 @@ def _install_filesystem_hooks(state: RuntimeState) -> None:
         errors: str | None = None,
         newline: str | None = None,
     ) -> Any:
+        """Execute `guarded_path_open`."""
         _guard_path_access(state, str(self), mode)
         return _ORIGINAL_PATH_OPEN(self, mode, buffering, encoding, errors, newline)
 
@@ -433,10 +468,12 @@ def _install_filesystem_hooks(state: RuntimeState) -> None:
 
 
 def _install_subprocess_hooks(state: RuntimeState) -> None:
+    """Execute `_install_subprocess_hooks`."""
     if state.config.subprocess.mode != "strict":
         return
 
     def guard_command(command: Any) -> None:
+        """Execute `guard_command`."""
         name = _extract_command_name(command)
         if not name:
             return
@@ -452,11 +489,13 @@ def _install_subprocess_hooks(state: RuntimeState) -> None:
         )
 
     def guarded_run(*args: Any, **kwargs: Any) -> Any:
+        """Execute `guarded_run`."""
         command = args[0] if args else kwargs.get("args")
         guard_command(command)
         return _ORIGINAL_SUBPROCESS_RUN(*args, **kwargs)
 
     def guarded_popen(*args: Any, **kwargs: Any) -> Any:
+        """Execute `guarded_popen`."""
         command = args[0] if args else kwargs.get("args")
         guard_command(command)
         return _ORIGINAL_SUBPROCESS_POPEN(*args, **kwargs)
@@ -466,6 +505,7 @@ def _install_subprocess_hooks(state: RuntimeState) -> None:
 
 
 def activate_from_env() -> None:
+    """Execute `activate_from_env`."""
     global _ACTIVE
     if _ACTIVE:
         return
@@ -480,6 +520,7 @@ def activate_from_env() -> None:
 
 
 def reset_for_tests() -> None:
+    """Execute `reset_for_tests`."""
     global _ACTIVE
     cast(Any, datetime_module).datetime = _ORIGINAL_DATETIME_CLASS
     time_module.time = _ORIGINAL_TIME

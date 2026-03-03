@@ -1,3 +1,5 @@
+"""Run-hook plugin that exports completed runs to a cloud ingestion endpoint."""
+
 from __future__ import annotations
 
 import json
@@ -13,6 +15,7 @@ from trajectly.plugins.interfaces import RunHookPlugin
 
 
 def _slugify(value: str) -> str:
+    """Create stable URL-safe slugs from spec names."""
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
     slug = slug.strip("-")
     return slug or "spec"
@@ -28,6 +31,7 @@ class CloudRunHookExporter(RunHookPlugin):
         timeout_seconds: float = 8.0,
         max_retries: int = 2,
     ) -> None:
+        """Execute `__init__`."""
         self._api_base_url = api_base_url.rstrip("/")
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
@@ -35,6 +39,7 @@ class CloudRunHookExporter(RunHookPlugin):
 
     @classmethod
     def from_env(cls) -> CloudRunHookExporter | None:
+        """Build exporter from environment variables or disable when not configured."""
         api_base_url = os.getenv("TRAJECTLY_CLOUD_API_BASE_URL", "").strip()
         api_key = os.getenv("TRAJECTLY_CLOUD_API_KEY", "").strip()
         if not api_base_url or not api_key:
@@ -59,6 +64,7 @@ class CloudRunHookExporter(RunHookPlugin):
         )
 
     def on_run_finished(self, context: dict[str, Any], report_paths: dict[str, Path]) -> None:
+        """Send completed run payload to cloud ingestion with retry on transient errors."""
         report_json_path = report_paths.get("json")
         report_markdown_path = report_paths.get("markdown")
         baseline_path = report_paths.get("baseline")
