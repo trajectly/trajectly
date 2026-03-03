@@ -1,3 +1,5 @@
+"""Unit tests for schema versions v03."""
+
 from __future__ import annotations
 
 from trajectly.constants import (

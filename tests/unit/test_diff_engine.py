@@ -1,3 +1,5 @@
+"""Unit tests for diff engine."""
+
 from __future__ import annotations
 
 from trajectly.diff.engine import compare_traces

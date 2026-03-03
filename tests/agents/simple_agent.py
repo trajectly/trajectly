@@ -1,3 +1,5 @@
+"""Test agent fixture for simple agent."""
+
 from __future__ import annotations
 
 from trajectly.sdk import agent_step, llm_call, tool

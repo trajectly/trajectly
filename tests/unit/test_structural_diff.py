@@ -1,3 +1,5 @@
+"""Unit tests for structural diff."""
+
 from __future__ import annotations
 
 from trajectly.diff.structural import structural_diff

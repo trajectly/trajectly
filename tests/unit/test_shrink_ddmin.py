@@ -1,3 +1,5 @@
+"""Unit tests for shrink ddmin."""
+
 from __future__ import annotations
 
 import pytest

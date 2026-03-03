@@ -1,3 +1,5 @@
+"""Unit tests for trace io."""
+
 from __future__ import annotations
 
 import json

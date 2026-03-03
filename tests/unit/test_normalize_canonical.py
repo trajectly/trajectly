@@ -1,3 +1,5 @@
+"""Unit tests for normalize canonical."""
+
 from __future__ import annotations
 
 from trajectly.normalize.canonical import CanonicalNormalizer

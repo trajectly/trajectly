@@ -1,3 +1,5 @@
+"""Import-time hooks for replay guard and determinism activation."""
+
 from __future__ import annotations
 
 import os

@@ -1,3 +1,5 @@
+"""Unit tests for replay guard."""
+
 from __future__ import annotations
 
 import types

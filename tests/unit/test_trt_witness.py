@@ -1,3 +1,5 @@
+"""Unit tests for trt witness."""
+
 from __future__ import annotations
 
 from trajectly.constants import FAILURE_CLASS_CONTRACT, FAILURE_CLASS_REFINEMENT

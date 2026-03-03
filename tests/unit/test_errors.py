@@ -1,3 +1,5 @@
+"""Unit tests for errors."""
+
 from __future__ import annotations
 
 from trajectly.constants import (

@@ -1,3 +1,5 @@
+"""Unit tests for events."""
+
 from __future__ import annotations
 
 from pathlib import Path

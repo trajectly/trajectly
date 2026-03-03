@@ -1,3 +1,5 @@
+"""Unit tests for redaction."""
+
 from __future__ import annotations
 
 from trajectly.redaction import REDACTION_TOKEN, apply_redactions

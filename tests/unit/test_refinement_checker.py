@@ -1,3 +1,5 @@
+"""Unit tests for refinement checker."""
+
 from __future__ import annotations
 
 from trajectly.refinement import RefinementPolicy, SkeletonStep, check_skeleton_refinement

@@ -1,3 +1,5 @@
+"""Unit tests for contracts."""
+
 from __future__ import annotations
 
 from trajectly.contracts import evaluate_contracts

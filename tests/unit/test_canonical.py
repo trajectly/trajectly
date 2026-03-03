@@ -1,3 +1,5 @@
+"""Unit tests for canonical."""
+
 from __future__ import annotations
 
 from trajectly.canonical import canonical_dumps, sha256_of_data, sha256_of_subset

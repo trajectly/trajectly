@@ -1,3 +1,5 @@
+"""Integration tests for cli diff report."""
+
 from __future__ import annotations
 
 import json

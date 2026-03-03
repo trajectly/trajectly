@@ -1,3 +1,5 @@
+"""Unit tests for abstraction pipeline."""
+
 from __future__ import annotations
 
 from trajectly.abstraction import AbstractionConfig, build_abstract_trace
