@@ -1,5 +1,9 @@
 # Trajectly
 
+[![CI](https://github.com/trajectly/trajectly/actions/workflows/ci.yml/badge.svg)](https://github.com/trajectly/trajectly/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/trajectly/trajectly/badge)](https://securityscorecards.dev/viewer/?uri=github.com/trajectly/trajectly)
+[![PyPI version](https://img.shields.io/pypi/v/trajectly.svg)](https://pypi.org/project/trajectly/)
+
 Deterministic regression testing for AI agents, powered by **Trajectory Refinement Testing (TRT)**.
 
 Trajectly records a known-good baseline, replays against deterministic fixtures, and tells you exactly where behavior diverged.
@@ -201,6 +205,7 @@ See [docs/ci_github_actions.md](docs/ci_github_actions.md) for input options and
 - [Full reference](docs/trajectly.md)
 - [Architecture](docs/architecture_phase1.md)
 - [CI: GitHub Actions](docs/ci_github_actions.md)
+- [Security policy](SECURITY.md)
 - [Contributing guide](CONTRIBUTING.md)
 - [Support Escalation Demo (standalone)](https://github.com/trajectly/support-escalation-demo)
 - [Procurement Approval Demo (standalone)](https://github.com/trajectly/procurement-approval-demo)
@@ -221,6 +226,11 @@ mypy src
 ## License
 
 Apache 2.0 -- see [LICENSE](LICENSE).
+
+## Community
+
+- Questions and use-case discussions: <https://github.com/trajectly/trajectly/discussions>
+- Security reports (private): <https://github.com/trajectly/trajectly/security/advisories/new>
 
 ## Support Trajectly
 

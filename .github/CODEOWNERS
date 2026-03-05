@@ -1,0 +1,6 @@
+# Default owner for the repository.
+* @aashmawy
+
+# Keep docs changes visible to the same reviewer path.
+/docs/ @aashmawy
+/README.md @aashmawy
