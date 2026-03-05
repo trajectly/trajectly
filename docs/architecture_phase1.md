@@ -46,7 +46,6 @@ src/trajectly/
 |   |-- adapters.py          # OpenAI/Gemini/LangChain/etc wrappers
 |   \-- graph.py             # declarative App DAG registration/execution
 |-- plugins/
-|   |-- cloud_exporter.py
 |   |-- interfaces.py
 |   \-- loader.py
 \-- github-action/
