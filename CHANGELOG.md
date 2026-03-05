@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## v0.4.2 - 2026-03-06
+
+### Changed
+
+- Removed the optional cloud run-hook exporter path from the core package:
+  - deleted `src/trajectly/plugins/cloud_exporter.py`
+  - removed built-in cloud exporter wiring from `plugins/loader.py`
+  - removed cloud exporter exports/tests and architecture doc references
+- Maintained plugin extension support via entry points (`trajectly.run_hook_plugins` and `trajectly.semantic_diff_plugins`).
+
 ## Unreleased
 
 ### Added
