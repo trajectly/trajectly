@@ -1,6 +1,7 @@
 name: scorecard
 
 on:
+  pull_request:
   branch_protection_rule:
   schedule:
     - cron: "30 7 * * 1"
@@ -32,7 +33,7 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
-          publish_results: true
+          publish_results: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
 
       - name: Upload SARIF to code scanning
         uses: github/codeql-action/upload-sarif@ccdb31a30b64f237d5e093766753e134dd045e07 # v3.32.5
