@@ -62,3 +62,17 @@ jobs:
           python -m trajectly init
           python -m trajectly record tests/*.agent.yaml
           python -m trajectly run tests/*.agent.yaml
+
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    steps:
+      - name: Aggregate matrix result
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "One or more matrix runs failed."
+            exit 1
+          fi
+          echo "All matrix runs passed."
