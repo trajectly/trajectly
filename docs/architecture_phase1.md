@@ -50,7 +50,7 @@ src/trajectly/
 |   |-- interfaces.py
 |   \-- loader.py
 \-- github-action/
-    \-- action.yml          # composite CI wrapper (no TRT logic)
+    \-- action.yml          # deprecated compatibility wrapper -> trajectly/trajectly-action@v1
 ```
 
 ## Layer Boundaries
@@ -126,7 +126,11 @@ These isolate filesystem layout concerns from higher-level orchestration.
 
 ## GitHub Action Boundary
 
-`github-action/action.yml` is intentionally thin:
+Canonical action behavior lives in `trajectly/trajectly-action`.
+
+`github-action/action.yml` in this repository is a compatibility wrapper that delegates to that canonical action.
+
+The action boundary remains intentionally thin:
 
 1. setup Python
 2. install Trajectly (`editable` or `pypi`)
