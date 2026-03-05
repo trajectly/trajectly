@@ -201,10 +201,13 @@ See [docs/ci_github_actions.md](docs/ci_github_actions.md) for input options and
 - [Full reference](docs/trajectly.md)
 - [Architecture](docs/architecture_phase1.md)
 - [CI: GitHub Actions](docs/ci_github_actions.md)
+- [Contributing guide](CONTRIBUTING.md)
 - [Support Escalation Demo (standalone)](https://github.com/trajectly/support-escalation-demo)
 - [Procurement Approval Demo (standalone)](https://github.com/trajectly/procurement-approval-demo)
 
 ## Contributing
+
+For a friendly step-by-step contribution guide, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
 git clone https://github.com/trajectly/trajectly.git
@@ -218,3 +221,8 @@ mypy src
 ## License
 
 Apache 2.0 -- see [LICENSE](LICENSE).
+
+## Support Trajectly
+
+If Trajectly is useful to your work, please give the repository a star ⭐:
+<https://github.com/trajectly/trajectly/stargazers>
