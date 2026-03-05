@@ -95,21 +95,31 @@ Recorded 1 spec(s) successfully
 
 A baseline is the known-good behavior for a spec. Trajectly stores baseline traces plus fixtures for deterministic replay.
 
+In practice, a baseline is both a regression reference and a versioned artifact. When you create `v1`, you are saying "this behavior is currently acceptable," and every future `run` compares against that decision. Baselines can be promoted or updated as your intended behavior evolves, which keeps changes explicit and reviewable instead of implicit.
+
 ### Replay
 
 In replay mode, tool and LLM calls are matched against fixtures and returned deterministically. This removes online nondeterminism from regression checks.
+
+Replay is what makes CI results stable. Instead of depending on live model variance, network timing, or changing upstream APIs, Trajectly reuses recorded fixtures and deterministic matching so the same code path can be validated repeatedly. This makes failures reproducible locally through `repro`, not just visible in CI logs.
 
 ### Contracts
 
 Contracts define allowed behavior (tool allow/deny, sequence constraints, budgets, network/data policies, argument rules).
 
+Contracts encode policy, not implementation. You can change internal prompt wording or refactor node composition while still asserting hard constraints such as "never call this tool" or "approval must happen before purchase order creation." This lets teams separate acceptable behavior from incidental code structure.
+
 ### Refinement
 
 Trajectly extracts ordered tool-call skeletons and verifies baseline skeleton is a subsequence of current skeleton.
 
+Refinement catches behavioral drift even when outputs look superficially valid. If the baseline required key tool calls and the new run skipped or replaced them, refinement flags the divergence. This is especially useful for agent systems where final text alone can hide protocol-level regressions.
+
 ### Witness index
 
 When checks fail, Trajectly reports the earliest failing trace event index.
+
+The witness index gives a deterministic anchor for triage. Instead of scanning entire traces, you can jump directly to the first event where behavior diverged from policy or baseline. This reduces ambiguity and makes bug reports easier to share because everyone can reference the same failing position.
 
 Important:
 - witness index is a **trace event index** (0-based)
@@ -139,21 +149,31 @@ flowchart LR
 
 Canonicalization removes unstable noise (timestamps, volatile ids, shape differences) so equivalent behavior compares deterministically.
 
+Normalization is the prerequisite for meaningful comparison. Without it, harmless differences such as generated IDs or clock values would look like regressions. By canonicalizing event payloads first, TRT compares behavioral structure rather than incidental runtime noise.
+
 ### Stage 2: skeleton extraction
 
 Tool-call sequence is extracted from normalized trace.
+
+The skeleton is a compact behavioral summary of the run. Instead of comparing every raw field, TRT captures the ordered sequence of meaningful operations, which keeps checks robust and explainable. This abstraction also supports clear failure reporting when required calls are missing.
 
 ### Stage 3: refinement
 
 Baseline skeleton must appear in current skeleton in the same relative order (subsequence relation).
 
+This stage answers whether the current run still refines baseline behavior. Additional safe steps are allowed, but removing or reordering critical baseline operations is not. The subsequence rule balances flexibility for iterative improvements with strict protection against unintended behavioral shortcuts.
+
 ### Stage 4: contracts
 
 Current trace is checked against contracts independently of refinement.
 
+Contracts and refinement are intentionally independent checks. A run can preserve baseline skeleton and still violate a policy rule (for example, calling a denied tool), or pass contracts but drift from baseline behavior. Keeping both checks separate improves diagnostic precision in reports.
+
 ### Witness resolution
 
 If any violation exists, TRT chooses the earliest failing event index as witness.
+
+When multiple findings exist, witness resolution chooses a deterministic first failure point. This prevents noisy or order-dependent reporting and ensures repeated runs point to the same anchor event. Stable witness selection is critical for reproducible CI gating and for minimizing counterexamples with `shrink`.
 
 Practical impact:
 - deterministic CI gate
@@ -165,6 +185,8 @@ Practical impact:
 ## 4) Daily workflow
 
 ### Setup once
+
+Initialize `.trajectly/` at the project root before recording or replaying. This creates the local workspace layout Trajectly uses for baselines, current traces, reports, and repro artifacts. You typically run this once per repository, then only repeat if you intentionally reset workspace state.
 
 ```bash
 python -m trajectly init
@@ -178,6 +200,8 @@ Initialized Trajectly workspace at $PROJECT_ROOT
 
 ### Record baseline
 
+Record captures a known-good run and stores both trace and fixtures under the spec slug/version. This step should be done from a commit where behavior is trusted, because it becomes your comparison reference. If recording in CI, use `--allow-ci-write` only for explicit baseline-management workflows.
+
 ```bash
 python -m trajectly record specs/*.agent.yaml --project-root .
 ```
@@ -189,6 +213,8 @@ Recorded 1 spec(s) successfully
 ```
 
 ### Validate changes
+
+Use `run` and `report` together in day-to-day development and CI. `run` executes TRT checks and sets the gate exit code, while `report` gives readable detail and repro metadata. This two-step loop makes it easy to fail fast and then inspect exactly why.
 
 ```bash
 python -m trajectly run specs/*.agent.yaml --project-root .
@@ -210,6 +236,8 @@ Source: $PROJECT_ROOT/.trajectly/reports/latest.md
 
 ### If failing
 
+When `run` fails, `repro` gives a one-command deterministic replay of the failing case, and `shrink` reduces the failing trace to a smaller counterexample. These commands are designed for debugging speed: reproduce first, then minimize. Most triage loops should start here before changing code or baselines.
+
 ```bash
 python -m trajectly repro
 python -m trajectly shrink
@@ -223,6 +251,8 @@ Shrink completed and report updated with shrink stats.
 ```
 
 ### If change is intentional
+
+If behavior changed on purpose, version the baseline instead of silently replacing history. Create a new version, validate it, and promote only when you are ready for future runs to compare against the new intended behavior. This keeps behavioral changes auditable in PR review and release history.
 
 ```bash
 python -m trajectly baseline create --name v2 specs/my-agent.agent.yaml --project-root .
@@ -249,6 +279,8 @@ Output snippets in this section were captured from fresh runs on March 5, 2026. 
 
 ### Top-level commands
 
+The top-level command surface follows the baseline workflow: initialize, record, validate, triage, then manage baseline versions. If you are onboarding, focus first on `init`, `record`, `run`, `report`, and `repro`; baseline lifecycle commands become relevant when behavior changes intentionally.
+
 | Command | Purpose |
 |---|---|
 | `python -m trajectly --version` | Print version |
@@ -263,6 +295,8 @@ Output snippets in this section were captured from fresh runs on March 5, 2026. 
 
 ### `init`
 
+Use `init` to create or refresh local Trajectly workspace metadata at a chosen project root. It does not run agent code; it only prepares directories/config expected by subsequent commands.
+
 ```bash
 python -m trajectly init
 python -m trajectly init ./my-project
@@ -275,6 +309,8 @@ Initialized Trajectly workspace at $PROJECT_ROOT
 ```
 
 ### `enable`
+
+Use `enable` for first-time scaffolding when a project has no specs yet. It creates starter files and can apply a template so you can run `record --auto` quickly without manually wiring everything.
 
 ```bash
 python -m trajectly enable
@@ -296,6 +332,8 @@ Next step: python -m trajectly record --auto
 
 ### `record`
 
+`record` executes spec commands in record mode and writes baseline artifacts. Run it after confirming the current behavior is acceptable, because these artifacts become your deterministic replay reference.
+
 Signature:
 
 ```text
@@ -316,6 +354,8 @@ Recorded 1 spec(s) successfully
 ```
 
 ### `run`
+
+`run` is the main regression gate. It replays against baseline fixtures, evaluates TRT (refinement + contracts), writes report artifacts, and returns an exit code suitable for CI policy enforcement.
 
 Signature:
 
@@ -349,6 +389,8 @@ Observed output cues:
 
 ### `repro`
 
+`repro` reruns the latest or selected failing case with deterministic inputs. Use `--print-only` when you want to copy the exact command into logs or bug reports without executing it immediately.
+
 Signature:
 
 ```text
@@ -376,6 +418,8 @@ Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agen
 
 ### `shrink`
 
+`shrink` minimizes a failing counterexample while preserving the same failure class. It is most useful after `repro` confirms a stable failure and you want a smaller trace for root-cause analysis.
+
 Signature:
 
 ```text
@@ -397,6 +441,8 @@ Latest report: $PROJECT_ROOT/.trajectly/reports/latest.md
 ```
 
 ### `report`
+
+`report` renders the latest aggregate result in human-readable or machine-readable formats. Use markdown for local inspection, JSON for automation, and `--pr-comment` when integrating with CI comment bots.
 
 ```bash
 python -m trajectly report
@@ -422,7 +468,11 @@ Source: $PROJECT_ROOT/.trajectly/reports/latest.md
 
 ### Baseline commands
 
+Baseline commands manage version history for intended behavior. Use them when you need explicit behavioral evolution (`v1` -> `v2`) rather than ad-hoc re-recording.
+
 #### `baseline list`
+
+`baseline list` shows which spec slugs have stored versions and which version is currently promoted. This is useful when auditing repository state before promotion or update operations.
 
 ```text
 python -m trajectly baseline list [TARGETS]... [--project-root PATH]
@@ -450,6 +500,8 @@ Observed output (excerpt):
 
 #### `baseline create`
 
+`baseline create` records a new named baseline version without changing the currently promoted version. This is the safest way to stage intentional behavior updates for review.
+
 ```text
 python -m trajectly baseline create --name VERSION TARGETS... [--project-root PATH] [--allow-ci-write]
 ```
@@ -467,6 +519,8 @@ Created baseline version `v2` for 1 spec(s)
 ```
 
 #### `baseline promote`
+
+`baseline promote` switches the comparison target to an existing version. Use it only after validating the target version, because subsequent `run` commands will treat that version as the source of truth.
 
 ```text
 python -m trajectly baseline promote VERSION [TARGETS]... [--project-root PATH]
@@ -486,6 +540,8 @@ Observed output (excerpt):
 ```
 
 #### `baseline diff`
+
+`baseline diff` compares two stored baseline versions for a spec slug. It is useful in code review to show how behavior changed between versions before deciding whether to promote.
 
 ```text
 python -m trajectly baseline diff SPEC_SLUG LEFT RIGHT [--project-root PATH] [--json]
@@ -512,6 +568,8 @@ Observed output (`--json`, excerpt):
 
 #### `baseline update`
 
+`baseline update` re-records currently targeted specs in place (or auto-discovered specs with `--auto`). Use this command when updates are intentional and you want the active baseline refreshed directly.
+
 ```text
 python -m trajectly baseline update [TARGETS]... [--project-root PATH] [--auto] [--allow-ci-write]
 ```
@@ -533,7 +591,11 @@ Updated baseline for 1 spec(s)
 
 Trajectly specs are `.agent.yaml` files.
 
+Think of a spec as an executable policy file: it tells Trajectly what command to run, where to run it, and what constraints should be enforced during replay and validation. Most teams keep specs under `specs/` and version them alongside application code so behavior expectations evolve with code changes.
+
 ### Minimal example
+
+This minimal form is enough to start recording and validating a simple agent. As your workflow matures, you usually add `strict`, replay matching controls, and contracts to make regression checks both deterministic and policy-aware.
 
 ```yaml
 schema_version: "0.4"
@@ -578,6 +640,8 @@ Why this pattern is commonly used:
 
 ### Common fields
 
+Use common fields to control execution determinism and policy granularity. Start with `workdir`, `env`, and `contracts`, then add tighter controls (`determinism`, `budget_thresholds`, `redact`) when your CI and compliance requirements grow.
+
 | Field | Purpose |
 |---|---|
 | `schema_version` | Spec schema version (`0.4`) |
@@ -594,6 +658,8 @@ Why this pattern is commonly used:
 | `artifacts_dir` | Artifact output directory |
 
 ### Spec inheritance (`extends`)
+
+`extends` allows a base policy to be shared across multiple variants while keeping child specs concise. This is especially useful when many specs share the same guardrails but differ in one or two fields such as command, environment, or denied tools.
 
 ```yaml
 # child.agent.yaml
@@ -622,6 +688,8 @@ Trajectly supports two SDK styles that share the same runtime instrumentation pa
 
 ### A) Decorators
 
+Decorators are the most direct integration path when your agent is already implemented as plain Python functions. You annotate tool and model call boundaries, then keep the rest of your control flow unchanged.
+
 ```python
 from trajectly.sdk import tool, llm_call
 
@@ -635,6 +703,8 @@ def classify_ticket(prompt: str) -> str:
 ```
 
 ### B) Declarative graph (`trajectly.App`)
+
+The graph API is useful when you want execution structure to be explicit and validated up front. Node registration, dependency mapping, and deterministic topological execution make control flow easier to inspect and reason about.
 
 ```python
 import trajectly
@@ -660,6 +730,8 @@ if __name__ == "__main__":
 
 ### Graph API objects
 
+These objects represent the declarative graph model and validation surface. In day-to-day usage, most users interact with `App`, while `NodeSpec`/`GraphSpec` and `GraphError` become relevant when debugging graph construction or building higher-level tooling.
+
 - `trajectly.App`: graph registration and execution
 - `trajectly.sdk.graph.NodeSpec`: immutable node definition
 - `trajectly.sdk.graph.GraphSpec`: validated graph snapshot (nodes, topological order, input keys)
@@ -667,6 +739,8 @@ if __name__ == "__main__":
 - `trajectly.sdk.graph.scan_module(module)`: discover decorated node specs
 
 ### `App.node(...)` semantics
+
+`App.node(...)` defines both execution role (`tool`/`llm`/`transform`/`input`) and data dependencies. Explicit dependency mapping is preferred for non-trivial graphs because it prevents accidental parameter ordering mistakes and improves readability.
 
 Node types:
 - `tool`
@@ -683,6 +757,8 @@ Dependencies:
 
 Graph execution uses deterministic topological ordering (lexicographic tie-break for same indegree).
 
+Deterministic ordering is essential for stable traces. If two nodes are otherwise unordered, deterministic tie-breaking prevents run-to-run variance in event sequences that would otherwise create noisy diffs.
+
 ### Event mapping
 
 Graph execution emits the same event types used everywhere else:
@@ -692,12 +768,16 @@ Graph execution emits the same event types used everywhere else:
 
 No new event type is introduced for graph mode.
 
+This shared event model means graph-mode and decorator-mode projects use the same replay engine, report schema, and CI workflow. You can switch instrumentation style without rewriting your validation pipeline.
+
 ### `generate_spec(...)`
 
 `App.generate_spec()` returns a `.agent.yaml`-compatible dictionary template:
 - fills `schema_version`, `name`, placeholder `command`
 - derives tool allowlist and sequence requirements from graph tool nodes
 - allows deep-merged overrides
+
+This is useful when you want policy scaffolding generated from code structure, then refined manually. It reduces setup drift between graph nodes and contract expectations.
 
 ### Framework adapters
 
@@ -708,13 +788,19 @@ For framework-native integration, use wrappers from `trajectly.sdk` such as:
 - `anthropic_messages_create`
 - `llamaindex_query`
 
+Adapters let you preserve framework-native call sites while still emitting canonical Trajectly events. That keeps migration cost low for existing projects that do not want to rewrite their orchestration layer.
+
 ---
 
 ## 8) Trace schema reference
 
 Trajectly stores traces as JSONL (one event per line).
 
+Each line is an independently parseable event record, which makes traces easy to stream, diff, and process with standard tooling. The schema is designed so local debugging and CI artifact inspection use the same data format.
+
 ### Event envelope
+
+The envelope fields provide deterministic ordering, run identity, and payload context. Together they allow trace reconstruction even when events are consumed outside Trajectly (for example by custom analytics scripts).
 
 | Field | Meaning |
 |---|---|
@@ -728,6 +814,8 @@ Trajectly stores traces as JSONL (one event per line).
 | `event_id` | Deterministic event hash (if present) |
 
 ### Event types
+
+Event types capture the lifecycle from run start to run finish and the key instrumented boundaries in between. Tool and LLM call pairs (`*_called` / `*_returned`) provide the structure TRT uses for refinement and contract checks.
 
 | Event type | Meaning |
 |---|---|
@@ -758,11 +846,15 @@ Example:
 
 Note: spec schema version (`0.4`) and trace schema version (`v1`) are different artifacts and intentionally use different version namespaces.
 
+In other words, changing spec format and changing trace-event format are independent compatibility concerns. Keep this distinction in mind when upgrading versions or writing custom tooling.
+
 ---
 
 ## 9) Contracts reference
 
 Contracts are under `contracts:` in spec YAML.
+
+Contracts let you encode non-negotiable behavioral rules directly in the spec. They are evaluated against actual trace events, so they remain enforceable even as prompts, model providers, or internal code structure change.
 
 Common contract violation signals in reports:
 
@@ -776,6 +868,8 @@ Common contract violation signals in reports:
 
 ### Tools
 
+Use tool contracts to define allowed and denied operations and to cap operational budgets. This is often the first guardrail teams add because tool misuse is usually high-impact and straightforward to detect.
+
 ```yaml
 contracts:
   tools:
@@ -787,6 +881,8 @@ contracts:
 ```
 
 ### Sequence
+
+Sequence contracts define ordering and occurrence expectations between operations. They are useful for enforcing process integrity, such as "approval before purchase order" or "never call export in this flow."
 
 ```yaml
 contracts:
@@ -803,6 +899,8 @@ contracts:
 
 ### Side effects
 
+Side-effect controls are intended for high-risk operations that should never be executed during replay or certain environments. They provide an additional safeguard beyond tool names when write operations are involved.
+
 ```yaml
 contracts:
   side_effects:
@@ -810,6 +908,8 @@ contracts:
 ```
 
 ### Network
+
+Network rules let you constrain outbound access during validation. This supports both security boundaries and deterministic replay by preventing unintended live calls.
 
 ```yaml
 contracts:
@@ -820,6 +920,8 @@ contracts:
 
 ### Data leak
 
+Data leak contracts provide pattern-based outbound protection for sensitive material. They are most effective when paired with explicit outbound kinds and organization-specific secret patterns.
+
 ```yaml
 contracts:
   data_leak:
@@ -829,6 +931,8 @@ contracts:
 ```
 
 ### Arguments
+
+Argument contracts validate shape and content at call time, which catches malformed or policy-breaking tool invocations early. This is useful for enforcing typed interfaces in agent pipelines that are otherwise loosely coupled.
 
 ```yaml
 contracts:
@@ -844,6 +948,8 @@ contracts:
 ---
 
 ## 10) Troubleshooting
+
+Most failures fall into one of three buckets: fixture/replay mismatch, policy/configuration blocks, or intentional behavior drift requiring baseline updates. The sections below map common symptoms to fast recovery steps.
 
 ### Missing fixture / fixture exhausted
 
@@ -862,11 +968,15 @@ Actions:
 2. verify replay matching settings (`replay.tool_match_mode`, `replay.llm_match_mode`)
 3. reduce nondeterministic inputs between record/replay
 
+This failure usually means the replayed call shape no longer matches recorded fixtures. Treat it as a signal to inspect either true behavior drift or unstable inputs that should be normalized/seeded.
+
 ### Network blocked in replay
 
 Offline replay intentionally blocks live network access by default.
 
 If you explicitly need online mode, set `replay.mode: online` in the spec. Keep offline mode for CI determinism.
+
+If this appears unexpectedly, confirm your code path is not performing hidden outbound calls during replay. Many teams keep offline mode mandatory in CI and reserve online mode for explicit local diagnostics.
 
 ### CI baseline writes blocked
 
@@ -890,6 +1000,8 @@ or
 python -m trajectly baseline update specs/my-agent.agent.yaml --allow-ci-write
 ```
 
+This guardrail prevents accidental baseline drift in automated pipelines. Prefer explicit baseline management steps in dedicated jobs rather than allowing baseline writes in ordinary PR checks.
+
 ### Reporter says FAIL but you need the exact command
 
 Use print-only repro:
@@ -904,6 +1016,8 @@ Observed output:
 Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agent-regression.agent.yaml" --project-root "$PROJECT_ROOT"
 ```
 
+Use this output directly in issue reports or CI annotations so anyone can rerun the exact failing case without reconstructing arguments manually.
+
 ### Upgrade drift after Trajectly version changes
 
 Re-record baseline versions after upgrades to align fixtures and normalizer behavior:
@@ -917,6 +1031,8 @@ Observed output:
 ```text
 Updated baseline for 1 spec(s)
 ```
+
+After major upgrades, run a focused review of updated baselines before promotion. This keeps intentional compatibility changes separated from accidental behavioral drift.
 
 ---
 
