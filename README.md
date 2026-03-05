@@ -176,7 +176,7 @@ run exit code:
 
 ### GitHub Actions
 
-Trajectly ships a thin wrapper action in `github-action/action.yml`:
+The canonical action is published at `trajectly/trajectly-action`:
 
 ```yaml
 name: Agent Regression Tests
@@ -185,10 +185,19 @@ on: [push, pull_request]
 jobs:
   trajectly:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: ./github-action
+      - uses: trajectly/trajectly-action@v1
+        with:
+          spec_glob: "specs/*.agent.yaml"
+          project_root: "."
 ```
+
+Notes:
+- `comment_pr` is off by default. Enable it only when you want PR comments and grant `pull-requests: write`.
+- The in-repo path `./github-action` is a temporary compatibility wrapper and will be removed after one release cycle.
 
 See [docs/ci_github_actions.md](docs/ci_github_actions.md) for input options and full behavior.
 
