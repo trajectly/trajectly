@@ -2,6 +2,11 @@
 
 This document describes the current architecture on `main`.
 
+Use this document when you need to:
+1. understand module boundaries before changing code,
+2. add a new CLI/runtime capability without crossing layers,
+3. confirm where a behavior belongs (`core`, `cli`, `sdk`, or `plugins`).
+
 ## Package Layout
 
 ```text
@@ -132,3 +137,21 @@ These isolate filesystem layout concerns from higher-level orchestration.
 7. propagate run exit code
 
 All TRT logic remains in Python packages, not in workflow YAML.
+
+## Where to extend
+
+Common change types and their primary edit locations:
+
+1. New CLI command or flag:
+   - `cli/commands.py` for Typer surface
+   - `cli/engine.py` for orchestration
+   - `cli/report/renderers.py` only if output format changes
+2. New contract rule or TRT check:
+   - `core/contracts.py` or `core/trt/`
+   - add/adjust report schema in `core/report/schema.py` if new fields are emitted
+3. New instrumentation adapter:
+   - `sdk/adapters.py`
+   - ensure events still map to existing trace event types via `sdk/context.py`
+4. New storage backend:
+   - implement protocols in `core/stores/`
+   - wire selection in CLI/engine layer without importing CLI into `core`

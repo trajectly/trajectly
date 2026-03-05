@@ -45,6 +45,29 @@ Expected exit behavior for this intentional regression:
 - `repro` -> `1`
 - `shrink` -> `0`
 
+Observed output excerpts from a fresh run (March 5, 2026):
+
+```text
+# run ...regression...
+- `trt-procurement-agent`: regression
+  - trt: `FAIL` (witness=10)
+
+# report
+Source: $PROJECT_ROOT/.trajectly/reports/latest.md
+
+# repro
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agent-regression.agent.yaml" --project-root "$PROJECT_ROOT"
+
+# shrink
+Shrink completed and report updated with shrink stats.
+```
+
+Artifacts produced by this flow:
+- `$PROJECT_ROOT/.trajectly/reports/latest.md`
+- `$PROJECT_ROOT/.trajectly/reports/latest.json`
+- `$PROJECT_ROOT/.trajectly/repros/<spec>.json`
+- `$PROJECT_ROOT/.trajectly/repros/<spec>.counterexample.reduced.trace.jsonl`
+
 ### Record your own baseline
 
 ```bash
@@ -54,6 +77,15 @@ python -m trajectly run specs/my-agent.agent.yaml --project-root .
 ```
 
 `specs/my-agent.agent.yaml` is a placeholder. Replace with an existing spec path.
+
+Observed output cue:
+
+```text
+Initialized Trajectly workspace at $PROJECT_ROOT
+Recorded 1 spec(s) successfully
+- `my-agent`: clean
+  - trt: `PASS`
+```
 
 ---
 
@@ -138,10 +170,22 @@ Practical impact:
 python -m trajectly init
 ```
 
+Output cue:
+
+```text
+Initialized Trajectly workspace at $PROJECT_ROOT
+```
+
 ### Record baseline
 
 ```bash
 python -m trajectly record specs/*.agent.yaml --project-root .
+```
+
+Output cue:
+
+```text
+Recorded 1 spec(s) successfully
 ```
 
 ### Validate changes
@@ -151,11 +195,31 @@ python -m trajectly run specs/*.agent.yaml --project-root .
 python -m trajectly report
 ```
 
+Output cues:
+
+```text
+# clean run
+- `my-agent`: clean
+  - trt: `PASS`
+
+# regression run
+- `my-agent`: regression
+  - trt: `FAIL` (witness=...)
+Source: $PROJECT_ROOT/.trajectly/reports/latest.md
+```
+
 ### If failing
 
 ```bash
 python -m trajectly repro
 python -m trajectly shrink
+```
+
+Output cues:
+
+```text
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/my-agent.agent.yaml" --project-root "$PROJECT_ROOT"
+Shrink completed and report updated with shrink stats.
 ```
 
 ### If change is intentional
@@ -165,11 +229,23 @@ python -m trajectly baseline create --name v2 specs/my-agent.agent.yaml --projec
 python -m trajectly baseline promote v2 specs/my-agent.agent.yaml --project-root .
 ```
 
+Output cues:
+
+```text
+Created baseline version `v2` for 1 spec(s)
+{
+  "promoted": ["my-agent"],
+  "version": "v2"
+}
+```
+
 ---
 
 ## 5) CLI reference
 
 The command surface below reflects current `python -m trajectly --help` output.
+
+Output snippets in this section were captured from fresh runs on March 5, 2026. Paths are normalized to `$PROJECT_ROOT`.
 
 ### Top-level commands
 
@@ -192,6 +268,12 @@ python -m trajectly init
 python -m trajectly init ./my-project
 ```
 
+Observed output:
+
+```text
+Initialized Trajectly workspace at $PROJECT_ROOT
+```
+
 ### `enable`
 
 ```bash
@@ -200,6 +282,17 @@ python -m trajectly enable . --template openai
 ```
 
 Supported templates include `openai`, `langchain`, and `autogen`.
+
+Observed output (`--template openai`):
+
+```text
+Enabled Trajectly workspace at $PROJECT_ROOT
+Applied template: openai
+Template files created:
+- $PROJECT_ROOT/templates/openai_agent.py
+- $PROJECT_ROOT/openai.agent.yaml
+Next step: python -m trajectly record --auto
+```
 
 ### `record`
 
@@ -214,6 +307,12 @@ Examples:
 ```bash
 python -m trajectly record specs/my-agent.agent.yaml --project-root .
 python -m trajectly record --auto --project-root .
+```
+
+Observed output:
+
+```text
+Recorded 1 spec(s) successfully
 ```
 
 ### `run`
@@ -236,6 +335,18 @@ Exit codes:
 - `1` = one or more regressions
 - `2` = config/internal/tooling error
 
+Observed output cues:
+
+```text
+# pass
+- `trt-procurement-agent`: clean
+  - trt: `PASS`
+
+# fail
+- `trt-procurement-agent`: regression
+  - trt: `FAIL` (witness=10)
+```
+
 ### `repro`
 
 Signature:
@@ -250,6 +361,17 @@ Examples:
 python -m trajectly repro
 python -m trajectly repro my-agent
 python -m trajectly repro --print-only
+```
+
+Observed output:
+
+```text
+# --print-only
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agent-regression.agent.yaml" --project-root "$PROJECT_ROOT"
+
+# execute repro
+- `trt-procurement-agent`: regression
+  - trt: `FAIL` (witness=10)
 ```
 
 ### `shrink`
@@ -267,12 +389,35 @@ python -m trajectly shrink
 python -m trajectly shrink my-agent --max-seconds 20 --max-iterations 500
 ```
 
+Observed output:
+
+```text
+Shrink completed and report updated with shrink stats.
+Latest report: $PROJECT_ROOT/.trajectly/reports/latest.md
+```
+
 ### `report`
 
 ```bash
 python -m trajectly report
 python -m trajectly report --json
 python -m trajectly report --pr-comment
+```
+
+Observed output cues:
+
+```text
+# report
+Source: $PROJECT_ROOT/.trajectly/reports/latest.md
+
+# report --json (excerpt)
+"regressions": 1
+"trt_failure_class": "REFINEMENT"
+
+# report --pr-comment (excerpt)
+### Trajectly Regression Report
+- Specs processed: **1**
+- Regressions: **1**
 ```
 
 ### Baseline commands
@@ -288,6 +433,21 @@ python -m trajectly baseline list
 python -m trajectly baseline list specs/my-agent.agent.yaml
 ```
 
+Observed output (excerpt):
+
+```json
+{
+  "schema_version": "v1",
+  "specs": [
+    {
+      "slug": "trt-procurement-agent",
+      "promoted": "v1",
+      "versions": ["v1"]
+    }
+  ]
+}
+```
+
 #### `baseline create`
 
 ```text
@@ -300,6 +460,12 @@ python -m trajectly baseline create --name VERSION TARGETS... [--project-root PA
 python -m trajectly baseline create --name v2 specs/my-agent.agent.yaml --project-root .
 ```
 
+Observed output:
+
+```text
+Created baseline version `v2` for 1 spec(s)
+```
+
 #### `baseline promote`
 
 ```text
@@ -308,6 +474,15 @@ python -m trajectly baseline promote VERSION [TARGETS]... [--project-root PATH]
 
 ```bash
 python -m trajectly baseline promote v2 specs/my-agent.agent.yaml --project-root .
+```
+
+Observed output (excerpt):
+
+```json
+{
+  "promoted": ["trt-procurement-agent"],
+  "version": "v2"
+}
 ```
 
 #### `baseline diff`
@@ -321,6 +496,20 @@ python -m trajectly baseline diff my-agent v1 v2 --project-root .
 python -m trajectly baseline diff my-agent v1 v2 --json
 ```
 
+Observed output (`--json`, excerpt):
+
+```json
+{
+  "slug": "trt-procurement-agent",
+  "left": "v1",
+  "right": "v2",
+  "summary": {
+    "regression": false,
+    "finding_count": 0
+  }
+}
+```
+
 #### `baseline update`
 
 ```text
@@ -330,6 +519,12 @@ python -m trajectly baseline update [TARGETS]... [--project-root PATH] [--auto] 
 ```bash
 python -m trajectly baseline update specs/my-agent.agent.yaml --project-root .
 python -m trajectly baseline update --auto --project-root .
+```
+
+Observed output:
+
+```text
+Updated baseline for 1 spec(s)
 ```
 
 ---
@@ -353,6 +548,33 @@ Required fields:
 - `schema_version`
 - `name`
 - `command`
+
+### Annotated example (realistic)
+
+```yaml
+schema_version: "0.4"
+name: procurement-agent
+command: python agents/procurement_agent.py
+workdir: .
+strict: true
+fixture_policy: by_hash
+env:
+  TRAJECTLY_DEMO_USE_OPENAI: "0"
+contracts:
+  tools:
+    allow: [fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]
+    deny: [unsafe_direct_award]
+  sequence:
+    require: [tool:fetch_requisition, tool:fetch_vendor_quotes, tool:route_for_approval, tool:create_purchase_order]
+    require_before:
+      - before: tool:route_for_approval
+        after: tool:create_purchase_order
+```
+
+Why this pattern is commonly used:
+1. `strict: true` prevents silent replay mismatches.
+2. `fixture_policy: by_hash` keeps fixture matching deterministic.
+3. `contracts.tools` and `contracts.sequence` enforce policy and ordering, not just final text output.
 
 ### Common fields
 
@@ -391,6 +613,12 @@ Merge semantics:
 ## 7) SDK reference
 
 Trajectly supports two SDK styles that share the same runtime instrumentation path.
+
+### Choosing an SDK style
+
+1. Use decorators when you already have plain Python functions and want minimal integration work.
+2. Use `trajectly.App` when you want explicit DAG structure, node dependencies, and generated spec scaffolding.
+3. Both styles emit the same trace event types and use the same CLI/report pipeline.
 
 ### A) Decorators
 
@@ -536,6 +764,16 @@ Note: spec schema version (`0.4`) and trace schema version (`v1`) are different 
 
 Contracts are under `contracts:` in spec YAML.
 
+Common contract violation signals in reports:
+
+| Contract area | Typical report signal |
+|---|---|
+| `tools.deny` | `trt_failure_class: CONTRACT` with denied tool violation |
+| `sequence.require` / `require_before` | `trt_failure_class: CONTRACT` with missing/ordering violation |
+| `network` | `trt_failure_class: CONTRACT` with outbound network policy violation |
+| `args` | `trt_failure_class: CONTRACT` with argument schema/regex violation |
+| refinement drift (baseline subsequence broken) | `trt_failure_class: REFINEMENT`, often `REFINEMENT_BASELINE_CALL_MISSING` |
+
 ### Tools
 
 ```yaml
@@ -613,6 +851,12 @@ Symptoms:
 - `Missing fixture for tool call ...`
 - `FIXTURE_EXHAUSTED`
 
+Observed output excerpt:
+
+```text
+ERROR: Missing fixture for tool call <tool_name>
+```
+
 Actions:
 1. re-record baseline for the spec
 2. verify replay matching settings (`replay.tool_match_mode`, `replay.llm_match_mode`)
@@ -627,6 +871,12 @@ If you explicitly need online mode, set `replay.mode: online` in the spec. Keep 
 ### CI baseline writes blocked
 
 When `TRAJECTLY_CI=1`, baseline writes are blocked unless explicitly overridden.
+
+Observed output excerpt:
+
+```text
+ERROR: Baseline writes are blocked when TRAJECTLY_CI=1. Re-run `python -m trajectly record ... --allow-ci-write` only for explicit baseline updates.
+```
 
 Use:
 
@@ -648,12 +898,24 @@ Use print-only repro:
 python -m trajectly repro --print-only
 ```
 
+Observed output:
+
+```text
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agent-regression.agent.yaml" --project-root "$PROJECT_ROOT"
+```
+
 ### Upgrade drift after Trajectly version changes
 
 Re-record baseline versions after upgrades to align fixtures and normalizer behavior:
 
 ```bash
 python -m trajectly baseline update --auto --project-root .
+```
+
+Observed output:
+
+```text
+Updated baseline for 1 spec(s)
 ```
 
 ---

@@ -8,6 +8,13 @@ Trajectly records a known-good baseline, replays against deterministic fixtures,
 
 ```bash
 python -m pip install trajectly
+python -m trajectly --version
+```
+
+Expected output cue:
+
+```text
+trajectly, version X.Y.Z
 ```
 
 ## 30-Second Quickstart
@@ -34,6 +41,31 @@ Expected exits for this intentional regression flow:
 - `repro` -> `1` (replays same failing run)
 - `shrink` -> `0`
 
+Observed output excerpts from a fresh run (March 5, 2026):
+
+```text
+# run ...regression...
+- `trt-procurement-agent`: regression
+  - trt: `FAIL` (witness=10)
+
+# report
+Source: $PROJECT_ROOT/.trajectly/reports/latest.md
+
+# repro
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agent-regression.agent.yaml" --project-root "$PROJECT_ROOT"
+
+# shrink
+Shrink completed and report updated with shrink stats.
+```
+
+Artifacts to expect after running the flow:
+- `$PROJECT_ROOT/.trajectly/reports/latest.md`
+- `$PROJECT_ROOT/.trajectly/reports/latest.json`
+- `$PROJECT_ROOT/.trajectly/repros/<spec>.json`
+- `$PROJECT_ROOT/.trajectly/repros/<spec>.counterexample.reduced.trace.jsonl`
+
+For full step-by-step command/output walkthroughs, use [docs/trajectly.md](docs/trajectly.md).
+
 ## What Trajectly Checks
 
 TRT evaluates behavior, not just output text:
@@ -52,11 +84,26 @@ python -m trajectly run specs/*.agent.yaml --project-root .
 python -m trajectly report
 ```
 
+Typical clean-run cue:
+
+```text
+- `my-agent`: clean
+  - trt: `PASS`
+Latest report: $PROJECT_ROOT/.trajectly/reports/latest.md
+```
+
 Failure triage loop:
 
 ```bash
 python -m trajectly repro
 python -m trajectly shrink
+```
+
+Typical failing-run cue:
+
+```text
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/my-agent.agent.yaml" --project-root "$PROJECT_ROOT"
+Shrink completed and report updated with shrink stats.
 ```
 
 ## SDK Options
@@ -113,6 +160,14 @@ The graph layer uses the same SDKContext instrumentation path and trace event ty
 python -m pip install trajectly
 python -m trajectly run specs/*.agent.yaml --project-root .
 python -m trajectly report --pr-comment > comment.md
+```
+
+What to expect:
+
+```text
+run exit code:
+- 0 when all specs are clean
+- 1 when regressions are detected
 ```
 
 ### GitHub Actions

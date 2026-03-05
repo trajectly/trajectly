@@ -29,6 +29,10 @@ If you are not vendoring the action locally:
     project_root: "."
 ```
 
+Recommendation:
+- use a pinned ref (`@vX.Y.Z` or a commit SHA) for stable CI behavior
+- use `@main` only when you intentionally want latest action changes
+
 ## Action inputs
 
 | Input | Default | Meaning |
@@ -58,6 +62,29 @@ In order:
 7. **Propagate exit code**
    - final step exits with run step exit code
 
+Observed run-step output cues from a fresh validation run (March 5, 2026):
+
+```text
+# passing run
+- `trt-procurement-agent`: clean
+  - trt: `PASS`
+
+# failing run
+- `trt-procurement-agent`: regression
+  - trt: `FAIL` (witness=10)
+Tip: run `python -m trajectly repro` to reproduce, or `python -m trajectly shrink` to minimize.
+```
+
+Observed PR comment markdown produced by `trajectly report --pr-comment`:
+
+```text
+### Trajectly Regression Report
+
+- Specs processed: **1**
+- Regressions: **1**
+- Errors: **0**
+```
+
 ## Exit codes
 
 | Code | Meaning |
@@ -74,7 +101,16 @@ python -m trajectly run specs/*.agent.yaml --project-root .
 python -m trajectly report --pr-comment > trajectly_pr_comment.md
 ```
 
+Expected behavior:
+- `run` exits `0` for clean runs, `1` for regressions, `2` for config/tooling errors.
+- `trajectly_pr_comment.md` contains a markdown summary table for PR comments.
+
 Upload `.trajectly/**` as artifacts with your CI provider.
+
+Common artifact files to expect:
+- `${project_root}/.trajectly/reports/latest.md`
+- `${project_root}/.trajectly/reports/latest.json`
+- `${project_root}/.trajectly/repros/*.json`
 
 ## Optional cache
 
