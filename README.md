@@ -189,7 +189,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: trajectly/trajectly-action@v1
+      - uses: trajectly/trajectly-action@v1.0.1
         with:
           spec_glob: "specs/*.agent.yaml"
           project_root: "."
@@ -197,7 +197,7 @@ jobs:
 
 Notes:
 - `comment_pr` is off by default. Enable it only when you want PR comments and grant `pull-requests: write`.
-- The in-repo path `./github-action` is a temporary compatibility wrapper and will be removed after one release cycle.
+- The in-repo path `./github-action` is a temporary compatibility wrapper and is planned for removal in `v0.4.3` (one release cycle after `v0.4.2`).
 
 See [docs/ci_github_actions.md](docs/ci_github_actions.md) for input options and full behavior.
 

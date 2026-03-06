@@ -49,7 +49,7 @@ src/trajectly/
 |   |-- interfaces.py
 |   \-- loader.py
 \-- github-action/
-    \-- action.yml          # deprecated compatibility wrapper -> trajectly/trajectly-action@v1
+    \-- action.yml          # deprecated compatibility wrapper -> trajectly/trajectly-action@v1 (planned removal in v0.4.3)
 ```
 
 ## Layer Boundaries
