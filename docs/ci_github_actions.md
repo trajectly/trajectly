@@ -1,10 +1,10 @@
 # CI: GitHub Actions
 
 The canonical Trajectly GitHub Action is:
-`trajectly/trajectly-action@v1`
+`trajectly/trajectly-action@v1.0.1`
 
 It wraps CLI commands and CI plumbing only. TRT evaluation remains in Python code.
-The in-repo action path `./github-action` is kept as a temporary compatibility wrapper and will be removed after one release cycle.
+The in-repo action path `./github-action` is kept as a temporary compatibility wrapper and is planned for removal in `v0.4.3` (one release cycle after `v0.4.2`).
 
 ## Minimal workflow
 
@@ -19,7 +19,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: trajectly/trajectly-action@v1
+      - uses: trajectly/trajectly-action@v1.0.1
         with:
           spec_glob: "specs/*.agent.yaml"
           project_root: "."
@@ -30,7 +30,7 @@ jobs:
 If your workflow runs on pull requests and you want comment updates:
 
 ```yaml
-- uses: trajectly/trajectly-action@v1
+- uses: trajectly/trajectly-action@v1.0.1
   with:
     spec_glob: "specs/*.agent.yaml"
     project_root: "."
@@ -39,7 +39,7 @@ If your workflow runs on pull requests and you want comment updates:
 
 Recommendation:
 - use a pinned ref (`@vX.Y.Z` or a commit SHA) for stable CI behavior
-- use `@v1` for stable major-line updates
+- use `@v1` if you prefer stable major-line updates (`v1 -> latest v1.x.y`)
 
 ## Action inputs
 
@@ -48,7 +48,8 @@ Recommendation:
 | `spec_glob` | `specs/*.agent.yaml` | Spec files/glob passed to `trajectly run` |
 | `project_root` | `.` | Working directory for run/report steps |
 | `python_version` | `3.11` | Python version installed via `actions/setup-python` |
-| `install` | `pypi` | `editable` => `pip install -e <project_root>`; `pypi` => `pip install trajectly` |
+| `trajectly_version` | `0.4.2` | Trajectly package version used when `install: pypi` |
+| `install` | `pypi` | `editable` => `pip install -e <project_root>`; `pypi` => `pip install trajectly==<trajectly_version>` |
 | `comment_pr` | `false` | Post/update PR comment with report markdown (PR events only) |
 | `upload_artifacts` | `true` | Upload `${project_root}/.trajectly/**` artifact |
 
@@ -61,7 +62,7 @@ In order:
 
 1. **Set up Python**
 2. **Install Trajectly**
-   - `install: pypi` -> `pip install trajectly`
+   - `install: pypi` -> `pip install trajectly==<trajectly_version>`
    - otherwise -> `pip install -e "${project_root}"`
 3. **Run specs** (continue-on-error enabled)
    - `trajectly run <spec_glob> --project-root .`

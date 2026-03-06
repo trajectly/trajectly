@@ -40,7 +40,7 @@ All notable changes to this project are documented in this file.
 - `cli.py` renamed to `cli/commands.py`.
 - `docs/architecture_phase1.md` rewritten to describe completed architecture.
 - GitHub Action canonical source is now `trajectly/trajectly-action@v1`.
-- In-repo `github-action/action.yml` is now a compatibility wrapper that delegates to `trajectly/trajectly-action@v1` and is scheduled for removal after one release cycle.
+- In-repo `github-action/action.yml` is now a compatibility wrapper that delegates to `trajectly/trajectly-action@v1` and is planned for removal in `v0.4.3` (one release cycle after `v0.4.2`).
 
 ### Fixed
 
