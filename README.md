@@ -243,5 +243,4 @@ Apache 2.0 -- see [LICENSE](LICENSE).
 
 ## Support Trajectly
 
-If Trajectly is useful to your work, please give the repository a star ⭐:
-<https://github.com/trajectly/trajectly/stargazers>
+If Trajectly is useful to your work, please give the repository a star ⭐
