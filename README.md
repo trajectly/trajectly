@@ -4,21 +4,20 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/trajectly/trajectly/badge)](https://securityscorecards.dev/viewer/?uri=github.com/trajectly/trajectly)
 [![PyPI version](https://img.shields.io/pypi/v/trajectly.svg)](https://pypi.org/project/trajectly/)
 
-Deterministic regression testing for AI agents, powered by **Trajectory Refinement Testing (TRT)**.
+Trajectly is deterministic regression testing for AI agents.
 
-Trajectly records a known-good baseline, replays against deterministic fixtures, and tells you exactly where behavior diverged.
+It helps you catch behavioral regressions that text-only checks often miss:
+- record a known-good run
+- replay it with deterministic fixtures
+- get an exact failing event index plus reproducible command
+
+Under the hood, Trajectly uses **Trajectory Refinement Testing (TRT)**.
 
 ## Install
 
 ```bash
 python -m pip install trajectly
 python -m trajectly --version
-```
-
-Expected output cue:
-
-```text
-trajectly, version X.Y.Z
 ```
 
 ## 30-Second Quickstart
