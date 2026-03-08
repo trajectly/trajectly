@@ -2,6 +2,12 @@
 
 This document describes the current architecture on `main`.
 
+Audience: maintainers and contributors extending Trajectly internals.
+
+If you are integrating Trajectly in an application, start with:
+- [Trajectly Guide](trajectly_guide.md)
+- [Trajectly Reference](trajectly_reference.md)
+
 Use this document when you need to:
 1. understand module boundaries before changing code,
 2. add a new CLI/runtime capability without crossing layers,
