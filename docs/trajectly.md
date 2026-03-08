@@ -26,37 +26,44 @@ If `trajectly` is not on your `PATH`, run commands as `python -m trajectly ...` 
 ### Run a deterministic regression demo
 
 ```bash
-git clone https://github.com/trajectly/procurement-approval-demo.git
-cd procurement-approval-demo
+git clone https://github.com/trajectly/trajectly-survival-arena.git
+cd trajectly-survival-arena
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+python -m trajectly init
 
-python -m trajectly run specs/trt-procurement-agent-regression.agent.yaml --project-root .
+python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
+ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
 python -m trajectly report
-python -m trajectly repro
-python -m trajectly shrink
+ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly repro
+ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly shrink
 ```
 
 Expected exit behavior for this intentional regression:
-- `run ...regression...` -> `1`
+- safe `run` -> `0`
+- unsafe `run` -> `1`
 - `report` -> `0`
 - `repro` -> `1`
 - `shrink` -> `0`
 
-Observed output excerpts from a fresh run (March 5, 2026):
+Observed output excerpts from a fresh run (March 8, 2026):
 
 ```text
-# run ...regression...
-- `trt-procurement-agent`: regression
-  - trt: `FAIL` (witness=10)
+# safe run
+- `procurement-chaos`: clean
+  - trt: `PASS`
+
+# unsafe run
+- `procurement-chaos`: regression
+  - trt: `FAIL` (witness=6)
 
 # report
 Source: $PROJECT_ROOT/.trajectly/reports/latest.md
 
 # repro
-Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agent-regression.agent.yaml" --project-root "$PROJECT_ROOT"
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/challenges/procurement-chaos.agent.yaml" --project-root "$PROJECT_ROOT"
 
 # shrink
 Shrink completed and report updated with shrink stats.
@@ -97,11 +104,15 @@ A baseline is the known-good behavior for a spec. Trajectly stores baseline trac
 
 In practice, a baseline is both a regression reference and a versioned artifact. When you create `v1`, you are saying "this behavior is currently acceptable," and every future `run` compares against that decision. Baselines can be promoted or updated as your intended behavior evolves, which keeps changes explicit and reviewable instead of implicit.
 
+Arena example: every challenge in `trajectly-survival-arena/specs/challenges/*.agent.yaml` has a committed `v1` baseline under `.trajectly/baselines/<slug>/v1/`.
+
 ### Replay
 
 In replay mode, tool and LLM calls are matched against fixtures and returned deterministically. This removes online nondeterminism from regression checks.
 
 Replay is what makes CI results stable. Instead of depending on live model variance, network timing, or changing upstream APIs, Trajectly reuses recorded fixtures and deterministic matching so the same code path can be validated repeatedly. This makes failures reproducible locally through `repro`, not just visible in CI logs.
+
+Arena example: `procurement-chaos` and `support-apocalypse` keep final text stable while replay still catches path regressions.
 
 ### Contracts
 
@@ -109,17 +120,26 @@ Contracts define allowed behavior (tool allow/deny, sequence constraints, budget
 
 Contracts encode policy, not implementation. You can change internal prompt wording or refactor node composition while still asserting hard constraints such as "never call this tool" or "approval must happen before purchase order creation." This lets teams separate acceptable behavior from incidental code structure.
 
+Arena examples:
+- `secret-karaoke` for `data_leak`
+- `network-no-fly-zone` for `contracts.network`
+- `graph-chain-reaction` for `contracts.args`
+
 ### Refinement
 
 Trajectly extracts ordered tool-call skeletons and verifies baseline skeleton is a subsequence of current skeleton.
 
 Refinement catches behavioral drift even when outputs look superficially valid. If the baseline required key tool calls and the new run skipped or replaced them, refinement flags the divergence. This is especially useful for agent systems where final text alone can hide protocol-level regressions.
 
+Arena examples: `procurement-chaos`, `support-apocalypse`, and `calendar-thunderdome`.
+
 ### Witness index
 
 When checks fail, Trajectly reports the earliest failing trace event index.
 
 The witness index gives a deterministic anchor for triage. Instead of scanning entire traces, you can jump directly to the first event where behavior diverged from policy or baseline. This reduces ambiguity and makes bug reports easier to share because everyone can reference the same failing position.
+
+Arena example: `network-no-fly-zone` fails at witness `2` with `NETWORK_DOMAIN_DENIED`.
 
 Important:
 - witness index is a **trace event index** (0-based)
@@ -215,6 +235,13 @@ Recorded 1 spec(s) successfully
 ### Validate changes
 
 Use `run` and `report` together in day-to-day development and CI. `run` executes TRT checks and sets the gate exit code, while `report` gives readable detail and repro metadata. This two-step loop makes it easy to fail fast and then inspect exactly why.
+
+Arena example for single-spec iteration:
+
+```bash
+python -m trajectly run specs/challenges/network-no-fly-zone.agent.yaml --project-root .
+python -m trajectly report --json
+```
 
 ```bash
 python -m trajectly run specs/*.agent.yaml --project-root .
@@ -642,6 +669,8 @@ Why this pattern is commonly used:
 
 Use common fields to control execution determinism and policy granularity. Start with `workdir`, `env`, and `contracts`, then add tighter controls (`determinism`, `budget_thresholds`, `redact`) when your CI and compliance requirements grow.
 
+Arena example: `budget-gauntlet.agent.yaml` demonstrates `budget_thresholds.max_tool_calls` as a regression gate even when final text is unchanged.
+
 | Field | Purpose |
 |---|---|
 | `schema_version` | Spec schema version (`0.4`) |
@@ -727,6 +756,8 @@ if __name__ == "__main__":
     outputs = app.run(input_data={"ticket_id": "T-123"})
     print(outputs["format"])
 ```
+
+Arena example: `graph-chain-reaction` uses `trajectly.App` and still runs through the same CLI/report pipeline as function-style scenarios.
 
 ### Graph API objects
 
@@ -870,6 +901,8 @@ Common contract violation signals in reports:
 
 Use tool contracts to define allowed and denied operations and to cap operational budgets. This is often the first guardrail teams add because tool misuse is usually high-impact and straightforward to detect.
 
+Arena examples: `shell-roulette` (`tools.allow/deny`) and `budget-gauntlet` (`budget_thresholds` interaction with tool calls).
+
 ```yaml
 contracts:
   tools:
@@ -883,6 +916,8 @@ contracts:
 ### Sequence
 
 Sequence contracts define ordering and occurrence expectations between operations. They are useful for enforcing process integrity, such as "approval before purchase order" or "never call export in this flow."
+
+Arena examples: `procurement-chaos` and `calendar-thunderdome`.
 
 ```yaml
 contracts:
@@ -911,6 +946,8 @@ contracts:
 
 Network rules let you constrain outbound access during validation. This supports both security boundaries and deterministic replay by preventing unintended live calls.
 
+Arena example: `network-no-fly-zone`.
+
 ```yaml
 contracts:
   network:
@@ -921,6 +958,8 @@ contracts:
 ### Data leak
 
 Data leak contracts provide pattern-based outbound protection for sensitive material. They are most effective when paired with explicit outbound kinds and organization-specific secret patterns.
+
+Arena example: `secret-karaoke`.
 
 ```yaml
 contracts:
@@ -933,6 +972,8 @@ contracts:
 ### Arguments
 
 Argument contracts validate shape and content at call time, which catches malformed or policy-breaking tool invocations early. This is useful for enforcing typed interfaces in agent pipelines that are otherwise loosely coupled.
+
+Arena example: `graph-chain-reaction` (`dispatch_token` regex).
 
 ```yaml
 contracts:
@@ -1013,7 +1054,7 @@ python -m trajectly repro --print-only
 Observed output:
 
 ```text
-Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agent-regression.agent.yaml" --project-root "$PROJECT_ROOT"
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/challenges/procurement-chaos.agent.yaml" --project-root "$PROJECT_ROOT"
 ```
 
 Use this output directly in issue reports or CI annotations so anyone can rerun the exact failing case without reconstructing arguments manually.
@@ -1040,3 +1081,4 @@ After major upgrades, run a focused review of updated baselines before promotion
 
 - Support demo: <https://github.com/trajectly/support-escalation-demo>
 - Procurement demo: <https://github.com/trajectly/procurement-approval-demo>
+- Merge or Die arena tutorial: <https://github.com/trajectly/trajectly-survival-arena>

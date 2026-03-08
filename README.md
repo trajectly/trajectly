@@ -22,40 +22,47 @@ python -m trajectly --version
 
 ## 30-Second Quickstart
 
-Use the standalone procurement demo with pre-recorded fixtures (no API keys required):
+Use the arena scenarios with pre-recorded fixtures (no API keys required):
 
 ```bash
-git clone https://github.com/trajectly/procurement-approval-demo.git
-cd procurement-approval-demo
+git clone https://github.com/trajectly/trajectly-survival-arena.git
+cd trajectly-survival-arena
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+python -m trajectly init
 
-python -m trajectly run specs/trt-procurement-agent-regression.agent.yaml --project-root .
+python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
+ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
 python -m trajectly report
-python -m trajectly repro
-python -m trajectly shrink
+ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly repro
+ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly shrink
 ```
 
 Expected exits for this intentional regression flow:
-- `run ...regression...` -> `1` (`FAIL`)
+- first `run` (safe contender) -> `0` (`PASS`)
+- second `run` (unsafe contender) -> `1` (`FAIL`)
 - `report` -> `0`
-- `repro` -> `1` (replays same failing run)
+- `repro` -> `1` (replays the same failing scenario)
 - `shrink` -> `0`
 
-Observed output excerpts from a fresh run (March 5, 2026):
+Observed output excerpts from a fresh run (March 8, 2026):
 
 ```text
-# run ...regression...
-- `trt-procurement-agent`: regression
-  - trt: `FAIL` (witness=10)
+# safe run
+- `procurement-chaos`: clean
+  - trt: `PASS`
+
+# unsafe run
+- `procurement-chaos`: regression
+  - trt: `FAIL` (witness=6)
 
 # report
 Source: $PROJECT_ROOT/.trajectly/reports/latest.md
 
 # repro
-Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agent-regression.agent.yaml" --project-root "$PROJECT_ROOT"
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/challenges/procurement-chaos.agent.yaml" --project-root "$PROJECT_ROOT"
 
 # shrink
 Shrink completed and report updated with shrink stats.
@@ -77,6 +84,13 @@ TRT evaluates behavior, not just output text:
 3. **Witness resolution**: report the earliest failing event index (0-based trace index).
 
 Result: stable PASS/FAIL in CI with deterministic repro.
+
+Arena example map:
+- `procurement-chaos`, `support-apocalypse`, `calendar-thunderdome`: refinement/sequence regressions.
+- `secret-karaoke`: outbound secret pattern detection.
+- `graph-chain-reaction`: graph node argument contract enforcement.
+- `network-no-fly-zone`: `contracts.network` domain policy.
+- `budget-gauntlet`: `budget_thresholds` breaches with unchanged final text.
 
 ## Typical Workflow
 
@@ -155,6 +169,8 @@ if __name__ == "__main__":
 
 The graph layer uses the same SDKContext instrumentation path and trace event types (`tool_called`, `tool_returned`, `llm_called`, `llm_returned`, `agent_step`). No CLI changes are required.
 
+Arena example: `graph-chain-reaction` in `trajectly-survival-arena` runs the same contender contract through `trajectly.App` and demonstrates args-contract failure detection without changing final text.
+
 ## CI Integration
 
 ### Any CI
@@ -217,6 +233,7 @@ See [docs/ci_github_actions.md](docs/ci_github_actions.md) for input options and
 - [Contributing guide](CONTRIBUTING.md)
 - [Support Escalation Demo (standalone)](https://github.com/trajectly/support-escalation-demo)
 - [Procurement Approval Demo (standalone)](https://github.com/trajectly/procurement-approval-demo)
+- [Merge or Die Arena (scenario tutorial)](https://github.com/trajectly/trajectly-survival-arena)
 
 ## Contributing
 
