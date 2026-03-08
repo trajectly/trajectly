@@ -34,11 +34,14 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m trajectly init
 
+# baseline behavior (expected PASS)
 python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
-ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
+
+# intentional regression behavior (expected FAIL)
+python -m trajectly run specs/examples/procurement-chaos-regression.agent.yaml --project-root .
 python -m trajectly report
-ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly repro
-ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly shrink
+python -m trajectly repro
+python -m trajectly shrink
 ```
 
 Expected exit behavior for this intentional regression:
@@ -55,7 +58,7 @@ Observed output excerpts from a fresh run (March 8, 2026):
 - `procurement-chaos`: clean
   - trt: `PASS`
 
-# unsafe run
+# regression run
 - `procurement-chaos`: regression
   - trt: `FAIL` (witness=6)
 
@@ -63,7 +66,7 @@ Observed output excerpts from a fresh run (March 8, 2026):
 Source: $PROJECT_ROOT/.trajectly/reports/latest.md
 
 # repro
-Repro command: python -m trajectly run "$PROJECT_ROOT/specs/challenges/procurement-chaos.agent.yaml" --project-root "$PROJECT_ROOT"
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/examples/procurement-chaos-regression.agent.yaml" --project-root "$PROJECT_ROOT"
 
 # shrink
 Shrink completed and report updated with shrink stats.
@@ -1054,7 +1057,7 @@ python -m trajectly repro --print-only
 Observed output:
 
 ```text
-Repro command: python -m trajectly run "$PROJECT_ROOT/specs/challenges/procurement-chaos.agent.yaml" --project-root "$PROJECT_ROOT"
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/examples/procurement-chaos-regression.agent.yaml" --project-root "$PROJECT_ROOT"
 ```
 
 Use this output directly in issue reports or CI annotations so anyone can rerun the exact failing case without reconstructing arguments manually.

@@ -33,18 +33,22 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m trajectly init
 
+# baseline behavior (expected PASS)
 python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
-ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root . || true
+
+# intentional regression behavior (expected FAIL)
+python -m trajectly run specs/examples/procurement-chaos-regression.agent.yaml --project-root .
 python -m trajectly report
-ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly repro || true
-ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly shrink
+python -m trajectly repro
+python -m trajectly shrink
 ```
 
-Why `ARENA_AGENT_PATH` is used:
-- without it, the arena uses `agents/contenders/default.py` (expected `PASS`)
-- with it, the arena runs `agents/contenders/unsafe_demo.py` (intentional regression)
+Why this is cleaner:
+- no shell env override is needed
+- baseline and regression are explicit specs
+- repro resolves directly to the regression spec path from latest report metadata
 
-Spec used in this quickstart:
+Specs used in this quickstart:
 
 ```yaml
 # specs/challenges/procurement-chaos.agent.yaml
@@ -61,11 +65,26 @@ contracts:
   config: ../../contracts/procurement-chaos.contracts.yaml
 ```
 
-This spec points to `contracts/procurement-chaos.contracts.yaml`, where the required approval sequence and tool policy are enforced.
+```yaml
+# specs/examples/procurement-chaos-regression.agent.yaml
+schema_version: "0.4"
+name: "procurement-chaos"
+command: "python -m arena.cli run --scenario procurement-chaos --agent agents/contenders/unsafe_demo.py"
+workdir: ../..
+fixture_policy: by_hash
+strict: true
+budget_thresholds:
+  max_tool_calls: 8
+  max_tokens: 800
+contracts:
+  config: ../../contracts/procurement-chaos.contracts.yaml
+```
+
+The baseline spec uses the default contender. The regression spec keeps the same `name` (`procurement-chaos`) so it replays against the same promoted baseline, but runs the unsafe contender via command.
 
 Expected exits for this intentional regression flow:
 - first `run` (safe contender) -> `0` (`PASS`)
-- second `run` (unsafe contender) -> `1` (`FAIL`)
+- second `run` (regression spec) -> `1` (`FAIL`)
 - `report` -> `0`
 - `repro` -> `1` (replays the same failing scenario)
 - `shrink` -> `0`
@@ -85,7 +104,7 @@ Observed output excerpts from a fresh run (March 8, 2026):
 Source: $PROJECT_ROOT/.trajectly/reports/latest.md
 
 # repro
-Repro command: python -m trajectly run "$PROJECT_ROOT/specs/challenges/procurement-chaos.agent.yaml" --project-root "$PROJECT_ROOT"
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/examples/procurement-chaos-regression.agent.yaml" --project-root "$PROJECT_ROOT"
 
 # shrink
 Shrink completed and report updated with shrink stats.
