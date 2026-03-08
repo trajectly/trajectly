@@ -409,12 +409,12 @@ Observed output cues:
 
 ```text
 # pass
-- `trt-procurement-agent`: clean
+- `my-agent`: clean
   - trt: `PASS`
 
 # fail
-- `trt-procurement-agent`: regression
-  - trt: `FAIL` (witness=10)
+- `my-agent`: regression
+  - trt: `FAIL` (witness=...)
 ```
 
 ### `repro`
@@ -439,11 +439,11 @@ Observed output:
 
 ```text
 # --print-only
-Repro command: python -m trajectly run "$PROJECT_ROOT/specs/trt-procurement-agent-regression.agent.yaml" --project-root "$PROJECT_ROOT"
+Repro command: python -m trajectly run "$PROJECT_ROOT/specs/my-agent.agent.yaml" --project-root "$PROJECT_ROOT"
 
 # execute repro
-- `trt-procurement-agent`: regression
-  - trt: `FAIL` (witness=10)
+- `my-agent`: regression
+  - trt: `FAIL` (witness=...)
 ```
 
 ### `shrink`
@@ -520,7 +520,7 @@ Observed output (excerpt):
   "schema_version": "v1",
   "specs": [
     {
-      "slug": "trt-procurement-agent",
+      "slug": "my-agent",
       "promoted": "v1",
       "versions": ["v1"]
     }
@@ -564,7 +564,7 @@ Observed output (excerpt):
 
 ```json
 {
-  "promoted": ["trt-procurement-agent"],
+  "promoted": ["my-agent"],
   "version": "v2"
 }
 ```
@@ -586,7 +586,7 @@ Observed output (`--json`, excerpt):
 
 ```json
 {
-  "slug": "trt-procurement-agent",
+  "slug": "my-agent",
   "left": "v1",
   "right": "v2",
   "summary": {
