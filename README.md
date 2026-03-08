@@ -34,11 +34,34 @@ python -m pip install -r requirements.txt
 python -m trajectly init
 
 python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
-ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
+ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root . || true
 python -m trajectly report
-ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly repro
+ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly repro || true
 ARENA_AGENT_PATH=agents/contenders/unsafe_demo.py python -m trajectly shrink
 ```
+
+Why `ARENA_AGENT_PATH` is used:
+- without it, the arena uses `agents/contenders/default.py` (expected `PASS`)
+- with it, the arena runs `agents/contenders/unsafe_demo.py` (intentional regression)
+
+Spec used in this quickstart:
+
+```yaml
+# specs/challenges/procurement-chaos.agent.yaml
+schema_version: "0.4"
+name: "procurement-chaos"
+command: "python -m arena.cli run --scenario procurement-chaos"
+workdir: ../..
+fixture_policy: by_hash
+strict: true
+budget_thresholds:
+  max_tool_calls: 8
+  max_tokens: 800
+contracts:
+  config: ../../contracts/procurement-chaos.contracts.yaml
+```
+
+This spec points to `contracts/procurement-chaos.contracts.yaml`, where the required approval sequence and tool policy are enforced.
 
 Expected exits for this intentional regression flow:
 - first `run` (safe contender) -> `0` (`PASS`)
