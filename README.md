@@ -153,7 +153,6 @@ Replace `specs/challenges/*.agent.yaml` with your own spec glob/path in your pro
 
 - [Guide](docs/trajectly_guide.md)
 - [Reference](docs/trajectly_reference.md)
-- [Compatibility landing page (`docs/trajectly.md`)](docs/trajectly.md)
 - [CI: GitHub Actions](docs/ci_github_actions.md)
 - [Architecture (maintainers)](docs/architecture_phase1.md)
 - [Security policy](SECURITY.md)
