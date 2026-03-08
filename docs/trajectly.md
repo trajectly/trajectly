@@ -1082,6 +1082,6 @@ After major upgrades, run a focused review of updated baselines before promotion
 
 ## Related repositories
 
-- Support demo: <https://github.com/trajectly/support-escalation-demo>
-- Procurement demo: <https://github.com/trajectly/procurement-approval-demo>
 - Merge or Die arena tutorial: <https://github.com/trajectly/trajectly-survival-arena>
+- Arena scenario (support-apocalypse): <https://github.com/trajectly/trajectly-survival-arena/blob/main/specs/challenges/support-apocalypse.agent.yaml>
+- Arena scenario (procurement-chaos): <https://github.com/trajectly/trajectly-survival-arena/blob/main/specs/challenges/procurement-chaos.agent.yaml>

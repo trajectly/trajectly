@@ -172,15 +172,40 @@ Trajectly supports two instrumentation styles.
 ### Option A: Decorators and adapters
 
 ```python
-from trajectly.sdk import tool, llm_call
+from trajectly.sdk import agent_step, tool
+from trajectly.sdk.adapters import openai_chat_completion
 
 @tool("fetch_ticket")
-def fetch_ticket(ticket_id: str) -> dict:
-    return {"id": ticket_id, "status": "open"}
+def fetch_ticket(ticket_id: str) -> dict[str, str]:
+    return {
+        "ticket_id": ticket_id,
+        "plan": "enterprise",
+        "issue_type": "duplicate_charge",
+    }
 
-@llm_call(provider="openai", model="gpt-4o")
-def classify_ticket(text: str) -> str:
-    ...
+@tool("escalate_to_human")
+def escalate_to_human(incident_id: str, reason_code: str) -> dict[str, str]:
+    return {
+        "incident_id": incident_id,
+        "reason_code": reason_code,
+        "queue": "billing-escalations",
+    }
+
+def run_support_flow(client) -> None:
+    agent_step("scenario:start", {"scenario": "support-apocalypse"})
+    ticket = fetch_ticket("TCK-1001")
+
+    model = openai_chat_completion(
+        client,
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "Return the escalation reason code only."},
+            {"role": "user", "content": f"issue_type={ticket['issue_type']}"},
+        ],
+    )
+    reason_code = str(model["response"]).strip() or "duplicate_charge"
+    escalate_to_human(incident_id="INC-230001", reason_code=reason_code)
+    agent_step("scenario:done", {"path": "escalated"})
 ```
 
 You can also use framework adapters like `openai_chat_completion`, `gemini_generate_content`, and `langchain_invoke`.
@@ -190,23 +215,23 @@ You can also use framework adapters like `openai_chat_completion`, `gemini_gener
 ```python
 import trajectly
 
-app = trajectly.App(name="research-agent")
+app = trajectly.App(name="graph-chain-reaction")
 
-@app.node(id="search_engine", type="tool")
-def search(query: str) -> dict:
-    ...
+@app.node(id="fetch_incident", type="tool")
+def fetch_incident(incident_id: str) -> dict[str, str]:
+    return {"incident_id": incident_id, "severity": "sev1"}
 
-@app.node(id="summarizer", type="llm", depends_on=["search_engine"], provider="openai", model="gpt-4o")
-def summarize(search_engine: dict) -> str:
-    ...
+@app.node(id="choose_dispatch_token", type="transform", depends_on={"incident": "fetch_incident"})
+def choose_dispatch_token(incident: dict[str, str]) -> str:
+    return "WR-12345" if incident["severity"] == "sev1" else "WR-99999"
 
-@app.node(id="format_response", type="transform", depends_on=["summarizer"])
-def format_response(summarizer: str) -> dict:
-    return {"answer": summarizer}
+@app.node(id="dispatch_war_room", type="tool", depends_on={"dispatch_token": "choose_dispatch_token"})
+def dispatch_war_room(dispatch_token: str) -> dict[str, str]:
+    return {"dispatch_token": dispatch_token, "status": "sent"}
 
 if __name__ == "__main__":
-    outputs = app.run(input_data={"query": "Why is the sky blue?"})
-    print(outputs["format_response"])
+    outputs = app.run({"incident_id": "INC-777001"})
+    print(outputs["dispatch_war_room"])
 ```
 
 The graph layer uses the same SDKContext instrumentation path and trace event types (`tool_called`, `tool_returned`, `llm_called`, `llm_returned`, `agent_step`). No CLI changes are required.
@@ -273,9 +298,9 @@ See [docs/ci_github_actions.md](docs/ci_github_actions.md) for input options and
 - [CI: GitHub Actions](docs/ci_github_actions.md)
 - [Security policy](SECURITY.md)
 - [Contributing guide](CONTRIBUTING.md)
-- [Support Escalation Demo (standalone)](https://github.com/trajectly/support-escalation-demo)
-- [Procurement Approval Demo (standalone)](https://github.com/trajectly/procurement-approval-demo)
 - [Merge or Die Arena (scenario tutorial)](https://github.com/trajectly/trajectly-survival-arena)
+- [Arena scenario: support-apocalypse](https://github.com/trajectly/trajectly-survival-arena/blob/main/specs/challenges/support-apocalypse.agent.yaml)
+- [Arena scenario: procurement-chaos](https://github.com/trajectly/trajectly-survival-arena/blob/main/specs/challenges/procurement-chaos.agent.yaml)
 
 ## Contributing
 
