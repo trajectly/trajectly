@@ -641,32 +641,26 @@ Required fields:
 - `name`
 - `command`
 
-### Annotated example (realistic)
+### Annotated example
 
 ```yaml
 schema_version: "0.4"
-name: procurement-agent
-command: python agents/procurement_agent.py
-workdir: .
+name: procurement-chaos
+command: python -m arena.cli run --scenario procurement-chaos
+workdir: ../..
 strict: true
 fixture_policy: by_hash
-env:
-  TRAJECTLY_DEMO_USE_OPENAI: "0"
+budget_thresholds:
+  max_tool_calls: 8
+  max_tokens: 800
 contracts:
-  tools:
-    allow: [fetch_requisition, fetch_vendor_quotes, route_for_approval, create_purchase_order]
-    deny: [unsafe_direct_award]
-  sequence:
-    require: [tool:fetch_requisition, tool:fetch_vendor_quotes, tool:route_for_approval, tool:create_purchase_order]
-    require_before:
-      - before: tool:route_for_approval
-        after: tool:create_purchase_order
+  config: ../../contracts/procurement-chaos.contracts.yaml
 ```
 
 Why this pattern is commonly used:
 1. `strict: true` prevents silent replay mismatches.
 2. `fixture_policy: by_hash` keeps fixture matching deterministic.
-3. `contracts.tools` and `contracts.sequence` enforce policy and ordering, not just final text output.
+3. `contracts.config` keeps tool/sequence/args policy versioned in one reusable contract file.
 
 ### Common fields
 
@@ -723,15 +717,40 @@ Trajectly supports two SDK styles that share the same runtime instrumentation pa
 Decorators are the most direct integration path when your agent is already implemented as plain Python functions. You annotate tool and model call boundaries, then keep the rest of your control flow unchanged.
 
 ```python
-from trajectly.sdk import tool, llm_call
+from trajectly.sdk import agent_step, tool
+from trajectly.sdk.adapters import openai_chat_completion
 
 @tool("fetch_ticket")
-def fetch_ticket(ticket_id: str) -> dict:
-    return {"id": ticket_id}
+def fetch_ticket(ticket_id: str) -> dict[str, str]:
+    return {
+        "ticket_id": ticket_id,
+        "plan": "enterprise",
+        "issue_type": "duplicate_charge",
+    }
 
-@llm_call(provider="openai", model="gpt-4o")
-def classify_ticket(prompt: str) -> str:
-    ...
+@tool("escalate_to_human")
+def escalate_to_human(incident_id: str, reason_code: str) -> dict[str, str]:
+    return {
+        "incident_id": incident_id,
+        "reason_code": reason_code,
+        "queue": "billing-escalations",
+    }
+
+def run_support_flow(client) -> None:
+    agent_step("scenario:start", {"scenario": "support-apocalypse"})
+    ticket = fetch_ticket("TCK-1001")
+
+    model = openai_chat_completion(
+        client,
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "Return the escalation reason code only."},
+            {"role": "user", "content": f"issue_type={ticket['issue_type']}"},
+        ],
+    )
+    reason_code = str(model["response"]).strip() or "duplicate_charge"
+    escalate_to_human(incident_id="INC-230001", reason_code=reason_code)
+    agent_step("scenario:done", {"path": "escalated"})
 ```
 
 ### B) Declarative graph (`trajectly.App`)
@@ -741,23 +760,23 @@ The graph API is useful when you want execution structure to be explicit and val
 ```python
 import trajectly
 
-app = trajectly.App(name="support-agent")
+app = trajectly.App(name="graph-chain-reaction")
 
-@app.node(id="fetch_ticket", type="tool")
-def fetch_ticket(ticket_id: str) -> dict:
-    ...
+@app.node(id="fetch_incident", type="tool")
+def fetch_incident(incident_id: str) -> dict[str, str]:
+    return {"incident_id": incident_id, "severity": "sev1"}
 
-@app.node(id="classify", type="llm", depends_on=["fetch_ticket"], provider="openai", model="gpt-4o")
-def classify(fetch_ticket: dict) -> str:
-    ...
+@app.node(id="choose_dispatch_token", type="transform", depends_on={"incident": "fetch_incident"})
+def choose_dispatch_token(incident: dict[str, str]) -> str:
+    return "WR-12345" if incident["severity"] == "sev1" else "WR-99999"
 
-@app.node(id="format", type="transform", depends_on=["classify"])
-def format_output(classify: str) -> dict:
-    return {"answer": classify}
+@app.node(id="dispatch_war_room", type="tool", depends_on={"dispatch_token": "choose_dispatch_token"})
+def dispatch_war_room(dispatch_token: str) -> dict[str, str]:
+    return {"dispatch_token": dispatch_token, "status": "sent"}
 
 if __name__ == "__main__":
-    outputs = app.run(input_data={"ticket_id": "T-123"})
-    print(outputs["format"])
+    outputs = app.run({"incident_id": "INC-777001"})
+    print(outputs["dispatch_war_room"])
 ```
 
 Arena example: `graph-chain-reaction` uses `trajectly.App` and still runs through the same CLI/report pipeline as function-style scenarios.
