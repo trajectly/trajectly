@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: trajectly/trajectly-action@v1.0.1
         with:
-          spec_glob: "specs/*.agent.yaml"
+          spec_glob: "specs/challenges/*.agent.yaml"
           project_root: "."
 ```
 
@@ -32,7 +32,7 @@ If your workflow runs on pull requests and you want comment updates:
 ```yaml
 - uses: trajectly/trajectly-action@v1.0.1
   with:
-    spec_glob: "specs/*.agent.yaml"
+    spec_glob: "specs/challenges/*.agent.yaml"
     project_root: "."
     comment_pr: "true"
 ```
@@ -110,7 +110,7 @@ Observed PR comment markdown produced by `trajectly report --pr-comment`:
 
 ```bash
 python -m pip install trajectly
-python -m trajectly run specs/*.agent.yaml --project-root .
+python -m trajectly run specs/challenges/*.agent.yaml --project-root .
 python -m trajectly report --pr-comment > trajectly_pr_comment.md
 ```
 
@@ -125,6 +125,8 @@ Common artifact files to expect:
 - `${project_root}/.trajectly/reports/latest.json`
 - `${project_root}/.trajectly/repros/*.json`
 
+Replace `specs/challenges/*.agent.yaml` with your repository's spec path/glob.
+
 ## Optional cache
 
 Caching `.trajectly/` can speed repeated CI runs:
@@ -137,9 +139,11 @@ Caching `.trajectly/` can speed repeated CI runs:
     restore-keys: trajectly-
 ```
 
-## Standalone examples
+## Examples
 
-- Support demo workflow:
-  <https://github.com/trajectly/support-escalation-demo/blob/main/.github/workflows/trajectly.yml>
-- Procurement demo workflow:
-  <https://github.com/trajectly/procurement-approval-demo/blob/main/.github/workflows/trajectly.yml>
+- Arena CI workflows:
+  <https://github.com/trajectly/trajectly-survival-arena/tree/main/.github/workflows>
+- Action fixture workflows:
+  <https://github.com/trajectly/trajectly-action-fixture/tree/main/.github/workflows>
+
+For CLI/spec details, use [Trajectly Reference](trajectly_reference.md).
