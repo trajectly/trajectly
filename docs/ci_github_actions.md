@@ -4,7 +4,6 @@ The canonical Trajectly GitHub Action is:
 `trajectly/trajectly-action@v1.0.1`
 
 It wraps CLI commands and CI plumbing only. TRT evaluation remains in Python code.
-The in-repo action path `./github-action` is kept as a temporary compatibility wrapper and is planned for removal in `v0.4.3` (one release cycle after `v0.4.2`).
 
 ## Minimal workflow
 
@@ -53,9 +52,6 @@ Recommendation:
 | `comment_pr` | `false` | Post/update PR comment with report markdown (PR events only) |
 | `upload_artifacts` | `true` | Upload `${project_root}/.trajectly/**` artifact |
 
-Compatibility note:
-- The deprecated wrapper `./github-action` keeps older defaults (`install=editable`, `comment_pr=true`) to avoid breaking existing workflows.
-
 ## What the action executes
 
 In order:
@@ -75,16 +71,16 @@ In order:
 7. **Propagate exit code**
    - final step exits with run step exit code
 
-Observed run-step output cues from a fresh validation run (March 5, 2026):
+Observed run-step output from the [Merge or Die arena](https://github.com/trajectly/trajectly-survival-arena):
 
 ```text
 # passing run
-- `trt-procurement-agent`: clean
+- `procurement-chaos`: clean
   - trt: `PASS`
 
-# failing run
-- `trt-procurement-agent`: regression
-  - trt: `FAIL` (witness=10)
+# failing run (intentional regression)
+- `procurement-chaos`: regression
+  - trt: `FAIL` (witness=6)
 Tip: run `python -m trajectly repro` to reproduce, or `python -m trajectly shrink` to minimize.
 ```
 
@@ -109,7 +105,7 @@ Observed PR comment markdown produced by `trajectly report --pr-comment`:
 ## Equivalent shell flow (any CI)
 
 ```bash
-python -m pip install trajectly
+pip install trajectly
 python -m trajectly run specs/challenges/*.agent.yaml --project-root .
 python -m trajectly report --pr-comment > trajectly_pr_comment.md
 ```
