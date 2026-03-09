@@ -4,91 +4,106 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/trajectly/trajectly/badge)](https://securityscorecards.dev/viewer/?uri=github.com/trajectly/trajectly)
 [![PyPI version](https://img.shields.io/pypi/v/trajectly.svg)](https://pypi.org/project/trajectly/)
 
-Trajectly is deterministic regression testing for AI agents.
+Deterministic regression testing for AI agents.
 
-It catches behavior regressions that output-only checks often miss:
-- missing required tool calls
-- wrong call order
-- denied network/tool usage
-- argument and budget-policy violations
-
-Trajectly reports a deterministic witness index and a reproducible failing command.
+The answer looked fine. The behavior wasn't. An agent that skips approval, leaks a secret, or calls a forbidden domain can still produce a perfectly worded final answer. Trajectly catches the behavioral regression and tells you *exactly where it broke*.
 
 ## Install
 
 ```bash
-python -m pip install trajectly
-python -m trajectly --version
+pip install trajectly
 ```
 
 ## 30-Second Quickstart
 
-Use arena scenarios with committed fixtures (no API keys required):
+Uses committed fixtures -- no API keys required.
 
 ```bash
 git clone https://github.com/trajectly/trajectly-survival-arena.git
 cd trajectly-survival-arena
-python3.11 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 python -m trajectly init
 
 # baseline behavior (expected PASS)
 python -m trajectly run specs/challenges/procurement-chaos.agent.yaml --project-root .
 
-# intentional regression behavior (expected FAIL)
+# intentional regression (expected FAIL -- approval was skipped)
 python -m trajectly run specs/examples/procurement-chaos-regression.agent.yaml --project-root .
 python -m trajectly report
 python -m trajectly repro
 python -m trajectly shrink
 ```
 
-Expected exits for this flow:
-- safe `run` -> `0`
-- regression `run` -> `1`
-- `report` -> `0`
-- `repro` -> `1`
-- `shrink` -> `0`
+## What Trajectly Catches
 
-Stable output cues:
+Six categories of silent failure that correct-looking output can hide.
+
+### Missing steps
+
+An agent skips a required step but the answer reads fine. Trajectly extracts a tool-call skeleton from the baseline and verifies it appears as a subsequence in the current trace. Missing calls break the skeleton.
 
 ```text
-# safe run
-- `procurement-chaos`: clean
-  - trt: `PASS`
-
-# regression run
-- `procurement-chaos`: regression
-  - trt: `FAIL` (witness=...)
-
-# report
-Source: $PROJECT_ROOT/.trajectly/reports/latest.md
+REFINEMENT_BASELINE_CALL_MISSING — missing_call=route_for_approval — witness=6
 ```
 
-The canonical onboarding flow lives in [docs/trajectly_guide.md](docs/trajectly_guide.md).
+### Wrong order
 
-## What Trajectly Checks
+The right tools called in the wrong sequence. `require_before` says "A must happen before B" without locking exact positions, so the agent can evolve without breaking the ordering rule.
 
-1. Contracts: tools, sequence, network, data leak, args, budgets.
-2. Refinement: baseline tool-call skeleton remains a subsequence of current behavior.
-3. Witness resolution: earliest failing trace event index.
+```text
+CONTRACT_SEQUENCE_REQUIRE_BEFORE_VIOLATED — expected=reserve_room before send_invite — witness=4
+```
+
+### Leaked secrets
+
+The summary looks clean but the outbound tool-call payload contains a secret pattern. Trajectly scans outbound arguments against regex patterns declared in the contract.
+
+```text
+DATA_LEAK_SECRET_PATTERN — pattern=sk_live_[A-Za-z0-9]+ — witness=4
+```
+
+### Forbidden network access
+
+The agent reports success but contacted a domain outside the allowlist. The network contract defaults to deny-all and whitelists specific domains.
+
+```text
+NETWORK_DOMAIN_DENIED — witness=2
+```
+
+### Invalid arguments
+
+A tool call completes but an argument violates its format. Argument contracts validate required keys, types, numeric bounds, regex patterns, and enum values on every call.
+
+```text
+CONTRACT_ARGS_REGEX_VIOLATION — witness=6
+```
+
+### Budget overruns
+
+Identical output, but twice the tool calls or tokens. Budget thresholds gate execution cost at the spec level.
+
+```text
+budget_breach — max_tool_calls exceeded
+```
+
+## How You Debug Failures
+
+Every failure comes with three tools:
+
+| Tool | What it does | Command |
+|---|---|---|
+| **Witness** | Pinpoints the exact trace event where behavior diverged | Included in every report |
+| **Repro** | Replays the exact failure deterministically | `python -m trajectly repro` |
+| **Shrink** | Reduces the trace to the shortest proof (14 events -> 3) | `python -m trajectly shrink` |
+
+No log hunting. No guesswork. No LLM calls for evaluation.
 
 ## Use This In Your Project
 
-Minimal migration recipe:
-
-1. Make your agent command deterministic enough to replay.
-2. Add one `.agent.yaml` spec.
-3. Add one contract policy.
-4. Record baseline.
-5. Gate with `run`.
-6. Debug with `report`, `repro`, `shrink`.
-
-Starter files:
+1. Add one `.agent.yaml` spec:
 
 ```yaml
-# specs/my-agent.agent.yaml
 schema_version: "0.4"
 name: "my-agent"
 command: "python -m my_agent.runner"
@@ -99,15 +114,17 @@ contracts:
   config: contracts/my-agent.contracts.yaml
 ```
 
+2. Add one `.contracts.yaml` policy:
+
 ```yaml
-# contracts/my-agent.contracts.yaml
+version: v1
 tools:
   allow: [fetch_context, create_reply]
 sequence:
   require: [fetch_context, create_reply]
 ```
 
-Baseline and gate commands:
+3. Record, gate, debug:
 
 ```bash
 python -m trajectly init
@@ -123,45 +140,43 @@ python -m trajectly shrink
 Any CI:
 
 ```bash
-python -m pip install trajectly
-python -m trajectly run specs/challenges/*.agent.yaml --project-root .
+pip install trajectly
+python -m trajectly run specs/*.agent.yaml --project-root .
 python -m trajectly report --pr-comment > trajectly_pr_comment.md
 ```
 
 GitHub Actions:
 
 ```yaml
-name: Agent Regression Tests
-on: [push, pull_request]
-
-jobs:
-  trajectly:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: trajectly/trajectly-action@v1.0.1
-        with:
-          spec_glob: "specs/challenges/*.agent.yaml"
-          project_root: "."
+- uses: trajectly/trajectly-action@v1.0.1
+  with:
+    spec_glob: "specs/*.agent.yaml"
+    project_root: "."
+    comment_pr: "true"
 ```
 
-Replace `specs/challenges/*.agent.yaml` with your own spec glob/path in your project.
+When a spec fails, the PR gets a death report: witness index, violated contract, repro command, and shrink result.
+
+See [trajectly-action](https://github.com/trajectly/trajectly-action) for full CI documentation.
+
+## Try Merge or Die
+
+Eight arena scenarios covering all six failure categories. Run them, break them, debug them.
+
+[trajectly-survival-arena](https://github.com/trajectly/trajectly-survival-arena) | [trajectly.dev/merge-or-die](https://www.trajectly.dev/merge-or-die)
 
 ## Documentation
 
-- [Guide](docs/trajectly_guide.md)
-- [Reference](docs/trajectly_reference.md)
-- [CI: GitHub Actions](docs/ci_github_actions.md)
+- [Guide](docs/trajectly_guide.md) -- onboarding, core concepts, TRT algorithm
+- [What Trajectly Catches](docs/what_trajectly_catches.md) -- six failure categories with full examples
+- [Contract Catalog](docs/contract_catalog.md) -- reference for all six contract dimensions
+- [Reference](docs/trajectly_reference.md) -- CLI, spec schema, SDK, trace schema
+- [CI: GitHub Actions](docs/ci_github_actions.md) -- action inputs, execution order, artifacts
 - [Architecture (maintainers)](docs/architecture_phase1.md)
-- [Security policy](SECURITY.md)
-- [Contributing guide](CONTRIBUTING.md)
-- [Merge or Die Arena](https://github.com/trajectly/trajectly-survival-arena)
 
 ## Contributing
 
-For contribution flow and local checks, see [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
