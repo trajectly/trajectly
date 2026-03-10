@@ -21,7 +21,7 @@ Uses committed fixtures -- no API keys required.
 ```bash
 git clone https://github.com/trajectly/trajectly-survival-arena.git
 cd trajectly-survival-arena
-python3.11 -m venv .venv && source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 python -m trajectly init
@@ -173,7 +173,7 @@ Eight arena scenarios covering all six failure categories. Run them, break them,
 - [Contract Catalog](docs/contract_catalog.md) -- reference for all six contract dimensions
 - [Reference](docs/trajectly_reference.md) -- CLI, spec schema, SDK, trace schema
 - [CI: GitHub Actions](docs/ci_github_actions.md) -- action inputs, execution order, artifacts
-- [Architecture (maintainers)](docs/architecture_phase1.md)
+- [Architecture (maintainers)](docs/architecture.md)
 
 ## Contributing
 

@@ -2,16 +2,6 @@
 
 All notable changes to this project are documented in this file.
 
-## v0.4.2 - 2026-03-06
-
-### Changed
-
-- Removed the optional cloud run-hook exporter path from the core package:
-  - deleted `src/trajectly/plugins/cloud_exporter.py`
-  - removed built-in cloud exporter wiring from `plugins/loader.py`
-  - removed cloud exporter exports/tests and architecture doc references
-- Maintained plugin extension support via entry points (`trajectly.run_hook_plugins` and `trajectly.semantic_diff_plugins`).
-
 ## Unreleased
 
 ### Added
@@ -32,15 +22,20 @@ All notable changes to this project are documented in this file.
 - Spec extends tests (`test_spec_extends.py`): single/chained extends, cycle detection.
 - Phase 1 architecture audit report.
 - CI GitHub Actions guide (`docs/ci_github_actions.md`).
+- Deterministic replay hardening tests:
+  - `tests/integration/test_determinism_replay.py` validates repeat-run TRT payload stability.
+  - Replay network-block integration assertion for CI-safe offline mode.
+- Tiered Makefile quality targets: `make check`, `make test-fast`, `make test-determinism`, `make test-cov`.
 
 ### Changed
 
 - Version aligned: `pyproject.toml` and `__init__.py` both `0.3.0rc3`.
 - CLI entrypoint changed from `trajectly.cli:app` to `trajectly.cli.commands:app`.
 - `cli.py` renamed to `cli/commands.py`.
-- `docs/architecture_phase1.md` rewritten to describe completed architecture.
+- `docs/architecture.md` rewritten to describe completed architecture.
 - GitHub Action canonical source is now `trajectly/trajectly-action@v1`.
-- In-repo `github-action/action.yml` is now a compatibility wrapper that delegates to `trajectly/trajectly-action@v1` and is planned for removal in `v0.4.3` (one release cycle after `v0.4.2`).
+- In-repo `github-action/action.yml` is now a compatibility wrapper that delegates to `trajectly/trajectly-action@v1` and is planned for removal in `v0.4.3`.
+- CI now runs dedicated determinism replay tests and coverage output in addition to lint/type/unit suites.
 
 ### Fixed
 
@@ -53,22 +48,15 @@ All notable changes to this project are documented in this file.
 - 281+ tests pass. ruff + mypy clean on CI.
 - No user-facing CLI behavior changes (all commands, flags, exit codes preserved).
 
----
-
-- Deterministic replay hardening tests:
-  - `tests/integration/test_determinism_replay.py` validates repeat-run TRT payload stability.
-  - replay network-block integration assertion for CI-safe offline mode.
-- Tiered Makefile quality targets:
-  - `make check`
-  - `make test-fast`
-  - `make test-determinism`
-  - `make test-cov`
-- M12 compatibility policy doc: `docs/legacy_compat_policy.md`.
+## v0.4.2 - 2026-03-06
 
 ### Changed
 
-- CI now runs dedicated determinism replay tests and coverage output in addition to lint/type/unit suites.
-- Focused explanatory comments added in canonical normalization, abstraction predicate extraction, refinement subsequence logic, and witness tie-break ordering.
+- Removed the optional cloud run-hook exporter path from the core package:
+  - deleted `src/trajectly/plugins/cloud_exporter.py`
+  - removed built-in cloud exporter wiring from `plugins/loader.py`
+  - removed cloud exporter exports/tests and architecture doc references
+- Maintained plugin extension support via entry points (`trajectly.run_hook_plugins` and `trajectly.semantic_diff_plugins`).
 
 ## v0.3.0-rc1 - 2026-02-23
 
@@ -78,31 +66,7 @@ All notable changes to this project are documented in this file.
   - `trajectly shrink` for bounded ddmin counterexample reduction
   - v0.2/v1 to v0.3 spec migration support
 - Shrinker module (`src/trajectly/shrink/ddmin.py`) with class-preserving failure predicate support.
-- TRT docs set under `docs/trt/`:
-  - What Is TRT
-  - Guarantees + proof sketch wording
-  - Quickstart
-  - Contracts reference
-  - Abstraction reference
-  - Troubleshooting
-- `Makefile` targets:
-  - `make test`
-  - `make demo`
-
-### Changed
-
-- Core package version bumped to `0.3.0rc1`.
-- `README.md` updated with TRT docs links, shrink command, and migration command.
-- `trajectly-action` contract updated for TRT:
-  - PR-comment-ready summary artifact output
-  - repro artifact uploads (`.trajectly/repros/*.json`, `.jsonl`)
-
-### Fixed
-
-- Deterministic replay analysis loop hardening with additional repeat-run stability test for TRT witness/verdict output.
-
-### Added
-
+- `Makefile` targets: `make test`, `make demo`.
 - Release automation workflow for SemVer tags.
 - Pre-release smoke workflow covering core and cross-repo checks.
 - Strict trace/report schema validation with compatibility tests.
@@ -119,15 +83,19 @@ All notable changes to this project are documented in this file.
 - Basic trace minimization in repro artifacts (`*.baseline.min.jsonl`, `*.current.min.jsonl`).
 - PR-comment-ready markdown output via `trajectly report --pr-comment`.
 - `trajectly enable --template {openai,langchain,autogen}` starter template scaffolds.
-- `ONBOARDING_10_MIN.md` docs-first walkthrough and `CONTRACTS_VERSION_POLICY.md` compatibility policy.
 
 ### Changed
 
+- Core package version bumped to `0.3.0rc1`.
+- `README.md` updated with TRT docs links, shrink command, and migration command.
+- `trajectly-action` contract updated for TRT:
+  - PR-comment-ready summary artifact output
+  - repro artifact uploads (`.trajectly/repros/*.json`, `.jsonl`)
 - Expanded deterministic replay coverage and integration smoke scenarios.
-- Quickstart docs now use `enable` + `record --auto` flow.
 
 ### Fixed
 
+- Deterministic replay analysis loop hardening with additional repeat-run stability test for TRT witness/verdict output.
 - Private-repo CI behavior for cross-repo checks by using token-gated flows.
 
 ## v0.1.0 - 2026-02-22

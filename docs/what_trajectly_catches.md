@@ -310,7 +310,7 @@ All examples above are runnable in the [trajectly-survival-arena](https://github
 ```bash
 git clone https://github.com/trajectly/trajectly-survival-arena.git
 cd trajectly-survival-arena
-python3.11 -m venv .venv && source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 python -m trajectly init

@@ -154,7 +154,5 @@ Caching `.trajectly/` can speed repeated CI runs:
 
 - Arena CI workflows:
   <https://github.com/trajectly/trajectly-survival-arena/tree/main/.github/workflows>
-- Action fixture workflows:
-  <https://github.com/trajectly/trajectly-action-fixture/tree/main/.github/workflows>
 
 For CLI/spec details, use [Trajectly Reference](trajectly_reference.md).
