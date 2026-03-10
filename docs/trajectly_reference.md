@@ -11,15 +11,15 @@ For onboarding and troubleshooting, use [Guide](trajectly_guide.md).
 
 ## Table of contents
 
-- [5) CLI reference](#5-cli-reference)
-- [6) Spec reference](#6-spec-reference)
-- [7) SDK reference](#7-sdk-reference)
-- [8) Trace schema reference](#8-trace-schema-reference)
-- [9) Contracts reference](#9-contracts-reference)
+- [1) CLI reference](#1-cli-reference)
+- [2) Spec reference](#2-spec-reference)
+- [3) SDK reference](#3-sdk-reference)
+- [4) Trace schema reference](#4-trace-schema-reference)
+- [5) Contracts reference](#5-contracts-reference)
 
 ---
 
-## 5) CLI reference
+## 1) CLI reference
 
 The command surface below reflects current `python -m trajectly --help` workflow.
 
@@ -184,7 +184,7 @@ python -m trajectly baseline update --auto --project-root .
 
 ---
 
-## 6) Spec reference
+## 2) Spec reference
 
 Trajectly specs are `.agent.yaml` files.
 
@@ -254,7 +254,7 @@ Merge semantics:
 
 ---
 
-## 7) SDK reference
+## 3) SDK reference
 
 Trajectly supports two SDK styles that share the same runtime instrumentation path.
 
@@ -376,7 +376,7 @@ Framework adapters in `trajectly.sdk.adapters` include:
 
 ---
 
-## 8) Trace schema reference
+## 4) Trace schema reference
 
 Trajectly stores traces as JSONL (one event per line).
 
@@ -426,7 +426,7 @@ Note: spec schema version (`0.4`) and trace schema version (`v1`) are intentiona
 
 ---
 
-## 9) Contracts reference
+## 5) Contracts reference
 
 Contracts are under `contracts:` in spec YAML.
 
@@ -499,4 +499,4 @@ contracts:
 
 ---
 
-For troubleshooting and failure-recovery workflow, use [Guide: 10) Troubleshooting](trajectly_guide.md#10-troubleshooting).
+For troubleshooting and failure-recovery workflow, use [Guide: 5) Troubleshooting](trajectly_guide.md#5-troubleshooting).

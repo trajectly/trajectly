@@ -31,12 +31,25 @@ jobs:
 If your workflow runs on pull requests and you want comment updates:
 
 ```yaml
-- uses: trajectly/trajectly-action@v1.0.2
-  with:
-    spec_glob: "specs/challenges/*.agent.yaml"
-    project_root: "."
-    comment_pr: "true"
+name: Agent Regression Tests
+on: [pull_request]
+
+jobs:
+  trajectly:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: trajectly/trajectly-action@v1.0.2
+        with:
+          spec_glob: "specs/challenges/*.agent.yaml"
+          project_root: "."
+          comment_pr: "true"
 ```
+
+> `pull-requests: write` is required for PR comment updates.
 
 Recommendation:
 - use a pinned ref (`@vX.Y.Z` or a commit SHA) for stable CI behavior

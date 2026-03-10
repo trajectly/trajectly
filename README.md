@@ -61,7 +61,7 @@ CONTRACT_SEQUENCE_REQUIRE_BEFORE_VIOLATED — expected=reserve_room before send_
 The summary looks clean but the outbound tool-call payload contains a secret pattern. Trajectly scans outbound arguments against regex patterns declared in the contract.
 
 ```text
-DATA_LEAK_SECRET_PATTERN — pattern=sk_live_[A-Za-z0-9]+ — witness=4
+DATA_LEAK_SECRET_PATTERN — pattern=sk_live_[A-Za-z0-9_]+ — witness=4
 ```
 
 ### Forbidden network access
