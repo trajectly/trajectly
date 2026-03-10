@@ -1,7 +1,7 @@
 # CI: GitHub Actions
 
 The canonical Trajectly GitHub Action is:
-`trajectly/trajectly-action@v1.0.1`
+`trajectly/trajectly-action@v1.0.2`
 
 It wraps CLI commands and CI plumbing only. TRT evaluation remains in Python code.
 
@@ -18,18 +18,20 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: trajectly/trajectly-action@v1.0.1
+      - uses: trajectly/trajectly-action@v1.0.2
         with:
           spec_glob: "specs/challenges/*.agent.yaml"
           project_root: "."
 ```
+
+**Prerequisite**: Your repository must have committed baselines under `.trajectly/baselines/`. Record them first with `python -m trajectly record` (see [Guide](trajectly_guide.md)).
 
 ## Use from another repository
 
 If your workflow runs on pull requests and you want comment updates:
 
 ```yaml
-- uses: trajectly/trajectly-action@v1.0.1
+- uses: trajectly/trajectly-action@v1.0.2
   with:
     spec_glob: "specs/challenges/*.agent.yaml"
     project_root: "."
