@@ -17,7 +17,7 @@ For command and schema lookup, use [Reference](trajectly_reference.md).
 - [2) Core concepts](#2-core-concepts)
 - [3) TRT algorithm](#3-trt-algorithm)
 - [4) Daily workflow](#4-daily-workflow)
-- [10) Troubleshooting](#10-troubleshooting)
+- [5) Troubleshooting](#5-troubleshooting)
 
 ---
 
@@ -228,7 +228,7 @@ python -m trajectly baseline promote v2 specs/challenges/procurement-chaos.agent
 
 ---
 
-## 10) Troubleshooting
+## 5) Troubleshooting
 
 Most failures fall into three buckets:
 - fixture/replay mismatch
