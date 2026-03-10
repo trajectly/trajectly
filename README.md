@@ -22,6 +22,7 @@ Uses committed fixtures -- no API keys required.
 git clone https://github.com/trajectly/trajectly-survival-arena.git
 cd trajectly-survival-arena
 python3.11 -m venv .venv && source .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 python -m trajectly init
 
@@ -101,7 +102,7 @@ No log hunting. No guesswork. No LLM calls for evaluation.
 
 ## Use This In Your Project
 
-1. Add one `.agent.yaml` spec:
+1. Add one `.agent.yaml` spec (save as `specs/my-agent.agent.yaml`):
 
 ```yaml
 schema_version: "0.4"
@@ -114,7 +115,7 @@ contracts:
   config: contracts/my-agent.contracts.yaml
 ```
 
-2. Add one `.contracts.yaml` policy:
+2. Add one `.contracts.yaml` policy (save as `contracts/my-agent.contracts.yaml`):
 
 ```yaml
 version: v1
@@ -148,7 +149,7 @@ python -m trajectly report --pr-comment > trajectly_pr_comment.md
 GitHub Actions:
 
 ```yaml
-- uses: trajectly/trajectly-action@v1.0.1
+- uses: trajectly/trajectly-action@v1.0.2
   with:
     spec_glob: "specs/*.agent.yaml"
     project_root: "."
