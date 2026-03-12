@@ -1,6 +1,7 @@
 # Trajectly
 
 [![CI](https://github.com/trajectly/trajectly/actions/workflows/ci.yml/badge.svg)](https://github.com/trajectly/trajectly/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/trajectly/trajectly/actions/workflows/codeql.yml/badge.svg)](https://github.com/trajectly/trajectly/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/trajectly/trajectly/badge)](https://securityscorecards.dev/viewer/?uri=github.com/trajectly/trajectly)
 [![PyPI version](https://img.shields.io/pypi/v/trajectly.svg)](https://pypi.org/project/trajectly/)
 
