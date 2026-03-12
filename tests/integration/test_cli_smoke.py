@@ -98,6 +98,32 @@ class TestCliSmoke:
         assert "run" in result.output
         assert "report" in result.output
 
+    def test_repro_help(self) -> None:
+        result = runner.invoke(app, ["repro", "--help"])
+        assert result.exit_code == 0
+        assert "repro" in result.output.lower()
+        assert "spec" in result.output.lower()
+
+    def test_shrink_help(self) -> None:
+        result = runner.invoke(app, ["shrink", "--help"])
+        assert result.exit_code == 0
+        assert "shrink" in result.output.lower()
+
+    def test_baseline_list_help(self) -> None:
+        result = runner.invoke(app, ["baseline", "list", "--help"])
+        assert result.exit_code == 0
+        assert "list" in result.output.lower()
+
+    def test_baseline_diff_help(self) -> None:
+        result = runner.invoke(app, ["baseline", "diff", "--help"])
+        assert result.exit_code == 0
+        assert "diff" in result.output.lower()
+
+    def test_baseline_promote_help(self) -> None:
+        result = runner.invoke(app, ["baseline", "promote", "--help"])
+        assert result.exit_code == 0
+        assert "promote" in result.output.lower()
+
     def test_exit_codes_preserved(self, tmp_path: Path) -> None:
         """init=0, record=0, run with no regression=0."""
         spec = _setup_fixture_agent(tmp_path)
