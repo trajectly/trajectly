@@ -36,6 +36,44 @@ def test_render_markdown_contains_sections() -> None:
     assert "$.payload.output" in markdown
 
 
+def test_render_markdown_clean_report_renders_no_regression_and_no_findings() -> None:
+    markdown = render_markdown(
+        "demo",
+        DiffResult(
+            summary={
+                "regression": False,
+                "finding_count": 0,
+                "baseline": {"duration_ms": 10, "tool_calls": 1, "tokens": 2},
+                "current": {"duration_ms": 10, "tool_calls": 1, "tokens": 2},
+            },
+            findings=[],
+        ),
+    )
+
+    assert "No regression" in markdown
+    assert "No findings." in markdown
+
+
+def test_render_markdown_renders_first_divergence_summary() -> None:
+    markdown = render_markdown(
+        "demo",
+        DiffResult(
+            summary={
+                "regression": True,
+                "finding_count": 1,
+                "first_divergence": {"kind": "output_mismatch", "index": 3},
+                "baseline": {"duration_ms": 10, "tool_calls": 1, "tokens": 2},
+                "current": {"duration_ms": 20, "tool_calls": 2, "tokens": 5},
+            },
+            findings=[],
+        ),
+    )
+
+    assert "First divergence" in markdown
+    assert "**output_mismatch**" in markdown
+    assert "**3**" in markdown
+
+
 def test_write_reports_outputs_json_and_markdown(tmp_path: Path) -> None:
     json_path = tmp_path / "out" / "report.json"
     md_path = tmp_path / "out" / "report.md"
