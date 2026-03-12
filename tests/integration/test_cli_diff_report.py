@@ -46,7 +46,8 @@ def test_cli_report_missing_latest_file_returns_error(tmp_path: Path) -> None:
 def test_cli_report_pr_comment_output(tmp_path: Path) -> None:
     reports_dir = tmp_path / ".trajectly" / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
-    (reports_dir / "latest.json").write_text(
+    report_json = reports_dir / "latest.json"
+    report_json.write_text(
         json.dumps(
             {
                 "schema_version": "v1",
@@ -69,6 +70,8 @@ def test_cli_report_pr_comment_output(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "Trajectly Regression Report" in result.stdout
     assert "`demo`" in result.stdout
+    assert "Source:" in result.stdout
+    assert f"Source: {report_json}" in result.stdout
 
 
 def test_cli_report_rejects_json_with_pr_comment(tmp_path: Path) -> None:
