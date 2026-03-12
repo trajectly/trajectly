@@ -36,6 +36,32 @@ def test_cli_report_prints_json_and_source(tmp_path: Path) -> None:
     assert "Source:" in result.stdout
 
 
+def test_cli_report_prints_markdown_and_source(tmp_path: Path) -> None:
+    reports_dir = tmp_path / ".trajectly" / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_markdown = reports_dir / "latest.md"
+    report_markdown.write_text("# Demo Report\n\nEverything looks good.\n", encoding="utf-8")
+    (reports_dir / "latest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "v1",
+                "processed_specs": 1,
+                "regressions": 0,
+                "errors": [],
+                "reports": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["report", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "# Demo Report" in result.stdout
+    assert "Everything looks good." in result.stdout
+    assert f"Source: {report_markdown}" in result.stdout
+
+
 def test_cli_report_missing_latest_file_returns_error(tmp_path: Path) -> None:
     result = runner.invoke(app, ["report", "--project-root", str(tmp_path), "--json"])
 
