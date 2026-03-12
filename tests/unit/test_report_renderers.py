@@ -65,3 +65,46 @@ def test_render_pr_comment_outputs_markdown_table() -> None:
     assert "Trajectly Regression Report" in markdown
     assert "| `a` | `clean` |" in markdown
     assert "| `b` | `regression` |" in markdown
+
+
+def test_render_pr_comment_renders_fallback_row_for_empty_reports() -> None:
+    markdown = render_pr_comment(
+        {
+            "processed_specs": 0,
+            "regressions": 0,
+            "errors": [],
+            "reports": [],
+        }
+    )
+
+    assert "| n/a | n/a | n/a |" in markdown
+
+
+def test_render_pr_comment_ignores_non_dict_rows() -> None:
+    markdown = render_pr_comment(
+        {
+            "processed_specs": 1,
+            "regressions": 0,
+            "errors": [],
+            "reports": [
+                "junk",
+                {"spec": "demo", "regression": False, "repro_command": "trajectly run demo"},
+            ],
+        }
+    )
+
+    assert "| `demo` | `clean` | `trajectly run demo` |" in markdown
+    assert "junk" not in markdown
+
+
+def test_render_pr_comment_uses_na_repro_when_missing() -> None:
+    markdown = render_pr_comment(
+        {
+            "processed_specs": 1,
+            "regressions": 1,
+            "errors": [],
+            "reports": [{"spec": "demo", "regression": True}],
+        }
+    )
+
+    assert "| `demo` | `regression` | `n/a` |" in markdown
