@@ -568,6 +568,26 @@ def test_enable_with_openai_template_creates_files_and_runs(tmp_path: Path) -> N
     assert run_result.exit_code == 0
 
 
+def test_enable_with_openai_template_rerun_preserves_existing_files(tmp_path: Path) -> None:
+    first_enable = runner.invoke(app, ["enable", str(tmp_path), "--template", "openai"])
+    assert first_enable.exit_code == 0
+
+    spec_path = tmp_path / "openai.agent.yaml"
+    script_path = tmp_path / "templates" / "openai_agent.py"
+    assert spec_path.exists()
+    assert script_path.exists()
+
+    sentinel = "\n# sentinel: preserve user edit\n"
+    script_path.write_text(script_path.read_text(encoding="utf-8") + sentinel, encoding="utf-8")
+
+    second_enable = runner.invoke(app, ["enable", str(tmp_path), "--template", "openai"])
+    assert second_enable.exit_code == 0
+    assert "Template files already existed; no files written." in second_enable.stdout
+    assert spec_path.exists()
+    assert script_path.exists()
+    assert sentinel.strip() in script_path.read_text(encoding="utf-8")
+
+
 def test_enable_with_invalid_template_returns_error(tmp_path: Path) -> None:
     result = runner.invoke(app, ["enable", str(tmp_path), "--template", "unknown-template"])
     assert result.exit_code == 2
