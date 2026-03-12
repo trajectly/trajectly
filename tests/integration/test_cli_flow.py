@@ -377,6 +377,48 @@ add(1, 2)
     assert isinstance(latest_row["determinism_warnings"], list)
 
 
+def test_baseline_promote_with_valid_and_missing_targets_returns_mixed_result(tmp_path: Path) -> None:
+    script = tmp_path / "agent.py"
+    _write_script(
+        script,
+        """
+from trajectly.sdk import tool
+
+@tool("add")
+def add(a, b):
+    return a + b
+
+add(1, 1)
+""".strip(),
+    )
+    spec = tmp_path / "versioned.agent.yaml"
+    _write_spec(
+        spec,
+        """
+schema_version: "0.4"
+name: versioned
+command: python agent.py
+workdir: .
+fixture_policy: by_hash
+strict: true
+""".strip(),
+    )
+
+    assert runner.invoke(app, ["init", str(tmp_path)]).exit_code == 0
+    assert runner.invoke(app, ["record", str(spec), "--project-root", str(tmp_path)]).exit_code == 0
+
+    promote_result = runner.invoke(
+        app,
+        ["baseline", "promote", "v1", str(spec), "missing-slug", "--project-root", str(tmp_path)],
+    )
+
+    assert promote_result.exit_code == 2
+    payload = json.loads(promote_result.stdout)
+    assert payload["version"] == "v1"
+    assert payload["promoted"] == ["versioned"]
+    assert payload["missing"] == ["missing-slug"]
+
+
 def test_run_enforces_contract_tool_deny(tmp_path: Path) -> None:
     script = tmp_path / "agent.py"
     _write_script(
