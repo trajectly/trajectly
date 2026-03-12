@@ -1,7 +1,7 @@
 name: Trajectly (Deprecated Wrapper)
 description: >
   Deprecated compatibility wrapper.
-  Use trajectly/trajectly-action@v1 instead.
+  Use trajectly/trajectly-action@1d7700be6142edafd25439354a2df9169932455d # v1.0.2
 branding:
   icon: check-circle
   color: blue
@@ -45,7 +45,7 @@ runs:
         echo "::warning::./github-action is deprecated and will be removed after one release cycle. Use trajectly/trajectly-action@v1."
 
     - name: Run canonical Trajectly action
-      uses: trajectly/trajectly-action@v1
+      uses: trajectly/trajectly-action@1d7700be6142edafd25439354a2df9169932455d # v1.0.2
       with:
         spec_glob: ${{ inputs.spec_glob }}
         project_root: ${{ inputs.project_root }}
