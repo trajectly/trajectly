@@ -129,6 +129,14 @@ def test_record_auto_returns_error_when_no_specs_discovered(tmp_path: Path) -> N
     assert "No .agent.yaml specs discovered" in result.output
 
 
+def test_record_without_targets_and_without_auto_returns_error(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["record", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 2
+    assert "No targets provided" in result.output
+    assert "Pass spec/glob targets or use --auto" in result.output
+
+
 def test_record_blocks_baseline_write_in_ci_without_override(tmp_path: Path) -> None:
     script = tmp_path / "agent.py"
     _write_script(
