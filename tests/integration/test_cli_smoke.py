@@ -101,28 +101,37 @@ class TestCliSmoke:
     def test_repro_help(self) -> None:
         result = runner.invoke(app, ["repro", "--help"])
         assert result.exit_code == 0
-        assert "repro" in result.output.lower()
-        assert "spec" in result.output.lower()
+        # Assert command-specific strings so we know we got the subcommand help page.
+        assert "repro [OPTIONS]" in result.output
+        assert "--print-only" in result.output
 
     def test_shrink_help(self) -> None:
         result = runner.invoke(app, ["shrink", "--help"])
         assert result.exit_code == 0
-        assert "shrink" in result.output.lower()
+        assert "shrink [OPTIONS]" in result.output
+        assert "--max-seconds" in result.output
+        assert "--max-iterations" in result.output
 
     def test_baseline_list_help(self) -> None:
         result = runner.invoke(app, ["baseline", "list", "--help"])
         assert result.exit_code == 0
-        assert "list" in result.output.lower()
+        assert "baseline list" in result.output
+        assert "TARGETS" in result.output
+        assert "Optional spec paths/slugs to filter" in result.output
 
     def test_baseline_diff_help(self) -> None:
         result = runner.invoke(app, ["baseline", "diff", "--help"])
         assert result.exit_code == 0
-        assert "diff" in result.output.lower()
+        assert "baseline diff" in result.output
+        assert "SPEC_SLUG" in result.output
+        assert "--json" in result.output
 
     def test_baseline_promote_help(self) -> None:
         result = runner.invoke(app, ["baseline", "promote", "--help"])
         assert result.exit_code == 0
-        assert "promote" in result.output.lower()
+        assert "baseline promote" in result.output
+        assert "VERSION" in result.output
+        assert "Baseline version name to promote" in result.output
 
     def test_exit_codes_preserved(self, tmp_path: Path) -> None:
         """init=0, record=0, run with no regression=0."""
