@@ -551,6 +551,28 @@ strict: true
     assert execute_result.exit_code == 1
 
 
+def test_repro_print_only_accepts_explicit_spec_path_without_latest_report(tmp_path: Path) -> None:
+    spec = tmp_path / "explicit.agent.yaml"
+    _write_spec(
+        spec,
+        """
+schema_version: "0.4"
+name: explicit-repro
+command: python agent.py
+workdir: .
+fixture_policy: by_hash
+strict: true
+""".strip(),
+    )
+
+    result = runner.invoke(app, ["repro", str(spec), "--project-root", str(tmp_path), "--print-only"])
+
+    assert result.exit_code == 0
+    assert "Repro command:" in result.stdout
+    assert str(spec.resolve()) in result.stdout
+    assert not (tmp_path / ".trajectly" / "reports" / "latest.json").exists()
+
+
 def test_enable_with_openai_template_creates_files_and_runs(tmp_path: Path) -> None:
     enable_result = runner.invoke(app, ["enable", str(tmp_path), "--template", "openai"])
     assert enable_result.exit_code == 0
