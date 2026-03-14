@@ -67,6 +67,7 @@ budget_thresholds:
         ["record", str(spec), "--project-root", str(tmp_path)],
     )
     assert record_result.exit_code == 0
+    assert "Recorded 1 spec(s) successfully" in record_result.stdout
 
     run_result = runner.invoke(
         app,
@@ -278,6 +279,7 @@ env:
         ["baseline", "update", str(spec), "--project-root", str(tmp_path)],
     )
     assert update_result.exit_code == 0
+    assert "Updated baseline for 1 spec(s)" in update_result.stdout
 
     clean_after_update = runner.invoke(app, ["run", str(spec), "--project-root", str(tmp_path)])
     assert clean_after_update.exit_code == 0
@@ -337,6 +339,7 @@ add(1, 2)
         ["baseline", "create", str(spec), "--name", "v2", "--project-root", str(tmp_path)],
     )
     assert create_v2.exit_code == 0
+    assert "Created baseline version" in create_v2.stdout
 
     run_v2 = runner.invoke(app, ["run", str(spec), "--project-root", str(tmp_path), "--baseline", "v2"])
     assert run_v2.exit_code == 0
