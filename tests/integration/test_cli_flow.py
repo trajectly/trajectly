@@ -114,6 +114,9 @@ strict: true
 
     run_result = runner.invoke(app, ["run", str(spec), "--project-root", str(tmp_path)])
     assert run_result.exit_code == 1
+    assert "Tip: run" in run_result.output
+    assert "python -m trajectly repro" in run_result.output
+    assert "python -m trajectly shrink" in run_result.output
 
 
 def test_record_auto_returns_error_when_no_specs_discovered(tmp_path: Path) -> None:
