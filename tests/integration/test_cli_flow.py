@@ -373,6 +373,16 @@ add(1, 2)
     assert "v1" in entries["versioned"]["versions"]
     assert "v2" in entries["versioned"]["versions"]
 
+    listed_by_slug = runner.invoke(app, ["baseline", "list", "versioned", "--project-root", str(tmp_path)])
+    assert listed_by_slug.exit_code == 0
+    listed_by_slug_payload = json.loads(listed_by_slug.stdout)
+    assert listed_by_slug_payload["specs"] == [entries["versioned"]]
+
+    listed_by_path = runner.invoke(app, ["baseline", "list", str(spec), "--project-root", str(tmp_path)])
+    assert listed_by_path.exit_code == 0
+    listed_by_path_payload = json.loads(listed_by_path.stdout)
+    assert listed_by_path_payload["specs"] == [entries["versioned"]]
+
     report_payload = json.loads((tmp_path / ".trajectly" / "reports" / "versioned.json").read_text(encoding="utf-8"))
     trt_payload = report_payload["trt_v03"]
     assert trt_payload["baseline_version"] == "v2"
