@@ -71,6 +71,14 @@ def test_cli_report_pr_comment_output(tmp_path: Path) -> None:
     assert "`demo`" in result.stdout
 
 
+def test_cli_report_pr_comment_missing_latest_file_returns_error(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["report", "--project-root", str(tmp_path), "--pr-comment"])
+
+    assert result.exit_code == 2
+    assert "Latest report not found" in result.output
+    assert "Run `python -m trajectly run` first to generate a report." in result.output
+
+
 def test_cli_report_rejects_json_with_pr_comment(tmp_path: Path) -> None:
     result = runner.invoke(app, ["report", "--project-root", str(tmp_path), "--json", "--pr-comment"])
     assert result.exit_code == 2
