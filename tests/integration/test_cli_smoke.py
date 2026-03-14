@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -9,6 +10,13 @@ from typer.testing import CliRunner
 from trajectly.cli import app
 
 runner = CliRunner()
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+
+def _normalize_help(output: str) -> str:
+    """Strip ANSI + collapse whitespace so help assertions survive CI formatting."""
+    return re.sub(r"\s+", " ", _ANSI_ESCAPE_RE.sub("", output)).strip().lower()
 
 
 def _write_file(path: Path, content: str) -> None:
@@ -101,37 +109,42 @@ class TestCliSmoke:
     def test_repro_help(self) -> None:
         result = runner.invoke(app, ["repro", "--help"])
         assert result.exit_code == 0
+        out = _normalize_help(result.output)
         # Assert command-specific strings so we know we got the subcommand help page.
-        assert "repro [OPTIONS]" in result.output
-        assert "--print-only" in result.output
+        assert "repro [options]" in out
+        assert "--print-only" in out
 
     def test_shrink_help(self) -> None:
         result = runner.invoke(app, ["shrink", "--help"])
         assert result.exit_code == 0
-        assert "shrink [OPTIONS]" in result.output
-        assert "--max-seconds" in result.output
-        assert "--max-iterations" in result.output
+        out = _normalize_help(result.output)
+        assert "shrink [options]" in out
+        assert "--max-seconds" in out
+        assert "--max-iterations" in out
 
     def test_baseline_list_help(self) -> None:
         result = runner.invoke(app, ["baseline", "list", "--help"])
         assert result.exit_code == 0
-        assert "baseline list" in result.output
-        assert "TARGETS" in result.output
-        assert "Optional spec paths/slugs to filter" in result.output
+        out = _normalize_help(result.output)
+        assert "baseline list" in out
+        assert "targets" in out
+        assert "optional spec paths/slugs to filter" in out
 
     def test_baseline_diff_help(self) -> None:
         result = runner.invoke(app, ["baseline", "diff", "--help"])
         assert result.exit_code == 0
-        assert "baseline diff" in result.output
-        assert "SPEC_SLUG" in result.output
-        assert "--json" in result.output
+        out = _normalize_help(result.output)
+        assert "baseline diff" in out
+        assert "spec_slug" in out
+        assert "--json" in out
 
     def test_baseline_promote_help(self) -> None:
         result = runner.invoke(app, ["baseline", "promote", "--help"])
         assert result.exit_code == 0
-        assert "baseline promote" in result.output
-        assert "VERSION" in result.output
-        assert "Baseline version name to promote" in result.output
+        out = _normalize_help(result.output)
+        assert "baseline promote" in out
+        assert "version" in out
+        assert "baseline version name to promote" in out
 
     def test_exit_codes_preserved(self, tmp_path: Path) -> None:
         """init=0, record=0, run with no regression=0."""
