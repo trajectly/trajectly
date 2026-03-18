@@ -115,6 +115,8 @@ Recommended `2xx` JSON response:
 
 Authentication failures should use `401` or `403`. Validation failures should use `400`. Transient server failures should use `408`, `409`, `425`, `429`, or `5xx` so the CLI can retry safely with the same `Idempotency-Key`.
 
+`Idempotency-Key` is derived from the stable sync payload content, not the request timestamp, so repeating the same logical upload after an uncertain failure reuses the same key.
+
 ## Local Metadata
 
 After a successful upload, Trajectly writes `.trajectly/sync/latest.json` with:

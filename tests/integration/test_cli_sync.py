@@ -82,3 +82,39 @@ def test_cli_sync_uses_relative_workspace_paths_in_payload(tmp_path: Path) -> No
 
     metadata = json.loads((tmp_path / ".trajectly" / "sync" / "latest.json").read_text(encoding="utf-8"))
     assert metadata["latest_report_path"] == ".trajectly/reports/latest.json"
+
+
+def test_cli_sync_reuses_idempotency_key_for_repeated_identical_uploads(tmp_path: Path) -> None:
+    prepare_sync_workspace(tmp_path)
+
+    with serve_sync_endpoint(
+        [
+            PlannedSyncResponse(status=202, body={"accepted": True, "sync_id": "sync-one"}),
+            PlannedSyncResponse(status=202, body={"accepted": True, "sync_id": "sync-two"}),
+        ]
+    ) as server:
+        first = runner.invoke(
+            app,
+            [
+                "sync",
+                "--project-root",
+                str(tmp_path),
+                "--endpoint",
+                server.url,
+            ],
+        )
+        second = runner.invoke(
+            app,
+            [
+                "sync",
+                "--project-root",
+                str(tmp_path),
+                "--endpoint",
+                server.url,
+            ],
+        )
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    assert len(server.requests) == 2
+    assert server.requests[0].headers["Idempotency-Key"] == server.requests[1].headers["Idempotency-Key"]

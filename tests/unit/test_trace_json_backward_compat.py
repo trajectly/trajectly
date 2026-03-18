@@ -65,3 +65,21 @@ def test_trajectory_json_reader_rejects_invalid_event_payloads(tmp_path: Path) -
 
     with pytest.raises(SchemaValidationError, match="Trace event requires non-negative integer `event_index`"):
         read_trajectory_json(path)
+
+
+def test_trajectory_json_reader_defaults_missing_top_level_schema_to_v04(tmp_path: Path) -> None:
+    path = tmp_path / "missing-schema-trajectory.json"
+    path.write_text(
+        json.dumps(
+            {
+                "meta": {"schema_version": "0.4", "normalizer_version": "1", "metadata": {}},
+                "events": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = read_trajectory_json(path)
+
+    assert loaded.schema_version == "0.4"
+    assert loaded.events == []

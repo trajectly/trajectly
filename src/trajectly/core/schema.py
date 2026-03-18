@@ -183,7 +183,7 @@ def validate_trajectory_json_dict(data: dict[str, Any]) -> dict[str, Any]:
         raise SchemaValidationError("Trajectory JSON payload must be an object")
 
     schema_version = _normalize_schema_version(
-        data.get("schema_version"),
+        data.get("schema_version", TRT_TRACE_SCHEMA_VERSION),
         kind="trajectory JSON",
         supported=SUPPORTED_TRAJECTORY_JSON_SCHEMA_VERSIONS,
         allow_missing=True,
