@@ -4,10 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from trajectly.core.constants import SCHEMA_VERSION, TRACE_EVENT_TYPES
+from trajectly.core.constants import (
+    SCHEMA_VERSION,
+    TRACE_EVENT_TYPES,
+    TRT_NORMALIZER_VERSION,
+    TRT_TRACE_SCHEMA_VERSION,
+)
+from trajectly.core.trace.validate import TraceValidationError, validate_trace_event_v03, validate_trace_meta_v03
 
 SUPPORTED_TRACE_SCHEMA_VERSIONS = {SCHEMA_VERSION}
 SUPPORTED_REPORT_SCHEMA_VERSIONS = {SCHEMA_VERSION}
+SUPPORTED_TRAJECTORY_JSON_SCHEMA_VERSIONS = {TRT_TRACE_SCHEMA_VERSION}
 
 
 class SchemaValidationError(ValueError):
@@ -169,11 +176,68 @@ def validate_latest_report_dict(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_trajectory_json_dict(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate a portable execution trajectory JSON payload."""
+
+    if not isinstance(data, dict):
+        raise SchemaValidationError("Trajectory JSON payload must be an object")
+
+    schema_version = _normalize_schema_version(
+        data.get("schema_version"),
+        kind="trajectory JSON",
+        supported=SUPPORTED_TRAJECTORY_JSON_SCHEMA_VERSIONS,
+        allow_missing=True,
+    )
+
+    meta_raw = data.get("meta", {})
+    if not isinstance(meta_raw, dict):
+        raise SchemaValidationError("Trajectory JSON requires object field `meta`")
+
+    events_raw = data.get("events", [])
+    if not isinstance(events_raw, list):
+        raise SchemaValidationError("Trajectory JSON requires list field `events`")
+
+    meta_candidate = {
+        "schema_version": meta_raw.get("schema_version", TRT_TRACE_SCHEMA_VERSION),
+        "normalizer_version": meta_raw.get("normalizer_version", TRT_NORMALIZER_VERSION),
+        "metadata": meta_raw.get("metadata", {}),
+        **{
+            key: value
+            for key, value in meta_raw.items()
+            if key not in {"schema_version", "normalizer_version", "metadata"}
+        },
+    }
+
+    try:
+        normalized_meta = validate_trace_meta_v03(meta_candidate)
+        normalized_events = [
+            validate_trace_event_v03(
+                {
+                    "schema_version": event.get("schema_version", TRT_TRACE_SCHEMA_VERSION)
+                    if isinstance(event, dict)
+                    else None,
+                    **(event if isinstance(event, dict) else {}),
+                }
+            )
+            for event in events_raw
+        ]
+    except TraceValidationError as exc:
+        raise SchemaValidationError(str(exc)) from exc
+
+    return {
+        "schema_version": schema_version,
+        "meta": normalized_meta,
+        "events": normalized_events,
+    }
+
+
 __all__ = [
     "SUPPORTED_REPORT_SCHEMA_VERSIONS",
     "SUPPORTED_TRACE_SCHEMA_VERSIONS",
+    "SUPPORTED_TRAJECTORY_JSON_SCHEMA_VERSIONS",
     "SchemaValidationError",
     "validate_diff_report_dict",
     "validate_latest_report_dict",
     "validate_trace_event_dict",
+    "validate_trajectory_json_dict",
 ]

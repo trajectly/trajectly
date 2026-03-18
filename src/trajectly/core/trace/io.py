@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from trajectly.core.trace.models import TraceEventV03, TraceMetaV03
+from trajectly.core.trace.meta import default_trace_meta_path
+from trajectly.core.trace.models import TraceEventV03, TraceMetaV03, TrajectoryV03
 from trajectly.core.trace.validate import validate_trace_event_v03, validate_trace_meta_v03
 
 
@@ -68,10 +69,43 @@ def read_trace_meta(path: Path) -> TraceMetaV03:
     )
 
 
+def write_trajectory_json(path: Path, trajectory: TrajectoryV03 | dict[str, Any]) -> None:
+    """Write a bundled trajectory JSON artifact for platform ingestion."""
+
+    from trajectly.core.schema import validate_trajectory_json_dict
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    raw = trajectory.to_dict() if isinstance(trajectory, TrajectoryV03) else trajectory
+    validated = validate_trajectory_json_dict(raw)
+    path.write_text(json.dumps(validated, sort_keys=True, indent=2, ensure_ascii=True), encoding="utf-8")
+
+
+def read_trajectory_json(path: Path) -> TrajectoryV03:
+    """Read a bundled trajectory JSON artifact."""
+
+    from trajectly.core.schema import validate_trajectory_json_dict
+
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    validated = validate_trajectory_json_dict(raw)
+    return TrajectoryV03.from_dict(validated)
+
+
+def read_legacy_trajectory(trace_path: Path, meta_path: Path | None = None) -> TrajectoryV03:
+    """Lift legacy ``trace.jsonl`` + ``trace.meta.json`` artifacts into a bundled trajectory."""
+
+    resolved_meta_path = meta_path or default_trace_meta_path(trace_path)
+    meta = read_trace_meta(resolved_meta_path)
+    events = read_trace_events(trace_path)
+    return TrajectoryV03(meta=meta, events=events)
+
+
 __all__ = [
     "append_trace_event",
+    "read_legacy_trajectory",
     "read_trace_events",
     "read_trace_meta",
+    "read_trajectory_json",
     "write_trace_events",
     "write_trace_meta",
+    "write_trajectory_json",
 ]
