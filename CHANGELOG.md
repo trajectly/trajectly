@@ -55,6 +55,8 @@ All notable changes to this project are documented in this file.
 - `_repo_src_path()` in `runtime.py` adjusted for new file depth after move to `core/`.
 - Shim for `replay_guard.py` uses `sys.modules` aliasing for monkeypatch compatibility.
 - Shim for `engine_common.py` explicitly re-exports underscore-prefixed names.
+- Portable trajectory JSON now defaults a missing top-level `schema_version` to `0.4` during validation.
+- `trajectly sync` now derives `Idempotency-Key` from stable artifact content so repeated identical uploads reuse the same key.
 
 ### Internal
 

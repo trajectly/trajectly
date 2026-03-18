@@ -153,3 +153,27 @@ def test_define_sync_protocol_models_and_http_client_validation_path() -> None:
             ),
             reports=[cast(Any, {"not": "a-report"})],
         )
+
+
+def test_sync_request_idempotency_key_is_stable_across_generated_at_changes() -> None:
+    base_kwargs = {
+        "project": SyncProject(
+            slug="sync-demo",
+            root_path="/tmp/sync-demo",
+            git_sha="abc123",
+            trajectly_version="0.4.2",
+        ),
+        "run": SyncRunEnvelope(
+            processed_specs=1,
+            regressions=0,
+            errors=[],
+            latest_report_path=".trajectly/reports/latest.json",
+            latest_report_sha256="report-sha",
+        ),
+    }
+
+    first = SyncRequest(generated_at="2026-03-18T19:00:00+00:00", **base_kwargs)
+    second = SyncRequest(generated_at="2026-03-18T19:05:00+00:00", **base_kwargs)
+
+    assert first.idempotency_key == second.idempotency_key
+    assert first.to_dict()["generated_at"] != second.to_dict()["generated_at"]

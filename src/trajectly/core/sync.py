@@ -282,7 +282,7 @@ class SyncRequest:
                 field_name="request.idempotency_key",
             )
         else:
-            self.idempotency_key = sha256_of_data(self._payload_without_idempotency())
+            self.idempotency_key = sha256_of_data(self._payload_for_idempotency())
 
     @staticmethod
     def _coerce_report(value: SyncReportEnvelope) -> SyncReportEnvelope:
@@ -299,6 +299,18 @@ class SyncRequest:
     def _payload_without_idempotency(self) -> dict[str, Any]:
         return {
             "generated_at": self.generated_at,
+            "schema_version": self.schema_version,
+            "protocol_version": self.protocol_version,
+            "project": self.project.to_dict(),
+            "run": self.run.to_dict(),
+            "reports": [report.to_dict() for report in self.reports],
+            "trajectories": [trajectory.to_dict() for trajectory in self.trajectories],
+        }
+
+    def _payload_for_idempotency(self) -> dict[str, Any]:
+        """Return the stable subset used to derive the request idempotency key."""
+
+        return {
             "schema_version": self.schema_version,
             "protocol_version": self.protocol_version,
             "project": self.project.to_dict(),
