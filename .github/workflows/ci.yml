@@ -56,6 +56,17 @@ jobs:
         run: ruff check .
       - name: Typecheck
         run: mypy src
+      - name: Platform API Compatibility
+        run: |
+          pytest -q \
+            tests/unit/test_core_evaluate_api.py \
+            tests/unit/test_write_public_api_surface_documentation.py \
+            tests/unit/test_platform_api_contract.py \
+            tests/unit/test_add_platform_boundary_enforcement_tests.py \
+            tests/unit/test_boundary_enforcement.py \
+            tests/integration/test_platform_evaluate_import.py \
+            tests/integration/test_platform_api_smoke.py \
+            tests/integration/test_add_ci_compatibility_gate_for_platform_facing_api.py
       - name: Test
         run: pytest -q
       - name: Determinism Replay Tests

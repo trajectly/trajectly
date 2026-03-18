@@ -1,4 +1,4 @@
-"""Verify architectural boundaries: core must not depend on CLI frameworks."""
+"""Verify architectural boundaries for the stable platform-facing engine surface."""
 from __future__ import annotations
 
 import ast
@@ -24,6 +24,7 @@ def _extract_imports(source: str) -> list[str]:
 CORE_ROOT = Path(__file__).resolve().parents[2] / "src" / "trajectly" / "core"
 
 FORBIDDEN_IN_CORE = {"typer", "rich", "click"}
+FORBIDDEN_CORE_PREFIXES = {"trajectly.cli", "trajectly.engine_common"}
 
 
 def test_core_has_no_cli_framework_imports() -> None:
@@ -35,9 +36,12 @@ def test_core_has_no_cli_framework_imports() -> None:
             if top_level in FORBIDDEN_IN_CORE:
                 rel = py_file.relative_to(CORE_ROOT)
                 violations.append(f"{rel}: imports {mod}")
+            if any(mod == prefix or mod.startswith(f"{prefix}.") for prefix in FORBIDDEN_CORE_PREFIXES):
+                rel = py_file.relative_to(CORE_ROOT)
+                violations.append(f"{rel}: imports {mod}")
 
     assert not violations, (
-        "Core package must not import CLI frameworks:\n" + "\n".join(violations)
+        "Core package must not import CLI frameworks or orchestration layers:\n" + "\n".join(violations)
     )
 
 
@@ -58,3 +62,13 @@ def test_sdk_has_no_cli_imports() -> None:
     assert not violations, (
         "SDK must not import CLI frameworks or CLI layer:\n" + "\n".join(violations)
     )
+
+
+def test_platform_contract_doc_lists_non_api_modules_that_remain_internal() -> None:
+    docs_path = Path(__file__).resolve().parents[2] / "docs" / "platform_api_surface.md"
+    docs_text = docs_path.read_text(encoding="utf-8")
+
+    assert "trajectly.core.api" in docs_text
+    assert "trajectly.core.sync" in docs_text
+    assert "trajectly.cli.*" in docs_text
+    assert "trajectly.engine_common" in docs_text

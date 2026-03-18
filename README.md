@@ -193,6 +193,9 @@ if not verdict.passed:
 
 If you omit `baseline_events`, Trajectly evaluates execution contracts without requiring CLI baseline orchestration. Provide `baseline_events` when you want refinement checks to participate in the verdict.
 
+The supported Phase 1 import boundary for platform code is documented in
+[docs/platform_api_surface.md](docs/platform_api_surface.md).
+
 ## Try Merge or Die
 
 Eight arena scenarios covering all six failure categories. Run them, break them, debug them.
@@ -206,6 +209,7 @@ Eight arena scenarios covering all six failure categories. Run them, break them,
 - [Contract Catalog](docs/contract_catalog.md) -- reference for all six contract dimensions
 - [Reference](docs/trajectly_reference.md) -- CLI, spec schema, SDK, trace schema
 - [CI: GitHub Actions](docs/ci_github_actions.md) -- action inputs, execution order, artifacts
+- [Platform API Surface](docs/platform_api_surface.md) -- supported imports and compatibility contract for `trajectly-platform`
 - [Platform Sync Protocol](docs/platform_sync_protocol.md) -- HTTP contract for `trajectly sync`
 - [Architecture (maintainers)](docs/architecture.md)
 
