@@ -26,6 +26,10 @@ All notable changes to this project are documented in this file.
   - `tests/integration/test_determinism_replay.py` validates repeat-run TRT payload stability.
   - Replay network-block integration assertion for CI-safe offline mode.
 - Tiered Makefile quality targets: `make check`, `make test-fast`, `make test-determinism`, `make test-cov`.
+- Stable Python evaluation API for platform integrations:
+  - `trajectly.core.evaluate(trajectory, spec) -> Verdict`
+  - stable `Trajectory`, `Verdict`, and `Violation` exports from `trajectly.core` and top-level `trajectly`
+  - import-contract coverage for non-CLI callers
 
 ### Changed
 
