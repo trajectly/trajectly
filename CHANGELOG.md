@@ -39,6 +39,10 @@ All notable changes to this project are documented in this file.
   - deterministic sync payloads with `Idempotency-Key`
   - `.trajectly/sync/latest.json` metadata for the last successful upload
   - sync protocol reference in `docs/platform_sync_protocol.md`
+- Platform API compatibility guardrail suite:
+  - `docs/platform_api_surface.md` pins the supported server/platform import surface
+  - contract and smoke tests cover stable imports plus portable trajectory helpers
+  - CI now runs a dedicated platform API compatibility step before the full test suite
 
 ### Changed
 
