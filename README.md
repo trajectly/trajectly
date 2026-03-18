@@ -145,6 +145,7 @@ Any CI:
 pip install trajectly
 python -m trajectly run specs/*.agent.yaml --project-root .
 python -m trajectly report --pr-comment > trajectly_pr_comment.md
+python -m trajectly sync --project-root . --endpoint https://platform.example/api/v1/sync
 ```
 
 GitHub Actions:
@@ -160,6 +161,8 @@ GitHub Actions:
 When a spec fails, the PR gets a death report: witness index, violated contract, repro command, and shrink result.
 
 See [trajectly-action](https://github.com/trajectly/trajectly-action) for full CI documentation.
+
+For platform ingestion, `python -m trajectly sync` uploads the latest run report plus portable execution trajectories to a Trajectly-compatible server endpoint. The request contract is documented in [docs/platform_sync_protocol.md](docs/platform_sync_protocol.md).
 
 ## Python API
 
@@ -203,6 +206,7 @@ Eight arena scenarios covering all six failure categories. Run them, break them,
 - [Contract Catalog](docs/contract_catalog.md) -- reference for all six contract dimensions
 - [Reference](docs/trajectly_reference.md) -- CLI, spec schema, SDK, trace schema
 - [CI: GitHub Actions](docs/ci_github_actions.md) -- action inputs, execution order, artifacts
+- [Platform Sync Protocol](docs/platform_sync_protocol.md) -- HTTP contract for `trajectly sync`
 - [Architecture (maintainers)](docs/architecture.md)
 
 ## Contributing

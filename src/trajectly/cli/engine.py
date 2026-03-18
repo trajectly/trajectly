@@ -32,10 +32,12 @@ from trajectly.diff import compare_traces
 from trajectly.diff.models import DiffResult, Finding
 from trajectly.engine_common import (
     CommandOutcome,
+    SyncMetadata,
     _ensure_state_dirs,
     _slugify,
     _state_paths,
     _StatePaths,
+    _write_sync_metadata,
 )
 from trajectly.events import (
     TraceEvent,
@@ -50,9 +52,19 @@ from trajectly.redaction import apply_redactions
 from trajectly.report import write_reports
 from trajectly.report.schema import ShrinkStatsV03
 from trajectly.runtime import ExecutionResult, execute_spec
-from trajectly.schema import validate_latest_report_dict
+from trajectly.schema import validate_diff_report_dict, validate_latest_report_dict
 from trajectly.shrink import ddmin_shrink
 from trajectly.specs import AgentSpec, BudgetThresholds, load_specs
+from trajectly.sync import (
+    SyncClient,
+    SyncProject,
+    SyncReportEnvelope,
+    SyncRequest,
+    SyncResponse,
+    SyncRunEnvelope,
+    SyncTrajectoryEnvelope,
+    trajectory_from_trace_events,
+)
 from trajectly.trace.io import read_trace_meta, write_trace_meta
 from trajectly.trace.models import TraceMetaV03
 from trajectly.trt.runner import TRTResult, evaluate_trt
@@ -76,6 +88,7 @@ __all__ = [
     "resolve_repro_spec",
     "run_specs",
     "shrink_repro",
+    "sync_workspace",
 ]
 
 
@@ -1909,6 +1922,228 @@ def latest_report_path(project_root: Path, as_json: bool) -> Path:
     """Return latest report path in markdown or JSON form."""
     paths = _state_paths(project_root)
     return paths.reports / ("latest.json" if as_json else "latest.md")
+
+
+def _sync_relative_path(path: Path, project_root: Path) -> str:
+    """Return a sync-safe relative path when the target lives inside the workspace."""
+
+    resolved_path = path.resolve()
+    resolved_root = project_root.resolve()
+    try:
+        return resolved_path.relative_to(resolved_root).as_posix()
+    except ValueError:
+        return str(resolved_path)
+
+
+def _build_sync_row_artifacts(
+    *,
+    row: dict[str, Any],
+    project_root: Path,
+    git_sha: str,
+) -> tuple[SyncReportEnvelope, SyncTrajectoryEnvelope]:
+    """Load one latest-report row into report and trajectory sync envelopes."""
+
+    spec = str(row.get("spec", "")).strip()
+    slug = str(row.get("slug", "")).strip()
+    if not spec or not slug:
+        raise ValueError("Latest report rows must include non-empty `spec` and `slug` fields for sync")
+
+    report_json_raw = row.get("report_json")
+    current_raw = row.get("current")
+    spec_path_raw = row.get("spec_path")
+    if not isinstance(report_json_raw, str) or not report_json_raw.strip():
+        raise ValueError(f"Latest report row for `{spec}` is missing `report_json`")
+    if not isinstance(current_raw, str) or not current_raw.strip():
+        raise ValueError(f"Latest report row for `{spec}` is missing `current`")
+    if not isinstance(spec_path_raw, str) or not spec_path_raw.strip():
+        raise ValueError(f"Latest report row for `{spec}` is missing `spec_path`")
+
+    report_json_path = Path(report_json_raw).resolve()
+    current_path = Path(current_raw).resolve()
+    spec_path = Path(spec_path_raw).resolve()
+    if not report_json_path.exists():
+        raise FileNotFoundError(f"Sync report file not found for `{spec}`: {report_json_path}")
+    if not current_path.exists():
+        raise FileNotFoundError(f"Sync trajectory file not found for `{spec}`: {current_path}")
+
+    report_payload = json.loads(report_json_path.read_text(encoding="utf-8"))
+    if not isinstance(report_payload, dict):
+        raise ValueError(f"Sync report payload must be an object for `{spec}`")
+    validate_diff_report_dict(report_payload)
+
+    current_events = read_events_jsonl(current_path)
+    run_id = current_events[0].run_id if current_events else None
+    baseline_version_raw = row.get("baseline_version")
+    baseline_version = baseline_version_raw.strip() if isinstance(baseline_version_raw, str) else None
+
+    trajectory = trajectory_from_trace_events(
+        current_events,
+        spec_name=spec,
+        mode="replay",
+        run_id=run_id,
+        metadata={
+            "git_sha": git_sha,
+            "source_path": _sync_relative_path(current_path, project_root),
+            "baseline_version": baseline_version,
+            "legacy_event_schema_version": SCHEMA_VERSION,
+        },
+    )
+
+    report_metadata: dict[str, Any] = {}
+    for key, value in row.items():
+        if key in {"spec", "slug", "regression", "spec_path", "report_json", "report_md"}:
+            continue
+        if isinstance(value, str) and key in {
+            "baseline",
+            "current",
+            "repro_artifact",
+            "trt_counterexample_prefix",
+        }:
+            report_metadata[key] = _sync_relative_path(Path(value), project_root)
+        else:
+            report_metadata[key] = value
+
+    report_md_raw = row.get("report_md")
+    report_md_path = (
+        _sync_relative_path(Path(report_md_raw), project_root)
+        if isinstance(report_md_raw, str) and report_md_raw.strip()
+        else None
+    )
+
+    return (
+        SyncReportEnvelope(
+            spec=spec,
+            slug=slug,
+            regression=bool(row.get("regression", False)),
+            spec_path=_sync_relative_path(spec_path, project_root),
+            report_json_path=_sync_relative_path(report_json_path, project_root),
+            report_md_path=report_md_path,
+            report_payload=report_payload,
+            run_id=run_id,
+            metadata=report_metadata,
+        ),
+        SyncTrajectoryEnvelope(
+            spec=spec,
+            slug=slug,
+            kind="current",
+            path=_sync_relative_path(current_path, project_root),
+            trajectory=trajectory,
+            run_id=run_id,
+            baseline_version=baseline_version,
+            metadata={
+                "report_json_path": _sync_relative_path(report_json_path, project_root),
+            },
+        ),
+    )
+
+
+def _build_sync_request(*, project_root: Path, project_slug: str) -> SyncRequest:
+    """Build a deterministic sync request from the latest workspace report artifacts."""
+
+    paths = _state_paths(project_root.resolve())
+    _ensure_state_dirs(paths)
+    aggregate = _read_latest_report_dict(paths.root)
+    rows = aggregate.get("reports", [])
+    if not isinstance(rows, list):
+        raise ValueError("Latest report payload is invalid: reports must be a list")
+
+    git_sha = _resolve_git_sha(paths.root)
+    reports: list[SyncReportEnvelope] = []
+    trajectories: list[SyncTrajectoryEnvelope] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise ValueError(f"Latest report row at index {index} must be an object")
+        report, trajectory = _build_sync_row_artifacts(row=row, project_root=paths.root, git_sha=git_sha)
+        reports.append(report)
+        trajectories.append(trajectory)
+
+    return SyncRequest(
+        project=SyncProject(
+            slug=_slugify(project_slug),
+            root_path=str(paths.root.resolve()),
+            git_sha=git_sha,
+            trajectly_version=trajectly_version,
+        ),
+        run=SyncRunEnvelope(
+            processed_specs=int(aggregate.get("processed_specs", 0)),
+            regressions=int(aggregate.get("regressions", 0)),
+            errors=[str(item) for item in aggregate.get("errors", []) if isinstance(item, str | int | float)],
+            latest_report_path=_sync_relative_path(paths.reports / "latest.json", paths.root),
+            latest_report_sha256=sha256_of_data(aggregate),
+            trt_mode=bool(aggregate.get("trt_mode", True)),
+        ),
+        reports=reports,
+        trajectories=trajectories,
+    )
+
+
+def sync_workspace(
+    *,
+    project_root: Path,
+    endpoint: str,
+    api_key: str | None = None,
+    project_slug: str | None = None,
+    dry_run: bool = False,
+    retries: int = 2,
+    timeout_seconds: float = 15.0,
+) -> tuple[SyncRequest, SyncResponse, Path | None]:
+    """Upload the latest workspace run data to a Trajectly-compatible HTTP endpoint."""
+
+    paths = _state_paths(project_root.resolve())
+    _ensure_state_dirs(paths)
+
+    resolved_project_slug = _slugify(project_slug or paths.root.name)
+    request = _build_sync_request(project_root=paths.root, project_slug=resolved_project_slug)
+    if dry_run:
+        return (
+            request,
+            SyncResponse(
+                accepted=True,
+                endpoint=endpoint,
+                status_code=0,
+                idempotency_key=request.idempotency_key,
+                attempts=1,
+                dry_run=True,
+                message=(
+                    f"Prepared sync payload with {len(request.reports)} report(s) "
+                    f"and {len(request.trajectories)} trajectory bundle(s)."
+                ),
+                details={
+                    "reports": len(request.reports),
+                    "trajectories": len(request.trajectories),
+                },
+            ),
+            None,
+        )
+
+    client = SyncClient(
+        endpoint=endpoint,
+        api_key=api_key,
+        timeout_seconds=timeout_seconds,
+        user_agent=f"trajectly/{trajectly_version}",
+    )
+    response = client.send(request, retries=retries)
+    if not response.accepted:
+        raise RuntimeError(response.message or "Sync endpoint rejected the request")
+
+    metadata_path = _write_sync_metadata(
+        paths,
+        SyncMetadata(
+            endpoint=response.endpoint,
+            project_slug=request.project.slug,
+            idempotency_key=request.idempotency_key,
+            synced_at=datetime_module.datetime.now(datetime_module.UTC).isoformat(),
+            latest_report_path=request.run.latest_report_path,
+            latest_report_sha256=request.run.latest_report_sha256,
+            processed_specs=request.run.processed_specs,
+            report_count=len(request.reports),
+            trajectory_count=len(request.trajectories),
+            status="accepted",
+            sync_id=response.sync_id,
+            message=response.message,
+        ),
+    )
+    return request, response, metadata_path
 
 
 def build_repro_command(spec_path: Path, project_root: Path, strict_override: bool | None = None) -> str:
