@@ -34,6 +34,7 @@ The command surface below reflects current `python -m trajectly --help` workflow
 | `python -m trajectly run TARGETS... [--project-root ...] [--baseline ...] [--strict/--no-strict]` | Run TRT checks |
 | `python -m trajectly repro [SELECTOR] [--project-root ...] [--strict/--no-strict] [--print-only]` | Reproduce latest/selected regression |
 | `python -m trajectly shrink [SELECTOR] [--project-root ...] [--max-seconds ...] [--max-iterations ...]` | Minimize failing trace |
+| `python -m trajectly sync [--project-root ...] --endpoint ... [--project-slug ...] [--dry-run]` | Push latest run artifacts to a platform endpoint |
 | `python -m trajectly report [--project-root ...] [--json] [--pr-comment]` | Print latest aggregate report |
 | `python -m trajectly baseline ...` | Baseline lifecycle commands |
 
@@ -118,6 +119,26 @@ Examples:
 python -m trajectly shrink
 python -m trajectly shrink my-agent --max-seconds 20 --max-iterations 500
 ```
+
+### `sync`
+
+Signature:
+
+```text
+python -m trajectly sync [--project-root PATH] --endpoint URL [--api-key TOKEN] [--project-slug SLUG] [--dry-run] [--retries INT] [--timeout-seconds FLOAT]
+```
+
+Examples:
+
+```bash
+python -m trajectly sync --project-root . --endpoint https://platform.example/api/v1/sync
+python -m trajectly sync --project-root . --endpoint https://platform.example/api/v1/sync --dry-run
+```
+
+Protocol details:
+- Request/response contract: [Platform Sync Protocol](platform_sync_protocol.md)
+- Successful runs persist `.trajectly/sync/latest.json`
+- Dry runs build the payload and idempotency key without sending the request
 
 ### `report`
 

@@ -104,6 +104,7 @@ class TestCliSmoke:
         assert "init" in result.output
         assert "record" in result.output
         assert "run" in result.output
+        assert "sync" in result.output
         assert "report" in result.output
 
     def test_repro_help(self) -> None:
@@ -121,6 +122,14 @@ class TestCliSmoke:
         assert "shrink [options]" in out
         assert "--max-seconds" in out
         assert "--max-iterations" in out
+
+    def test_sync_help(self) -> None:
+        result = runner.invoke(app, ["sync", "--help"])
+        assert result.exit_code == 0
+        out = _normalize_help(result.output)
+        assert "sync [options]" in out
+        assert "--endpoint" in out
+        assert "--dry-run" in out
 
     def test_baseline_list_help(self) -> None:
         result = runner.invoke(app, ["baseline", "list", "--help"])

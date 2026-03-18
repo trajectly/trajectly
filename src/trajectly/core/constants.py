@@ -47,6 +47,7 @@ FIXTURES_DIR = STATE_DIR / "fixtures"
 REPORTS_DIR = STATE_DIR / "reports"
 TMP_DIR = STATE_DIR / "tmp"
 REPROS_DIR = STATE_DIR / "repros"
+SYNC_DIR = STATE_DIR / "sync"
 
 TRACE_EVENT_TYPES = {
     "run_started",

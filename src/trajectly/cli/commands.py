@@ -26,6 +26,7 @@ from trajectly.engine import (
     resolve_repro_spec,
     run_specs,
     shrink_repro,
+    sync_workspace,
 )
 from trajectly.report import render_pr_comment
 
@@ -257,6 +258,73 @@ def shrink(
     if outcome.exit_code == EXIT_SUCCESS:
         typer.echo("Shrink completed and report updated with shrink stats.")
     _emit_outcome(outcome)
+
+
+@app.command()
+def sync(
+    project_root: Path = typer.Option(Path("."), "--project-root", help="Project root"),
+    endpoint: str | None = typer.Option(
+        None,
+        "--endpoint",
+        envvar="TRAJECTLY_SYNC_ENDPOINT",
+        help="HTTP endpoint implementing the Trajectly sync ingestion protocol",
+    ),
+    api_key: str | None = typer.Option(
+        None,
+        "--api-key",
+        envvar="TRAJECTLY_API_KEY",
+        help="Optional bearer token for sync requests",
+        hide_input=True,
+    ),
+    project_slug: str | None = typer.Option(
+        None,
+        "--project-slug",
+        envvar="TRAJECTLY_PROJECT_SLUG",
+        help="Project slug to attach to the sync payload",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Build the sync payload without sending it"),
+    retries: int = typer.Option(2, "--retries", min=0, help="Retry count for transient HTTP failures"),
+    timeout_seconds: float = typer.Option(
+        15.0,
+        "--timeout-seconds",
+        min=0.1,
+        help="HTTP timeout for the sync request",
+    ),
+) -> None:
+    """Push the latest `.trajectly/` run artifacts to a Trajectly-compatible HTTP endpoint."""
+    if endpoint is None or not endpoint.strip():
+        typer.echo(
+            "ERROR: sync endpoint is required. Pass --endpoint or set TRAJECTLY_SYNC_ENDPOINT.",
+            err=True,
+        )
+        raise typer.Exit(EXIT_INTERNAL_ERROR)
+
+    try:
+        request, response, metadata_path = sync_workspace(
+            project_root=project_root.resolve(),
+            endpoint=endpoint,
+            api_key=api_key,
+            project_slug=project_slug,
+            dry_run=dry_run,
+            retries=retries,
+            timeout_seconds=timeout_seconds,
+        )
+    except Exception as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
+        raise typer.Exit(EXIT_INTERNAL_ERROR) from exc
+
+    typer.echo(
+        f"{'Prepared' if dry_run else 'Synced'} "
+        f"{len(request.reports)} report(s) and {len(request.trajectories)} trajectory bundle(s) "
+        f"for project `{request.project.slug}`"
+    )
+    typer.echo(f"Endpoint: {response.endpoint}")
+    typer.echo(f"Idempotency key: {request.idempotency_key}")
+    if response.message:
+        typer.echo(f"Server message: {response.message}")
+    if metadata_path is not None:
+        typer.echo(f"Sync metadata: {metadata_path}")
+    raise typer.Exit(EXIT_SUCCESS)
 
 
 @baseline_app.command("update")

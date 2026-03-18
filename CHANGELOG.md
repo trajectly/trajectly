@@ -34,6 +34,11 @@ All notable changes to this project are documented in this file.
   - `TrajectoryV03.to_json()` / `TrajectoryV03.from_json()`
   - `write_trajectory_json(...)` / `read_trajectory_json(...)`
   - `read_legacy_trajectory(...)` to lift existing `trace.jsonl` + `trace.meta.json` artifacts
+- First-party workspace sync client for platform ingestion:
+  - `python -m trajectly sync --endpoint ...`
+  - deterministic sync payloads with `Idempotency-Key`
+  - `.trajectly/sync/latest.json` metadata for the last successful upload
+  - sync protocol reference in `docs/platform_sync_protocol.md`
 
 ### Changed
 
