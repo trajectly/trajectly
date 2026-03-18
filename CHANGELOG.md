@@ -30,6 +30,10 @@ All notable changes to this project are documented in this file.
   - `trajectly.core.evaluate(trajectory, spec) -> Verdict`
   - stable `Trajectory`, `Verdict`, and `Violation` exports from `trajectly.core` and top-level `trajectly`
   - import-contract coverage for non-CLI callers
+- Portable execution trajectory JSON for platform ingestion:
+  - `TrajectoryV03.to_json()` / `TrajectoryV03.from_json()`
+  - `write_trajectory_json(...)` / `read_trajectory_json(...)`
+  - `read_legacy_trajectory(...)` to lift existing `trace.jsonl` + `trace.meta.json` artifacts
 
 ### Changed
 

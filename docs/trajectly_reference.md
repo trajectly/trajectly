@@ -424,6 +424,39 @@ Example:
 
 Note: spec schema version (`0.4`) and trace schema version (`v1`) are intentionally separate version namespaces.
 
+### Portable trajectory JSON
+
+For platform ingestion and storage, Trajectly also supports a bundled normalized trace payload:
+
+```json
+{
+  "events": [
+    {
+      "event_index": 0,
+      "kind": "TOOL_CALL",
+      "payload": {"tool_name": "search"},
+      "schema_version": "0.4",
+      "stable_hash": "abc123"
+    }
+  ],
+  "meta": {
+    "metadata": {},
+    "mode": "record",
+    "normalizer_version": "1",
+    "schema_version": "0.4",
+    "spec_name": "demo"
+  },
+  "schema_version": "0.4"
+}
+```
+
+Portable JSON helpers:
+- `trajectly.trace.models.TrajectoryV03.to_json()`
+- `trajectly.trace.models.TrajectoryV03.from_json(...)`
+- `trajectly.trace.io.write_trajectory_json(...)`
+- `trajectly.trace.io.read_trajectory_json(...)`
+- `trajectly.trace.io.read_legacy_trajectory(...)` to lift `trace.jsonl` + `trace.meta.json`
+
 ---
 
 ## 5) Contracts reference
