@@ -61,6 +61,7 @@ All notable changes to this project are documented in this file.
 - Shim for `engine_common.py` explicitly re-exports underscore-prefixed names.
 - Portable trajectory JSON now defaults a missing top-level `schema_version` to `0.4` during validation.
 - `trajectly sync` now derives `Idempotency-Key` from stable artifact content so repeated identical uploads reuse the same key.
+- Platform compatibility guards now preserve `from trajectly import ...` boundary checks and assert the dedicated CI gate runs before the full test suite.
 
 ### Internal
 

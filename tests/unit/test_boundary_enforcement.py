@@ -17,7 +17,11 @@ def _extract_imports(source: str) -> list[str]:
             for alias in node.names:
                 modules.append(alias.name)
         elif isinstance(node, ast.ImportFrom) and node.module:
-            modules.append(node.module)
+            for alias in node.names:
+                if alias.name == "*":
+                    modules.append(node.module)
+                    continue
+                modules.append(f"{node.module}.{alias.name}")
     return modules
 
 
@@ -72,3 +76,19 @@ def test_platform_contract_doc_lists_non_api_modules_that_remain_internal() -> N
     assert "trajectly.core.sync" in docs_text
     assert "trajectly.cli.*" in docs_text
     assert "trajectly.engine_common" in docs_text
+
+
+def test_extract_imports_preserves_from_import_aliases_for_boundary_checks() -> None:
+    imports = _extract_imports(
+        """
+from trajectly import engine_common
+from trajectly import cli
+from trajectly.cli import commands
+from rich import print
+"""
+    )
+
+    assert "trajectly.engine_common" in imports
+    assert "trajectly.cli" in imports
+    assert "trajectly.cli.commands" in imports
+    assert "rich.print" in imports

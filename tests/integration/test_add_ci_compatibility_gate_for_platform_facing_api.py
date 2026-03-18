@@ -14,6 +14,7 @@ def _ci_path() -> Path:
 def _validate_ci_gate(text: str) -> None:
     required_snippets = [
         "- name: Platform API Compatibility",
+        "- name: Test",
         "tests/unit/test_platform_api_contract.py",
         "tests/unit/test_boundary_enforcement.py",
         "tests/integration/test_platform_api_smoke.py",
@@ -22,6 +23,11 @@ def _validate_ci_gate(text: str) -> None:
     missing = [snippet for snippet in required_snippets if snippet not in text]
     if missing:
         raise ValueError("CI compatibility gate is missing required snippets: " + ", ".join(missing))
+
+    compatibility_index = text.index("- name: Platform API Compatibility")
+    full_test_index = text.index("- name: Test")
+    if compatibility_index > full_test_index:
+        raise ValueError("CI compatibility gate must run before the full test suite")
 
 
 def test_add_ci_compatibility_gate_for_platform_facing_api_integration_happy_path() -> None:
@@ -42,5 +48,28 @@ jobs:
     steps:
       - name: Test
         run: pytest -q
+"""
+        )
+
+    with pytest.raises(ValueError, match="CI compatibility gate must run before the full test suite"):
+        _validate_ci_gate(
+            """
+name: ci
+jobs:
+  test:
+    steps:
+      - name: Test
+        run: pytest -q
+      - name: Platform API Compatibility
+        run: pytest -q tests/integration/test_platform_evaluate_import.py
+      - name: Another step
+        run: echo done
+      - name: paths
+        run: |
+          pytest -q \
+            tests/unit/test_platform_api_contract.py \
+            tests/unit/test_boundary_enforcement.py \
+            tests/integration/test_platform_api_smoke.py \
+            tests/integration/test_platform_evaluate_import.py
 """
         )
