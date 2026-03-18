@@ -6,3 +6,12 @@ trace/event schemas.  It has **no** dependency on typer, rich, or any CLI
 framework.
 """
 from __future__ import annotations
+
+from trajectly.core.api import Trajectory, Verdict, Violation, evaluate
+
+__all__ = [
+    "Trajectory",
+    "Verdict",
+    "Violation",
+    "evaluate",
+]

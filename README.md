@@ -161,6 +161,35 @@ When a spec fails, the PR gets a death report: witness index, violated contract,
 
 See [trajectly-action](https://github.com/trajectly/trajectly-action) for full CI documentation.
 
+## Python API
+
+For platform or server integrations, use the stable import-safe evaluation API:
+
+```python
+from pathlib import Path
+
+from trajectly.core import Trajectory, evaluate
+from trajectly.events import make_event
+
+trajectory = Trajectory(
+    events=[
+        make_event(
+            event_type="tool_called",
+            seq=1,
+            run_id="platform-run",
+            rel_ms=1,
+            payload={"tool_name": "search", "input": {"args": [], "kwargs": {}}},
+        )
+    ]
+)
+
+verdict = evaluate(trajectory, Path("specs/my-agent.agent.yaml"))
+if not verdict.passed:
+    print(verdict.primary_violation)
+```
+
+If you omit `baseline_events`, Trajectly evaluates execution contracts without requiring CLI baseline orchestration. Provide `baseline_events` when you want refinement checks to participate in the verdict.
+
 ## Try Merge or Die
 
 Eight arena scenarios covering all six failure categories. Run them, break them, debug them.
