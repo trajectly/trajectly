@@ -8,6 +8,7 @@
 Deterministic regression testing for AI agents.
 
 The answer looked fine. The behavior wasn't. An agent that skips approval, leaks a secret, or calls a forbidden domain can still produce a perfectly worded final answer. Trajectly catches the behavioral regression and tells you *exactly where it broke*.
+Record once against live behavior, then replay committed fixtures deterministically in CI with no API key.
 
 ## Install
 
@@ -62,13 +63,17 @@ Most users should start with the CLI and, when needed, the SDK. The programmatic
 ## What Trajectly Catches
 
 Six categories of silent failure that correct-looking output can hide.
+Trajectly checks execution-path behavior, not final-answer quality: which tools ran, with what arguments, in what order, and across which data boundaries.
+The examples below are simplified report snippets with labeled fields.
 
 ### Missing steps
 
 An agent skips a required step but the answer reads fine. Trajectly extracts a tool-call skeleton from the baseline and verifies it appears as a subsequence in the current trace. Missing calls break the skeleton.
 
 ```text
-REFINEMENT_BASELINE_CALL_MISSING — missing_call=route_for_approval — witness=6
+violation: REFINEMENT_BASELINE_CALL_MISSING
+detail: missing_call=route_for_approval
+witness: 6
 ```
 
 ### Wrong order
@@ -76,7 +81,9 @@ REFINEMENT_BASELINE_CALL_MISSING — missing_call=route_for_approval — witness
 The right tools called in the wrong sequence. `require_before` says "A must happen before B" without locking exact positions, so the agent can evolve without breaking the ordering rule.
 
 ```text
-CONTRACT_SEQUENCE_REQUIRE_BEFORE_VIOLATED — expected=reserve_room before send_invite — witness=4
+violation: CONTRACT_SEQUENCE_REQUIRE_BEFORE_VIOLATED
+detail: expected=reserve_room before send_invite
+witness: 4
 ```
 
 ### Leaked secrets
@@ -84,7 +91,9 @@ CONTRACT_SEQUENCE_REQUIRE_BEFORE_VIOLATED — expected=reserve_room before send_
 The summary looks clean but the outbound tool-call payload contains a secret pattern. Trajectly scans outbound arguments against regex patterns declared in the contract.
 
 ```text
-DATA_LEAK_SECRET_PATTERN — pattern=sk_live_[A-Za-z0-9_]+ — witness=4
+violation: DATA_LEAK_SECRET_PATTERN
+detail: pattern=sk_live_[A-Za-z0-9_]+
+witness: 4
 ```
 
 ### Forbidden network access
@@ -92,7 +101,8 @@ DATA_LEAK_SECRET_PATTERN — pattern=sk_live_[A-Za-z0-9_]+ — witness=4
 The agent reports success but contacted a domain outside the allowlist. The network contract defaults to deny-all and whitelists specific domains.
 
 ```text
-NETWORK_DOMAIN_DENIED — witness=2
+violation: NETWORK_DOMAIN_DENIED
+witness: 2
 ```
 
 ### Invalid arguments
@@ -100,7 +110,8 @@ NETWORK_DOMAIN_DENIED — witness=2
 A tool call completes but an argument violates its format. Argument contracts validate required keys, types, numeric bounds, regex patterns, and enum values on every call.
 
 ```text
-CONTRACT_ARGS_REGEX_VIOLATION — witness=6
+violation: CONTRACT_ARGS_REGEX_VIOLATION
+witness: 6
 ```
 
 ### Budget overruns
@@ -108,8 +119,17 @@ CONTRACT_ARGS_REGEX_VIOLATION — witness=6
 Identical output, but twice the tool calls or tokens. Budget thresholds gate execution cost at the spec level.
 
 ```text
-budget_breach — max_tool_calls exceeded
+classification: budget_breach
+detail: max_tool_calls exceeded
 ```
+
+## Common Use Cases
+
+Trajectly is a good fit for agents that can look correct while doing the wrong thing at runtime.
+
+- **Support agents** -- keep read-only lookups read-only, require approval for MFA resets, ensure audit trails, and prevent PII leakage. See the [support agent case study](https://www.trajectly.dev/case-study/testing-the-support-agent).
+- **Approval-driven workflows** -- procurement, finance, HR, and IT operations agents where required steps, ordering, and one-time approvals matter.
+- **Tool-using copilots and RAG agents** -- validate tool arguments after model or prompt changes, block forbidden tools or domains, and catch hidden cost regressions.
 
 ## How You Debug Failures
 
@@ -125,41 +145,58 @@ No log hunting. No guesswork. No LLM calls for evaluation.
 
 ## Use This In Your Project
 
-1. Add one `.agent.yaml` spec (save as `specs/my-agent.agent.yaml`):
+1. Add one `.agent.yaml` spec (save as `specs/support-agent-mfa-reset.agent.yaml`):
 
 ```yaml
 schema_version: "0.4"
-name: "my-agent"
-command: "python -m my_agent.runner"
+name: "support-agent-mfa-reset"
+command: "python -m support_agent.runner"
 workdir: .
 strict: true
 fixture_policy: by_hash
+budget_thresholds:
+  max_tool_calls: 6
+  max_tokens: 800
 contracts:
-  config: contracts/my-agent.contracts.yaml
+  config: contracts/support-agent.contracts.yaml
 ```
 
-2. Add one `.contracts.yaml` policy (save as `contracts/my-agent.contracts.yaml`):
+2. Add one `.contracts.yaml` policy (save as `contracts/support-agent.contracts.yaml`):
 
 ```yaml
 version: v1
 tools:
-  allow: [fetch_context, create_reply]
+  allow: [draft_mfa_reset_request, request_human_approval, log_audit_event]
+  deny: [delete_user, disable_guardrails]
+args:
+  draft_mfa_reset_request:
+    required_keys: [account_id]
+    fields:
+      account_id:
+        type: string
+        regex: "^ACME-"
 sequence:
-  require: [fetch_context, create_reply]
+  require: [tool:draft_mfa_reset_request, tool:request_human_approval]
+  at_most_once: [tool:request_human_approval]
+  eventually: [tool:log_audit_event]
+data_leak:
+  deny_pii_outbound: true
 ```
 
 3. Record, gate, debug:
 
 ```bash
 python -m trajectly init
-python -m trajectly record specs/my-agent.agent.yaml --project-root .
-python -m trajectly run specs/my-agent.agent.yaml --project-root .
+python -m trajectly record specs/support-agent-mfa-reset.agent.yaml --project-root .
+python -m trajectly run specs/support-agent-mfa-reset.agent.yaml --project-root .
 python -m trajectly report
 python -m trajectly repro
 python -m trajectly shrink
 ```
 
 ## CI Integration
+
+Trajectly is the fast deterministic gate on every pull request. Record baselines locally against live behavior, commit them, then let CI replay the fixtures offline on every run. Broader live evals can run later on `main`, release branches, or scheduled jobs.
 
 Any CI:
 

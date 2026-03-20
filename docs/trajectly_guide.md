@@ -94,6 +94,16 @@ Replace `specs/challenges/procurement-chaos.agent.yaml` with your own spec path 
 
 ## 2) Core concepts
 
+### Where Trajectly fits
+
+Trajectly is the execution-path layer in an agent testing stack.
+
+- Unit and integration tests verify code paths, tool implementations, and deterministic orchestration.
+- Trajectly verifies what the agent actually did at runtime: tool usage, argument formats, ordering, data boundaries, and cost ceilings.
+- Scenario evals verify answer quality, refusal quality, and broader model behavior.
+
+That split matters because an agent can return a correct-looking final answer while still skipping approval, leaking PII into a tool call, or taking a more expensive path.
+
 ### Baseline
 
 A baseline is the known-good behavior for a spec. Trajectly stores baseline traces plus fixtures for deterministic replay.
@@ -103,6 +113,7 @@ Baselines are explicit, versioned behavior decisions. Future runs compare agains
 ### Replay
 
 In replay mode, tool and LLM calls are matched against fixtures and returned deterministically. This removes online nondeterminism from regression checks.
+The usual workflow is: record once against live behavior, commit the baseline and fixtures, then replay them offline in CI without an API key.
 
 ### Contracts
 
@@ -192,6 +203,8 @@ Record from known-good behavior:
 python -m trajectly record specs/challenges/procurement-chaos.agent.yaml --project-root .
 ```
 
+This step is the only part that needs live behavior. It captures the baseline trace plus the fixtures needed to replay the same interactions later.
+
 ### Validate changes
 
 Run gate + report:
@@ -200,6 +213,8 @@ Run gate + report:
 python -m trajectly run specs/challenges/*.agent.yaml --project-root .
 python -m trajectly report
 ```
+
+`run` replays the committed fixtures and evaluates refinement plus contracts deterministically. This is the command most teams use as the blocking CI gate on every pull request.
 
 Single-spec iteration example:
 

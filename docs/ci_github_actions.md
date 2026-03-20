@@ -5,6 +5,17 @@ The canonical Trajectly GitHub Action is:
 
 It wraps CLI commands and CI plumbing only. TRT evaluation remains in Python code.
 
+## Recommended pipeline shape
+
+Use Trajectly as the fast deterministic gate on every pull request:
+
+1. Record baselines locally against live behavior with `python -m trajectly record`.
+2. Commit `.trajectly/baselines/` and `.trajectly/fixtures/`.
+3. Run `trajectly/trajectly-action` on every PR to replay those fixtures offline.
+4. Run slower live evals separately on `main`, release branches, or scheduled workflows.
+
+This split keeps Trajectly in the blocking CI tier because replay mode needs no API key, makes no live model calls, and reproduces the same failures every time.
+
 ## Minimal workflow
 
 ```yaml
@@ -25,6 +36,7 @@ jobs:
 ```
 
 **Prerequisite**: Your repository must have committed baselines under `.trajectly/baselines/`. Record them first with `python -m trajectly record` (see [Guide](trajectly_guide.md)).
+Commit the matching `.trajectly/fixtures/` directory too; replay mode depends on both artifacts.
 
 ## Use from another repository
 
@@ -128,6 +140,7 @@ python -m trajectly report --pr-comment > trajectly_pr_comment.md
 Expected behavior:
 - `run` exits `0` for clean runs, `1` for regressions, `2` for config/tooling errors.
 - `trajectly_pr_comment.md` contains a markdown summary table for PR comments.
+- the run is deterministic because fixtures are replayed instead of calling live tools or models
 
 Upload `.trajectly/**` as artifacts with your CI provider.
 
