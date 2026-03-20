@@ -6,6 +6,40 @@ All examples reference real scenarios from the [Merge or Die arena](https://gith
 
 ---
 
+## Common policy recipes
+
+These compact patterns map the contract dimensions to common production agent use cases.
+
+### Support agent: read-only lookup
+
+Use `tools.deny`, `side_effects.deny_write_tools`, and `args` together when a support agent should answer a lookup without mutating anything.
+
+Typical checks:
+- only allow lookup tools for the scenario
+- deny write tools such as escalation or account mutation
+- require identifiers such as `invoice_id` or `ticket_id` to match a regex
+
+### Approval-driven workflow
+
+Use `sequence.require`, `require_before`, `at_most_once`, and `eventually` when approvals, audits, and one-time actions matter.
+
+Typical checks:
+- approval must occur before the write action
+- approval cannot loop or fire twice
+- an audit event must eventually appear in the trace
+
+### Tool-using copilot or RAG agent
+
+Use `args`, `network`, `data_leak`, and `budget_thresholds` when prompts or model changes can silently alter tool usage.
+
+Typical checks:
+- tool arguments stay well-formed after prompt/model changes
+- outbound domains stay on an allowlist
+- PII and secrets do not cross tool boundaries
+- tool-call and token budgets do not drift upward
+
+---
+
 ## 1. Tools (allow / deny)
 
 Controls which tool calls are permitted during execution.

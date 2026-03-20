@@ -4,6 +4,13 @@ Trajectly enforces six categories of behavioral contract and provides three debu
 
 Every example below uses committed fixtures and runs without API keys.
 
+These failure classes show up in real teams too:
+- support agents that must stay read-only until approval is granted
+- approval-driven workflows in procurement, finance, HR, and IT
+- tool-using copilots and RAG agents that can drift in arguments, network reach, or cost
+
+For a concrete end-to-end example, see the published [support-agent case study](https://www.trajectly.dev/case-study/testing-the-support-agent).
+
 ---
 
 ## Six categories of silent failure
