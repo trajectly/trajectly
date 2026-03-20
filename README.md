@@ -10,12 +10,6 @@ Deterministic regression testing for AI agents.
 The answer looked fine. The behavior wasn't. An agent that skips approval, leaks a secret, or calls a forbidden domain can still produce a perfectly worded final answer. Trajectly catches the behavioral regression and tells you *exactly where it broke*.
 Record once against live behavior, then replay committed fixtures deterministically in CI with no API key.
 
-## Install
-
-```bash
-pip install trajectly
-```
-
 ## 30-Second Quickstart
 
 Uses committed fixtures -- no API keys required.
@@ -37,28 +31,6 @@ python -m trajectly report
 python -m trajectly repro
 python -m trajectly shrink
 ```
-
-## How You Use Trajectly
-
-Trajectly exposes three public surfaces:
-
-### CLI
-
-The default workflow for most users. Use the CLI to record baselines, run checks, inspect reports, reproduce failures, and shrink traces.
-
-### SDK
-
-Use the SDK when you want Trajectly to instrument your agent code directly.
-
-Two SDK styles are supported:
-- Decorators: `tool`, `llm_call`, `agent_step`
-- Declarative graph: `trajectly.App`
-
-### Programmatic Evaluation API
-
-Use this when you already have trajectory events and want to evaluate them inside your own Python service, backend, or platform integration without shelling out to the CLI.
-
-Most users should start with the CLI and, when needed, the SDK. The programmatic evaluation API is mainly for embedding Trajectly into other systems.
 
 ## What Trajectly Catches
 
@@ -131,26 +103,41 @@ Trajectly is a good fit for agents that can look correct while doing the wrong t
 - **Approval-driven workflows** -- procurement, finance, HR, and IT operations agents where required steps, ordering, and one-time approvals matter.
 - **Tool-using copilots and RAG agents** -- validate tool arguments after model or prompt changes, block forbidden tools or domains, and catch hidden cost regressions.
 
-## How You Debug Failures
+## Default Workflow
 
-Every failure comes with three tools:
+For most teams, Trajectly is a CLI-first loop:
 
-| Tool | What it does | Command |
-|---|---|---|
-| **Witness** | Pinpoints the exact trace event where behavior diverged | Included in every report |
-| **Repro** | Replays the exact failure deterministically | `python -m trajectly repro` |
-| **Shrink** | Reduces the trace to the shortest proof (14 events -> 3) | `python -m trajectly shrink` |
+1. `record` captures a known-good baseline plus the fixtures needed for deterministic replay.
+2. `run` replays the committed fixtures and checks refinement plus contracts.
+3. `report` explains failures with the witness index and violated contract.
+4. `repro` and `shrink` replay the exact failure and minimize it to the shortest proof.
+5. The same `run` command becomes your fast deterministic CI gate.
 
-No log hunting. No guesswork. No LLM calls for evaluation.
+Initialize once, then the day-to-day flow looks like this:
 
-## Use This In Your Project
+```bash
+python -m trajectly init
+python -m trajectly record specs/my-agent.agent.yaml --project-root .
+python -m trajectly run specs/my-agent.agent.yaml --project-root .
+python -m trajectly report
+python -m trajectly repro
+python -m trajectly shrink
+```
 
-1. Add one `.agent.yaml` spec (save as `specs/support-agent-mfa-reset.agent.yaml`):
+When something fails, `report` tells you why, `repro` reruns the exact failure deterministically, and `shrink` reduces the trace to the smallest counterexample. No log hunting. No LLM calls for evaluation.
+
+See [Guide](docs/trajectly_guide.md) for the full onboarding flow, [Reference](docs/trajectly_reference.md) for CLI and schema details, and [What Trajectly Catches](docs/what_trajectly_catches.md) for deeper examples.
+
+## Add Trajectly to Your Project
+
+Start with one critical workflow. This example stays generic on purpose: swap in your own command, tool names, identifiers, and thresholds.
+
+1. Add one `.agent.yaml` spec (save as `specs/my-agent.agent.yaml`):
 
 ```yaml
 schema_version: "0.4"
-name: "support-agent-mfa-reset"
-command: "python -m support_agent.runner"
+name: "my-agent"
+command: "python -m my_agent.runner"
 workdir: .
 strict: true
 fixture_policy: by_hash
@@ -158,40 +145,38 @@ budget_thresholds:
   max_tool_calls: 6
   max_tokens: 800
 contracts:
-  config: contracts/support-agent.contracts.yaml
+  config: contracts/my-agent.contracts.yaml
 ```
 
-2. Add one `.contracts.yaml` policy (save as `contracts/support-agent.contracts.yaml`):
+2. Add one `.contracts.yaml` policy (save as `contracts/my-agent.contracts.yaml`):
 
 ```yaml
 version: v1
 tools:
-  allow: [draft_mfa_reset_request, request_human_approval, log_audit_event]
-  deny: [delete_user, disable_guardrails]
+  allow: [fetch_context, prepare_action, request_approval, log_audit_event]
+  deny: [delete_records, disable_guardrails]
 args:
-  draft_mfa_reset_request:
-    required_keys: [account_id]
+  prepare_action:
+    required_keys: [resource_id]
     fields:
-      account_id:
+      resource_id:
         type: string
-        regex: "^ACME-"
+        regex: "^RES-"
 sequence:
-  require: [tool:draft_mfa_reset_request, tool:request_human_approval]
-  at_most_once: [tool:request_human_approval]
+  require: [tool:fetch_context, tool:prepare_action, tool:request_approval]
+  at_most_once: [tool:request_approval]
   eventually: [tool:log_audit_event]
 data_leak:
   deny_pii_outbound: true
 ```
 
-3. Record, gate, debug:
+3. Initialize once, then use the three core commands:
 
 ```bash
 python -m trajectly init
-python -m trajectly record specs/support-agent-mfa-reset.agent.yaml --project-root .
-python -m trajectly run specs/support-agent-mfa-reset.agent.yaml --project-root .
+python -m trajectly record specs/my-agent.agent.yaml --project-root .
+python -m trajectly run specs/my-agent.agent.yaml --project-root .
 python -m trajectly report
-python -m trajectly repro
-python -m trajectly shrink
 ```
 
 ## CI Integration
@@ -204,7 +189,6 @@ Any CI:
 pip install trajectly
 python -m trajectly run specs/*.agent.yaml --project-root .
 python -m trajectly report --pr-comment > trajectly_pr_comment.md
-python -m trajectly sync --project-root . --endpoint https://platform.example/api/v1/sync
 ```
 
 GitHub Actions:
@@ -221,11 +205,37 @@ When a spec fails, the PR gets a death report: witness index, violated contract,
 
 See [trajectly-action](https://github.com/trajectly/trajectly-action) for full CI documentation.
 
-For platform ingestion, `python -m trajectly sync` uploads the latest run report plus portable execution trajectories to a Trajectly-compatible server endpoint. The request contract is documented in [docs/platform_sync_protocol.md](docs/platform_sync_protocol.md).
+If you need platform ingestion, `python -m trajectly sync` uploads the latest run report plus portable execution trajectories to a Trajectly-compatible server endpoint. The request contract is documented in [docs/platform_sync_protocol.md](docs/platform_sync_protocol.md).
 
-## Programmatic Evaluation API
+See [CI: GitHub Actions](docs/ci_github_actions.md) for action inputs, execution order, and artifacts.
 
-For platform, backend, or advanced integrations, use the stable import-safe evaluation API. This is the programmatic evaluation surface, not the SDK instrumentation layer:
+## Other Integration Paths
+
+### CLI
+
+The CLI is the default path already shown above. Use it to record baselines, run checks, inspect reports, reproduce failures, and shrink traces.
+
+### SDK
+
+Use the SDK when you want Trajectly to instrument agent code directly:
+
+```python
+from trajectly.sdk import agent_step, tool
+
+@tool
+def fetch_context(resource_id: str) -> dict:
+    return {"resource_id": resource_id}
+
+def run() -> None:
+    agent_step("workflow:start", {"name": "my-agent"})
+    fetch_context("RES-123")
+```
+
+Two SDK styles are supported: decorators like `tool`, `llm_call`, and `agent_step`, plus the declarative graph style `trajectly.App`. See [Reference](docs/trajectly_reference.md) for both.
+
+### Programmatic Evaluation API
+
+For platform, backend, or advanced integrations, use the stable import-safe evaluation API when you already have trajectory events and want to evaluate them inside your own Python service:
 
 ```python
 from pathlib import Path
@@ -252,8 +262,7 @@ if not verdict.passed:
 
 If you omit `baseline_events`, Trajectly evaluates execution contracts without requiring CLI baseline orchestration. Provide `baseline_events` when you want refinement checks to participate in the verdict.
 
-The supported Phase 1 import boundary for platform/server code is documented in
-[docs/platform_api_surface.md](docs/platform_api_surface.md).
+The supported Phase 1 import boundary for platform/server code is documented in [docs/platform_api_surface.md](docs/platform_api_surface.md).
 
 ## Try Merge or Die
 
@@ -264,10 +273,10 @@ Eight arena scenarios covering all six failure categories. Run them, break them,
 ## Documentation
 
 - [Guide](docs/trajectly_guide.md) -- onboarding, core concepts, TRT algorithm
-- [What Trajectly Catches](docs/what_trajectly_catches.md) -- six failure categories with full examples
-- [Contract Catalog](docs/contract_catalog.md) -- reference for all six contract dimensions
 - [Reference](docs/trajectly_reference.md) -- CLI, spec schema, SDK, programmatic evaluation API, trace schema
 - [CI: GitHub Actions](docs/ci_github_actions.md) -- action inputs, execution order, artifacts
+- [What Trajectly Catches](docs/what_trajectly_catches.md) -- six failure categories with full examples
+- [Contract Catalog](docs/contract_catalog.md) -- reference for all six contract dimensions
 - [Platform API Surface](docs/platform_api_surface.md) -- stable import boundary for platform/server integrations
 - [Platform Sync Protocol](docs/platform_sync_protocol.md) -- HTTP contract for `trajectly sync`
 - [Architecture (maintainers)](docs/architecture.md)
