@@ -37,6 +37,28 @@ python -m trajectly repro
 python -m trajectly shrink
 ```
 
+## How You Use Trajectly
+
+Trajectly exposes three public surfaces:
+
+### CLI
+
+The default workflow for most users. Use the CLI to record baselines, run checks, inspect reports, reproduce failures, and shrink traces.
+
+### SDK
+
+Use the SDK when you want Trajectly to instrument your agent code directly.
+
+Two SDK styles are supported:
+- Decorators: `tool`, `llm_call`, `agent_step`
+- Declarative graph: `trajectly.App`
+
+### Programmatic Evaluation API
+
+Use this when you already have trajectory events and want to evaluate them inside your own Python service, backend, or platform integration without shelling out to the CLI.
+
+Most users should start with the CLI and, when needed, the SDK. The programmatic evaluation API is mainly for embedding Trajectly into other systems.
+
 ## What Trajectly Catches
 
 Six categories of silent failure that correct-looking output can hide.
@@ -164,9 +186,9 @@ See [trajectly-action](https://github.com/trajectly/trajectly-action) for full C
 
 For platform ingestion, `python -m trajectly sync` uploads the latest run report plus portable execution trajectories to a Trajectly-compatible server endpoint. The request contract is documented in [docs/platform_sync_protocol.md](docs/platform_sync_protocol.md).
 
-## Python API
+## Programmatic Evaluation API
 
-For platform or server integrations, use the stable import-safe evaluation API:
+For platform, backend, or advanced integrations, use the stable import-safe evaluation API. This is the programmatic evaluation surface, not the SDK instrumentation layer:
 
 ```python
 from pathlib import Path
@@ -193,7 +215,7 @@ if not verdict.passed:
 
 If you omit `baseline_events`, Trajectly evaluates execution contracts without requiring CLI baseline orchestration. Provide `baseline_events` when you want refinement checks to participate in the verdict.
 
-The supported Phase 1 import boundary for platform code is documented in
+The supported Phase 1 import boundary for platform/server code is documented in
 [docs/platform_api_surface.md](docs/platform_api_surface.md).
 
 ## Try Merge or Die
@@ -207,9 +229,9 @@ Eight arena scenarios covering all six failure categories. Run them, break them,
 - [Guide](docs/trajectly_guide.md) -- onboarding, core concepts, TRT algorithm
 - [What Trajectly Catches](docs/what_trajectly_catches.md) -- six failure categories with full examples
 - [Contract Catalog](docs/contract_catalog.md) -- reference for all six contract dimensions
-- [Reference](docs/trajectly_reference.md) -- CLI, spec schema, SDK, trace schema
+- [Reference](docs/trajectly_reference.md) -- CLI, spec schema, SDK, programmatic evaluation API, trace schema
 - [CI: GitHub Actions](docs/ci_github_actions.md) -- action inputs, execution order, artifacts
-- [Platform API Surface](docs/platform_api_surface.md) -- supported imports and compatibility contract for `trajectly-platform`
+- [Platform API Surface](docs/platform_api_surface.md) -- stable import boundary for platform/server integrations
 - [Platform Sync Protocol](docs/platform_sync_protocol.md) -- HTTP contract for `trajectly sync`
 - [Architecture (maintainers)](docs/architecture.md)
 

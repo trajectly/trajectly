@@ -5,9 +5,14 @@ is allowed to rely on. Everything listed here is treated as a compatibility
 contract for the `0.4.x` line. Imports outside this document are considered
 internal implementation details unless another document says otherwise.
 
+Use this document when embedding Trajectly into backend, service, or platform
+code. It describes the stable programmatic evaluation API, not the SDK
+instrumentation layer. Most application developers should start with the CLI
+and, when needed, the SDK.
+
 ## Supported Imports
 
-Prefer the explicit core import path in server code:
+Prefer the explicit core import path in server or platform code:
 
 ```python
 from trajectly.core import Trajectory, Verdict, Violation, evaluate
