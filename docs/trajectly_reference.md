@@ -4,18 +4,23 @@ This is the canonical lookup reference for:
 - CLI commands
 - spec schema
 - SDK interfaces
+- programmatic evaluation API
 - trace schema
 - contracts
 
 For onboarding and troubleshooting, use [Guide](trajectly_guide.md).
+Most users start with the CLI and, when needed, the SDK. The programmatic
+evaluation API is for embedding Trajectly into backend, service, or platform
+code that already has trajectory events.
 
 ## Table of contents
 
 - [1) CLI reference](#1-cli-reference)
 - [2) Spec reference](#2-spec-reference)
 - [3) SDK reference](#3-sdk-reference)
-- [4) Trace schema reference](#4-trace-schema-reference)
-- [5) Contracts reference](#5-contracts-reference)
+- [4) Programmatic evaluation API reference](#4-programmatic-evaluation-api-reference)
+- [5) Trace schema reference](#5-trace-schema-reference)
+- [6) Contracts reference](#6-contracts-reference)
 
 ---
 
@@ -277,7 +282,9 @@ Merge semantics:
 
 ## 3) SDK reference
 
-Trajectly supports two SDK styles that share the same runtime instrumentation path.
+Trajectly supports two SDK styles that share the same runtime instrumentation
+path. Use the SDK when you want Trajectly to instrument your agent code
+directly.
 
 ### Choosing an SDK style
 
@@ -397,7 +404,64 @@ Framework adapters in `trajectly.sdk.adapters` include:
 
 ---
 
-## 4) Trace schema reference
+## 4) Programmatic evaluation API reference
+
+Use the programmatic evaluation API when you already have trajectory events and
+want to evaluate them inside your own Python process without shelling out to the
+CLI.
+
+This API does not instrument your agent code. For instrumentation, use the SDK
+above.
+
+### Supported imports
+
+```python
+from trajectly.core import Trajectory, Verdict, Violation, evaluate
+```
+
+The top-level mirror remains supported for the same symbols:
+
+```python
+from trajectly import Trajectory, Verdict, Violation, evaluate
+```
+
+### Example
+
+```python
+from pathlib import Path
+
+from trajectly.core import Trajectory, evaluate
+from trajectly.events import make_event
+
+trajectory = Trajectory(
+    events=[
+        make_event(
+            event_type="tool_called",
+            seq=1,
+            run_id="service-run",
+            rel_ms=1,
+            payload={"tool_name": "search", "input": {"args": [], "kwargs": {}}},
+        )
+    ]
+)
+
+verdict = evaluate(trajectory, Path("specs/my-agent.agent.yaml"))
+if not verdict.passed:
+    print(verdict.primary_violation)
+```
+
+### When to use it
+
+- backend or platform services that already collect trajectory events
+- custom integrations that want a Python return object instead of CLI output
+- server-side evaluation without spawning `python -m trajectly ...`
+
+For the stable compatibility contract used by `trajectly-platform`, see
+[Platform API Surface](platform_api_surface.md).
+
+---
+
+## 5) Trace schema reference
 
 Trajectly stores traces as JSONL (one event per line).
 
@@ -480,7 +544,7 @@ Portable JSON helpers:
 
 ---
 
-## 5) Contracts reference
+## 6) Contracts reference
 
 Contracts are under `contracts:` in spec YAML.
 
